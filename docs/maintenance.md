@@ -56,10 +56,13 @@ design evolution.
 Run:
 
 ```bash
-npx --yes pnpm@11.17.0 format:check
-npx --yes pnpm@11.17.0 test
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-Repository tests reject broken relative links, missing navigation documents, and
-discarded project names. Extend the tests when a new invariant can be checked
-mechanically.
+Repository tests reject broken relative links, missing navigation documents,
+missing workspace entry points, and discarded project names. Extend the tests
+when a new invariant can be checked mechanically.

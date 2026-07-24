@@ -35,19 +35,21 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [Runbooks](runbooks/) contain executable operational procedures as they are
   introduced.
 - [Load tests](load-tests/) contain k6 scenarios and measured reports.
+- [UI evidence](screenshots/) records manually verified product surfaces.
 
-## Planned ownership map
+## Ownership map
 
-| Area                 | Responsibility                                           | Primary docs                      |
-| -------------------- | -------------------------------------------------------- | --------------------------------- |
-| `apps/web`           | Public, account, organizer, scanner, and admin UI        | `DESIGN.md`, product requirements |
-| `apps/api`           | HTTP boundaries, authorization, and domain orchestration | system, domain model, security    |
-| `apps/worker`        | Outbox, expiry, notification, analytics, and retry jobs  | system, operations                |
-| `packages/contracts` | Shared request and response schemas                      | domain model, standards           |
-| `packages/database`  | Schema, migrations, locks, and seeds                     | domain model, inventory           |
-| `packages/config`    | Validated application configuration                      | security, operations              |
-| `packages/ui`        | Shared accessible UI primitives                          | `DESIGN.md`                       |
-| `infrastructure`     | Docker and Terraform                                     | operations                        |
+| Area                  | Responsibility                                           | Primary docs                      |
+| --------------------- | -------------------------------------------------------- | --------------------------------- |
+| `apps/web`            | Public, account, organizer, scanner, and admin UI        | `DESIGN.md`, product requirements |
+| `apps/api`            | HTTP boundaries, authorization, and domain orchestration | system, domain model, security    |
+| `apps/worker`         | Outbox, expiry, notification, analytics, and retry jobs  | system, operations                |
+| `packages/contracts`  | Shared request and response schemas                      | domain model, standards           |
+| `packages/database`   | Schema, migrations, locks, and seeds                     | domain model, inventory           |
+| `packages/config`     | Validated application configuration                      | security, operations              |
+| `packages/ui`         | Shared accessible UI primitives                          | `DESIGN.md`                       |
+| `packages/test-utils` | Shared deterministic test helpers                        | testing strategy                  |
+| `infrastructure`      | Docker and Terraform                                     | operations                        |
 
 Each implemented area gets a short local `README.md` that explains its boundary,
 entry points, tests, and dependencies. Do not duplicate product rules there;

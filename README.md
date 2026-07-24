@@ -5,7 +5,10 @@ management platform. Organizers publish events, customers reserve and buy
 inventory, and venue staff validate QR tickets without trusting client-side
 state.
 
-Status: specification and autonomous work queue bootstrap.
+The repository contains a runnable TypeScript monorepo with a Next.js web
+application, a NestJS API, a worker process, and shared packages. Inventory,
+payment, and ticket workflows are delivered through the dependency-aware issue
+queue.
 
 This is a public repository. Never commit secrets, credentials, personal data,
 private incident details, or production configuration. Read
@@ -23,18 +26,35 @@ Read these documents in order:
 Use [docs/product/roadmap.md](docs/product/roadmap.md) to understand delivery
 order. Use GitHub Issues as the executable dependency queue.
 
+## Run locally
+
+```bash
+corepack enable
+pnpm install
+pnpm dev
+```
+
+Open `http://127.0.0.1:3000` for the web status page. The API listens at
+`http://127.0.0.1:4000`, and the worker writes structured lifecycle events to
+standard output. Press `Ctrl+C` to stop all three applications.
+
+Node.js 24 and pnpm 11.17.0 are required. The local foundation uses safe
+defaults, so it does not require credentials or external services.
+
 ## Validate the repository
 
 ```bash
-npx --yes pnpm@11.17.0 install
-npx --yes pnpm@11.17.0 test
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-The repository test checks required documents, discarded project names, and
-broken relative links. Application commands will be added by the foundation
-slice.
+These commands format-check every file, lint and type-check each workspace,
+execute repository and unit tests, and build all applications and packages.
 
-## Planned codebase
+## Codebase
 
 ```text
 apps/
@@ -48,8 +68,8 @@ packages/
   ui/        Shared accessible UI components
   test-utils/
 infrastructure/
-  docker/    Local service support
-  terraform/ AWS infrastructure
+  docker/    Planned local service support
+  terraform/ Planned AWS infrastructure
 docs/        Product and engineering source of truth
 ```
 

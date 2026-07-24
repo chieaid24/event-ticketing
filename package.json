@@ -3,16 +3,32 @@
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test tests/repository.test.mjs",
+    "lint": "turbo run lint",
+    "test": "node --test tests/repository.test.mjs && turbo run test",
+    "typecheck": "turbo run typecheck",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.1.1",
+    "eslint": "10.8.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.7.0",
     "husky": "9.1.7",
     "lint-staged": "17.2.0",
-    "prettier": "3.9.6"
+    "prettier": "3.9.6",
+    "turbo": "2.10.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write"
