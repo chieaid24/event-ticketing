@@ -7,18 +7,18 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 
 ## Read by task
 
-| Task                            | Read first                                                       | Then read                                         |
-| ------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------- |
-| Understand product direction    | [Vision](../VISION.md)                                           | [Requirements](product/requirements.md)           |
-| Use domain terms                | [Glossary](../CONTEXT.md)                                        | [Domain model](architecture/domain-model.md)      |
-| Plan implementation order       | [Roadmap](product/roadmap.md)                                    | GitHub dependency queue                           |
-| Change inventory or checkout    | [Inventory and checkout](architecture/inventory-and-checkout.md) | [Security model](security/security-model.md)      |
-| Change API or data              | [System architecture](architecture/system.md)                    | [Domain model](architecture/domain-model.md)      |
-| Change UI                       | [Design system](../DESIGN.md)                                    | [Requirements](product/requirements.md)           |
-| Add or review tests             | [Testing strategy](testing/strategy.md)                          | [Engineering standards](engineering/standards.md) |
-| Operate or deploy               | [Runbook index](operations/runbook-index.md)                     | [System architecture](architecture/system.md)     |
-| Make a hard-to-reverse decision | [ADR guide](adr/README.md)                                       | Relevant architecture doc                         |
-| Change repository structure     | [Maintenance guide](maintenance.md)                              | [System architecture](architecture/system.md)     |
+| Task                            | Read first                                                       | Then read                                           |
+| ------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| Understand product direction    | [Vision](../VISION.md)                                           | [Requirements](product/requirements.md)             |
+| Use domain terms                | [Glossary](../CONTEXT.md)                                        | [Domain model](architecture/domain-model.md)        |
+| Plan implementation order       | [Roadmap](product/roadmap.md)                                    | GitHub dependency queue                             |
+| Change inventory or checkout    | [Inventory and checkout](architecture/inventory-and-checkout.md) | [Security model](security/security-model.md)        |
+| Change API or data              | [System architecture](architecture/system.md)                    | [Domain model](architecture/domain-model.md)        |
+| Change UI                       | [Design system](../DESIGN.md)                                    | [Requirements](product/requirements.md)             |
+| Add or review tests             | [Testing strategy](testing/strategy.md)                          | [Engineering standards](engineering/standards.md)   |
+| Operate or deploy               | [Runbook index](operations/runbook-index.md)                     | [Local infrastructure](../infrastructure/README.md) |
+| Make a hard-to-reverse decision | [ADR guide](adr/README.md)                                       | Relevant architecture doc                           |
+| Change repository structure     | [Maintenance guide](maintenance.md)                              | [System architecture](architecture/system.md)       |
 
 ## Document map
 
@@ -36,6 +36,8 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
   introduced.
 - [Load tests](load-tests/) contain k6 scenarios and measured reports.
 - [UI evidence](screenshots/) records manually verified product surfaces.
+- [Local infrastructure](../infrastructure/README.md) defines Docker service
+  startup, endpoints, and destructive reset behavior.
 
 ## Ownership map
 
@@ -49,7 +51,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 | `packages/config`     | Validated application configuration                      | security, operations              |
 | `packages/ui`         | Shared accessible UI primitives                          | `DESIGN.md`                       |
 | `packages/test-utils` | Shared deterministic test helpers                        | testing strategy                  |
-| `infrastructure`      | Docker and Terraform                                     | operations                        |
+| `infrastructure`      | Local Docker services and planned Terraform              | local infrastructure, operations  |
 
 Each implemented area gets a short local `README.md` that explains its boundary,
 entry points, tests, and dependencies. Do not duplicate product rules there;

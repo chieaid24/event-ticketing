@@ -14,7 +14,7 @@ pnpm --filter @event-ticketing/web dev
 ```
 
 Open `http://127.0.0.1:3000`. Set `API_BASE_URL` when the API does not run at
-`http://127.0.0.1:4000`.
+`http://127.0.0.1:4000`. The server validates this value during startup.
 
 The application depends on `@event-ticketing/config`,
 `@event-ticketing/contracts`, and `@event-ticketing/ui`.

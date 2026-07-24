@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/dist/**",
       "**/node_modules/**",
+      "**/src/generated/**",
     ],
   },
   eslint.configs.recommended,

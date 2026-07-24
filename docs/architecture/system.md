@@ -68,6 +68,15 @@ public browser values use `NEXT_PUBLIC_`. Production services resolve secrets
 from AWS Secrets Manager. No application reads `process.env` outside its
 configuration module.
 
+The local environment runs PostgreSQL, Redis, Mailpit, and MinIO from pinned
+container images. The API checks PostgreSQL and Redis readiness with finite
+driver and application timeouts. Liveness never depends on external services.
+
+Every API response carries a request ID. Structured request logs include the
+method, path without query parameters, response status, duration, and request
+ID. They exclude headers, cookies, query strings, dependency errors, and
+configuration values.
+
 ## Public repository boundary
 
 The source repository, pull requests, issues, Actions logs, and test artifacts

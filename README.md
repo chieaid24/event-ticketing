@@ -31,15 +31,21 @@ order. Use GitHub Issues as the executable dependency queue.
 ```bash
 corepack enable
 pnpm install
+pnpm services:up
+pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
 
 Open `http://127.0.0.1:3000` for the web status page. The API listens at
 `http://127.0.0.1:4000`, and the worker writes structured lifecycle events to
-standard output. Press `Ctrl+C` to stop all three applications.
+standard output. Mailpit listens at `http://127.0.0.1:8025`, and the MinIO
+console listens at `http://127.0.0.1:9001`. Press `Ctrl+C` to stop the
+applications, then run `pnpm services:down` to stop local dependencies.
 
-Node.js 24 and pnpm 11.17.0 are required. The local foundation uses safe
-defaults, so it does not require credentials or external services.
+Node.js 24, pnpm 11.17.0, Docker, and Docker Compose are required. The tracked
+defaults use local-only synthetic configuration and require no external
+credentials. Copy `.env.example` only when you need to override a default.
 
 ## Validate the repository
 
@@ -52,7 +58,9 @@ pnpm build
 ```
 
 These commands format-check every file, lint and type-check each workspace,
-execute repository and unit tests, and build all applications and packages.
+execute repository and unit tests, and build all applications and packages. Run
+`pnpm test:integration` while PostgreSQL and Redis are running to apply the
+migration and seed in an isolated PostgreSQL schema and Redis key prefix.
 
 ## Codebase
 
@@ -68,7 +76,7 @@ packages/
   ui/        Shared accessible UI components
   test-utils/
 infrastructure/
-  docker/    Planned local service support
+  README.md  Local PostgreSQL, Redis, Mailpit, and MinIO operations
   terraform/ Planned AWS infrastructure
 docs/        Product and engineering source of truth
 ```

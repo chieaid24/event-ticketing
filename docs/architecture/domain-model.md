@@ -14,6 +14,12 @@ absolute expiry, device summaries, and revocation.
 user to one organization role and status. Enforce one active membership per user
 and organization.
 
+The baseline migration defines customer and administrator platform roles;
+pending, active, suspended, and disabled user states; and owner, administrator,
+event manager, finance, scanner, and viewer membership roles. It constrains
+normalized email, positive organization versions, canonical slugs, unique
+organization membership, and an active membership's join timestamp.
+
 ## Venues and events
 
 Venues contain sections, rows, and seats with labels, coordinates, access
