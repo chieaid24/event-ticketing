@@ -1,4 +1,4 @@
-# SeatFlow Documentation
+# Event Ticketing Platform Documentation
 
 Use this page as the documentation and codebase entry point.
 

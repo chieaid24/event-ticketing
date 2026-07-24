@@ -52,7 +52,7 @@ test("required project documents exist", async () => {
 
 test("project documents do not use discarded names", async () => {
   const files = await markdownFiles(root);
-  const discardedName = /\bagent[ -]trail\b/i;
+  const discardedName = /\b(?:agent[ -]trail|seat ?flow)\b/i;
 
   for (const file of files) {
     const content = await readFile(file, "utf8");

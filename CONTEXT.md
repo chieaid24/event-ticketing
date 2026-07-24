@@ -1,4 +1,4 @@
-# SeatFlow Ubiquitous Language
+# Event Ticketing Platform Ubiquitous Language
 
 Use these terms in code, API contracts, issues, and documentation.
 

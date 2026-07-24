@@ -1,8 +1,9 @@
-# SeatFlow
+# Event Ticketing Platform
 
-SeatFlow is a production-style event ticketing and venue management platform.
-Organizers publish events, customers reserve and buy inventory, and venue staff
-validate QR tickets without trusting client-side state.
+Event Ticketing Platform is a production-style event ticketing and venue
+management platform. Organizers publish events, customers reserve and buy
+inventory, and venue staff validate QR tickets without trusting client-side
+state.
 
 Status: specification and autonomous work queue bootstrap.
 

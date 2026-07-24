@@ -1,7 +1,7 @@
 # Security Model
 
-SeatFlow accepts untrusted browser input, organizer content, webhook requests,
-uploads, QR bearer values, and repository contributions.
+Event Ticketing Platform accepts untrusted browser input, organizer content,
+webhook requests, uploads, QR bearer values, and repository contributions.
 
 ## Trust boundaries
 
@@ -22,7 +22,8 @@ rate limit sensitive routes.
 
 - Verify Stripe signatures against the raw body and deduplicate provider event
   IDs.
-- Use Stripe-hosted components so card data never crosses SeatFlow servers.
+- Use Stripe-hosted components so card data never crosses Event Ticketing
+  Platform servers.
 - Validate upload bytes, dimensions, MIME type, extension, and size. Re-encode
   allowed images and avoid unsanitized SVG.
 - Use constrained presigned object keys and short expirations.

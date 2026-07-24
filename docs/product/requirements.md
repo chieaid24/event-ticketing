@@ -1,6 +1,6 @@
 # Product Requirements
 
-SeatFlow supports four actors through one event lifecycle.
+Event Ticketing Platform supports four actors through one event lifecycle.
 
 ## Customer
 

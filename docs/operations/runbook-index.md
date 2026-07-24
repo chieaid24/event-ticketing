@@ -1,7 +1,7 @@
 # Operations and Runbooks
 
-SeatFlow must be operable through documented checks, signals, and recovery
-steps.
+Event Ticketing Platform must be operable through documented checks, signals,
+and recovery steps.
 
 ## Local development
 
