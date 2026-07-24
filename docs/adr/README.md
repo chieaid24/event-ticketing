@@ -27,3 +27,8 @@ waiting room, and AWS deployment.
 Do not pre-write an accepted ADR before the implementation issue evaluates its
 trade-offs. Link accepted ADRs from the relevant architecture document and
 issue.
+
+## Accepted decisions
+
+- [ADR 0001: Monorepo and service boundaries](0001-monorepo-and-service-boundaries.md)
+- [ADR 0002: PostgreSQL transactional outbox](0002-postgresql-transactional-outbox.md)

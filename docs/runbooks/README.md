@@ -6,3 +6,7 @@ failure mode. Start from the requirements in
 
 Do not put secrets, private endpoints, customer data, or undisclosed incident
 details in this public repository.
+
+## Available runbooks
+
+- [Inspect and redeliver outbox dead letters](outbox-dead-letters.md)

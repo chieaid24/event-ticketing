@@ -1,11 +1,13 @@
 # Worker
 
-`@event-ticketing/worker` hosts retryable asynchronous jobs. It will process
-hold expiry, outbox delivery, notifications, ticket artifacts, and aggregates.
-It does not accept HTTP requests or decide inventory state.
+`@event-ticketing/worker` claims and processes PostgreSQL outbox events. It
+hosts retryable asynchronous jobs for hold expiry, notifications, ticket
+artifacts, and aggregates. It does not accept HTTP requests or decide inventory
+state.
 
-The foundation runtime starts as a long-lived process, writes structured startup
-and shutdown events, and handles `SIGINT` and `SIGTERM`.
+The runtime materializes due schedules, claims events with expiring leases,
+executes registered handlers, and records completion receipts. It writes
+structured cycle metrics without payloads or raw exception messages.
 
 ## Run
 
@@ -13,12 +15,23 @@ and shutdown events, and handles `SIGINT` and `SIGTERM`.
 pnpm --filter @event-ticketing/worker dev
 ```
 
-Set `WORKER_SHUTDOWN_TIMEOUT_MS` to bound shutdown. The worker also validates
-`DATABASE_URL`, `REDIS_URL`, and `LOG_LEVEL` before it starts. Invalid startup
-configuration writes one value-free JSON failure event.
+Set `WORKER_SHUTDOWN_TIMEOUT_MS` to bound shutdown. A graceful shutdown releases
+unprocessed claims; a forced shutdown leaves leases for another worker to
+recover. Configure polling with:
 
-The application depends on `@event-ticketing/config`. Database and queue
-connections land with their owning worker features.
+- `WORKER_OUTBOX_BATCH_SIZE`, default `10`
+- `WORKER_OUTBOX_LEASE_MS`, default `30000`
+- `WORKER_OUTBOX_POLL_INTERVAL_MS`, default `1000`
+- `WORKER_OUTBOX_RETRY_BASE_MS`, default `1000`
+- `WORKER_OUTBOX_RETRY_MAXIMUM_MS`, default `300000`
+
+The worker validates these values with `DATABASE_URL`, `REDIS_URL`, and
+`LOG_LEVEL` before startup. Invalid startup configuration writes one value-free
+JSON failure event.
+
+The application depends on `@event-ticketing/config` and
+`@event-ticketing/database`. Register handlers in `src/handlers.ts`. Each
+provider handler must use the event ID passed as `idempotencyKey`.
 
 ## Test
 
@@ -27,4 +40,4 @@ pnpm --filter @event-ticketing/worker test
 ```
 
 See the [system architecture](../../docs/architecture/system.md) and
-[runbook index](../../docs/operations/runbook-index.md).
+[dead-letter runbook](../../docs/runbooks/outbox-dead-letters.md).

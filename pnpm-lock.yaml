@@ -129,6 +129,9 @@ importers:
       "@event-ticketing/config":
         specifier: workspace:*
         version: link:../../packages/config
+      "@event-ticketing/database":
+        specifier: workspace:*
+        version: link:../../packages/database
     devDependencies:
       tsx:
         specifier: 4.23.1

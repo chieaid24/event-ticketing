@@ -39,6 +39,12 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [Local infrastructure](../infrastructure/README.md) defines Docker service
   startup, endpoints, and destructive reset behavior.
 
+## Implemented decisions and runbooks
+
+- [ADR 0001: Monorepo and service boundaries](adr/0001-monorepo-and-service-boundaries.md)
+- [ADR 0002: PostgreSQL transactional outbox](adr/0002-postgresql-transactional-outbox.md)
+- [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
+
 ## Ownership map
 
 | Area                  | Responsibility                                           | Primary docs                      |

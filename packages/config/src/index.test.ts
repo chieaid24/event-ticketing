@@ -25,6 +25,11 @@ describe("application configuration", () => {
       databaseUrl:
         "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public",
       logLevel: "info",
+      outboxBatchSize: 10,
+      outboxLeaseMs: 30_000,
+      outboxPollIntervalMs: 1_000,
+      outboxRetryBaseMs: 1_000,
+      outboxRetryMaximumMs: 300_000,
       redisUrl: "redis://127.0.0.1:6379",
       shutdownTimeoutMs: 10_000,
     });
@@ -67,6 +72,32 @@ describe("application configuration", () => {
     ).toThrow(
       expect.objectContaining({
         variables: ["DATABASE_URL", "REDIS_URL"],
+      })
+    );
+  });
+
+  it("names invalid outbox settings", () => {
+    expect(() =>
+      loadWorkerConfig({
+        WORKER_OUTBOX_BATCH_SIZE: "0",
+        WORKER_OUTBOX_LEASE_MS: "999",
+      })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["WORKER_OUTBOX_BATCH_SIZE", "WORKER_OUTBOX_LEASE_MS"],
+      })
+    );
+  });
+
+  it("requires the retry maximum to cover the base delay", () => {
+    expect(() =>
+      loadWorkerConfig({
+        WORKER_OUTBOX_RETRY_BASE_MS: "2000",
+        WORKER_OUTBOX_RETRY_MAXIMUM_MS: "1000",
+      })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["WORKER_OUTBOX_RETRY_MAXIMUM_MS"],
       })
     );
   });
