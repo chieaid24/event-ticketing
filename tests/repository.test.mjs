@@ -1,0 +1,100 @@
+import assert from "node:assert/strict";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { dirname, extname, join, relative, resolve } from "node:path";
+import test from "node:test";
+
+const root = resolve(import.meta.dirname, "..");
+const requiredFiles = [
+  "README.md",
+  "SECURITY.md",
+  "VISION.md",
+  "CONTEXT.md",
+  "DESIGN.md",
+  "docs/README.md",
+  "docs/maintenance.md",
+  "docs/product/requirements.md",
+  "docs/product/roadmap.md",
+  "docs/architecture/system.md",
+  "docs/architecture/domain-model.md",
+  "docs/architecture/inventory-and-checkout.md",
+  "docs/engineering/standards.md",
+  "docs/security/security-model.md",
+  "docs/testing/strategy.md",
+  "docs/operations/runbook-index.md",
+  "docs/adr/README.md",
+];
+
+async function markdownFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    if (entry.name === "node_modules" || entry.name === ".git") {
+      continue;
+    }
+
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await markdownFiles(path)));
+    } else if (extname(entry.name) === ".md") {
+      files.push(path);
+    }
+  }
+
+  return files;
+}
+
+test("required project documents exist", async () => {
+  for (const file of requiredFiles) {
+    assert.equal((await stat(join(root, file))).isFile(), true, file);
+  }
+});
+
+test("project documents do not use discarded names", async () => {
+  const files = await markdownFiles(root);
+  const discardedName = /\bagent[ -]trail\b/i;
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    assert.doesNotMatch(content, discardedName, relative(root, file));
+  }
+});
+
+test("project documents use printable ASCII", async () => {
+  const files = await markdownFiles(root);
+  const nonAscii = /[^\x09\x0a\x0d\x20-\x7e]/;
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    assert.doesNotMatch(content, nonAscii, relative(root, file));
+  }
+});
+
+test("relative Markdown links resolve", async () => {
+  const files = await markdownFiles(root);
+  const failures = [];
+  const linkPattern = /\[[^\]]+\]\(([^)]+)\)/g;
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    for (const match of content.matchAll(linkPattern)) {
+      const target = match[1].split("#", 1)[0];
+      if (
+        !target ||
+        target.startsWith("http") ||
+        target.startsWith("mailto:")
+      ) {
+        continue;
+      }
+
+      const path = resolve(dirname(file), decodeURIComponent(target));
+      try {
+        await stat(path);
+      } catch {
+        failures.push(`${relative(root, file)} -> ${target}`);
+      }
+    }
+  }
+
+  assert.deepEqual(failures, []);
+});

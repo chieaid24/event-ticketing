@@ -1,0 +1,2 @@
+npx --yes pnpm@11.17.0 exec lint-staged
+npx --yes pnpm@11.17.0 test
