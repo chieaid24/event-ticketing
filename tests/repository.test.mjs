@@ -22,6 +22,15 @@ const requiredFiles = [
   "docs/testing/strategy.md",
   "docs/operations/runbook-index.md",
   "docs/adr/README.md",
+  "docs/adr/0001-monorepo-and-service-boundaries.md",
+  "apps/web/README.md",
+  "apps/api/README.md",
+  "apps/worker/README.md",
+  "packages/contracts/README.md",
+  "packages/database/README.md",
+  "packages/config/README.md",
+  "packages/ui/README.md",
+  "packages/test-utils/README.md",
 ];
 
 async function markdownFiles(directory) {
@@ -46,6 +55,28 @@ async function markdownFiles(directory) {
 
 test("required project documents exist", async () => {
   for (const file of requiredFiles) {
+    assert.equal((await stat(join(root, file))).isFile(), true, file);
+  }
+});
+
+test("workspace entry points exist", async () => {
+  const requiredEntryPoints = [
+    "apps/web/package.json",
+    "apps/web/src/app/page.tsx",
+    "apps/api/package.json",
+    "apps/api/src/main.ts",
+    "apps/worker/package.json",
+    "apps/worker/src/main.ts",
+    "packages/contracts/package.json",
+    "packages/database/package.json",
+    "packages/config/package.json",
+    "packages/ui/package.json",
+    "packages/test-utils/package.json",
+    "turbo.json",
+    "tsconfig.base.json",
+  ];
+
+  for (const file of requiredEntryPoints) {
     assert.equal((await stat(join(root, file))).isFile(), true, file);
   }
 });

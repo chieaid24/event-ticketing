@@ -60,7 +60,7 @@ production capacity.
 
 ## Repository tests
 
-`pnpm test` initially validates documentation structure, naming, and links.
-Foundation work expands the same CI `test` job to formatting, lint, type checks,
-unit and integration tests, build, migrations, OpenAPI, security scans, and
-selected smoke tests.
+`pnpm test` validates documentation structure, naming, links, and workspace unit
+behavior. The required CI `test` job also runs formatting, lint, strict type
+checks, builds, and secret scanning. Later slices add migrations, OpenAPI,
+integration tests, security tests, and selected smoke tests to the same gate.

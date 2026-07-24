@@ -2,6 +2,8 @@
 
 Event Ticketing Platform uses a TypeScript monorepo with independently
 deployable web, API, and worker applications.
+[ADR 0001](../adr/0001-monorepo-and-service-boundaries.md) records the boundary
+and tooling decision.
 
 ```text
 Browser and scanner
@@ -25,6 +27,8 @@ Browser and scanner
   helpers, and isolated raw SQL repositories for locking-sensitive operations.
 - `packages/config` parses and validates environment variables once at startup.
 - `packages/ui` provides accessible shared UI patterns.
+- `packages/test-utils` provides deterministic helpers for tests that coordinate
+  concurrent work.
 
 Keep public contracts independent from database entities. Keep provider SDKs
 behind interfaces. Keep raw SQL parameterized and isolated.
