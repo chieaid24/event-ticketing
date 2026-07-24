@@ -1,18 +1,19 @@
-# SeatFlow Vision
+# Event Ticketing Platform Vision
 
-SeatFlow lets an organizer publish an event, lets a customer reserve and buy
-assigned or general-admission inventory, and lets venue staff validate a QR
-ticket exactly once. The system must preserve inventory, payment, refund, and
-ticket correctness when requests race, repeat, arrive late, or fail midway.
+Event Ticketing Platform lets an organizer publish an event, lets a customer
+reserve and buy assigned or general-admission inventory, and lets venue staff
+validate a QR ticket exactly once. The system must preserve inventory, payment,
+refund, and ticket correctness when requests race, repeat, arrive late, or fail
+midway.
 
 This file is the standing direction for the project. Every issue, decision, and
 pull request must align with it.
 
 ## Public repository
 
-SeatFlow is developed in public. Treat source, history, issues, pull requests,
-workflow logs, artifacts, screenshots, fixtures, and load reports as
-internet-visible. Use synthetic data and safe placeholders. Store credentials
+Event Ticketing Platform is developed in public. Treat source, history, issues,
+pull requests, workflow logs, artifacts, screenshots, fixtures, and load reports
+as internet-visible. Use synthetic data and safe placeholders. Store credentials
 and production configuration outside GitHub. Follow [SECURITY.md](SECURITY.md),
 rotate any exposed value immediately, and use private vulnerability reporting
 for sensitive findings.

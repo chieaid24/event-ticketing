@@ -1,8 +1,8 @@
 # Delivery Roadmap
 
-Each slice leaves SeatFlow runnable, adds tests with behavior, and updates the
-owning documentation. GitHub blocked-by relationships, not this page, determine
-the live ready set.
+Each slice leaves Event Ticketing Platform runnable, adds tests with behavior,
+and updates the owning documentation. GitHub blocked-by relationships, not this
+page, determine the live ready set.
 
 ## Phase 0: Foundation
 

@@ -1,7 +1,7 @@
 # System Architecture
 
-SeatFlow uses a TypeScript monorepo with independently deployable web, API, and
-worker applications.
+Event Ticketing Platform uses a TypeScript monorepo with independently
+deployable web, API, and worker applications.
 
 ```text
 Browser and scanner

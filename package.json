@@ -1,5 +1,5 @@
 {
-  "name": "seatflow",
+  "name": "event-ticketing-platform",
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@11.17.0",

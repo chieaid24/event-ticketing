@@ -1,13 +1,14 @@
-# SeatFlow Design System
+# Event Ticketing Platform Design System
 
 Every agent changing frontend behavior reads and follows this file. Change the
 system through a pull request instead of inventing feature-specific styles.
 
 ## Register
 
-SeatFlow is a product interface. Design serves fast, legible decisions across
-event discovery, checkout, venue operations, and dense organizer workflows.
-Marketing surfaces may be expressive, but they use the same tokens.
+Event Ticketing Platform is a product interface. Design serves fast, legible
+decisions across event discovery, checkout, venue operations, and dense
+organizer workflows. Marketing surfaces may be expressive, but they use the same
+tokens.
 
 ## Voice and tone
 
