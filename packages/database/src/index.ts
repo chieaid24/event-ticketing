@@ -2,6 +2,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "./generated/prisma/client.js";
 
+export * from "./outbox.js";
+
 export interface DatabaseConnection {
   connect(): Promise<void>;
   disconnect(): Promise<void>;

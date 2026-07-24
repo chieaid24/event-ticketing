@@ -3,7 +3,8 @@
 Event Ticketing Platform uses a TypeScript monorepo with independently
 deployable web, API, and worker applications.
 [ADR 0001](../adr/0001-monorepo-and-service-boundaries.md) records the boundary
-and tooling decision.
+and tooling decision. [ADR 0002](../adr/0002-postgresql-transactional-outbox.md)
+records durable asynchronous delivery and retry semantics.
 
 ```text
 Browser and scanner
@@ -53,9 +54,17 @@ Database transactions enforce inventory and order invariants. Redis holds
 expiring mirrors, rate limits, queue state, caches, and BullMQ data. Redis loss
 must not make sold inventory available.
 
-Commit an outbox event in the same transaction as domain state. Workers claim
-events with row locks and `SKIP LOCKED`, retry with bounded exponential backoff,
-and retain dead-letter failures for operators.
+Commit an outbox event in the same transaction as domain state. The database
+package exposes `enqueueOutboxEvent` for an existing transaction. Workers claim
+due events with row locks and `SKIP LOCKED`, set expiring leases, retry with
+bounded exponential backoff, and retain dead-letter failures for operators.
+Delayed events use `available_at`. Recurring schedules materialize one uniquely
+keyed event per scheduled time.
+
+Delivery is at least once. A durable handler receipt suppresses a completed
+redelivery, and every provider handler must use the event ID as its idempotency
+key. Redis may wake or coordinate workers later, but PostgreSQL remains the
+outbox authority.
 
 Every externally retried high-impact mutation uses an actor-scoped idempotency
 key and normalized request hash. Reusing one key with different input returns a

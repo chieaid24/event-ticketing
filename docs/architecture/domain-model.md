@@ -84,3 +84,19 @@ reserved_quantity + sold_quantity <= capacity
 
 Use database time for expiry comparisons. Persist pricing and event-seat
 snapshots rather than reconstructing history from mutable configuration.
+
+## Outbox records
+
+`outbox_events` store a topic, JSON payload, optional aggregate reference,
+optional deduplication key, availability time, bounded attempt count, lease,
+stable error code, and explicit status. Pending and processing events have no
+terminal timestamp. Completed events have `completed_at`. Dead-letter events
+have `dead_lettered_at` and an error code.
+
+`outbox_handler_receipts` record one completed handler per event. A worker skips
+handler execution when the receipt already exists. `outbox_schedules` store an
+interval and next run time; materialization creates a unique event for each
+schedule and scheduled time.
+
+See [ADR 0002](../adr/0002-postgresql-transactional-outbox.md) for delivery and
+recovery semantics.

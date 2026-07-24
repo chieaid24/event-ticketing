@@ -78,9 +78,37 @@ try {
       "2026-01-01T00:00:00.000Z",
     ]
   );
+  await client.query(
+    `
+      INSERT INTO "outbox_events" (
+        "topic",
+        "payload",
+        "aggregate_type",
+        "aggregate_id",
+        "deduplication_key",
+        "available_at"
+      )
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6)
+      ON CONFLICT ("deduplication_key") DO NOTHING
+    `,
+    [
+      "organization.created",
+      JSON.stringify({
+        organizationId: "22222222-2222-4222-8222-222222222222",
+      }),
+      "organization",
+      "22222222-2222-4222-8222-222222222222",
+      "seed:organization.created:22222222-2222-4222-8222-222222222222",
+      "2026-01-01T00:00:00.000Z",
+    ]
+  );
   await client.query("COMMIT");
   process.stdout.write(
-    `${JSON.stringify({ event: "database.seed.completed", records: 3 })}\n`
+    `${JSON.stringify({
+      domainRecords: 3,
+      event: "database.seed.completed",
+      outboxEvents: 1,
+    })}\n`
   );
 } catch (error) {
   await client.query("ROLLBACK");

@@ -68,6 +68,10 @@ feature lands:
 Each runbook states trigger, impact, prerequisites, exact checks, mitigation,
 verification, rollback, escalation, and evidence to retain.
 
+Available runbooks:
+
+- [Inspect and redeliver outbox dead letters](../runbooks/outbox-dead-letters.md)
+
 ## Recovery targets
 
 Start with a 15-minute recovery point objective and a two-hour recovery time

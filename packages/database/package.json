@@ -16,8 +16,8 @@
     "db:seed": "prisma db seed --config prisma.config.ts",
     "lint": "eslint src",
     "test": "vitest run src",
-    "test:integration": "node scripts/run-integration-tests.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "test:integration": "tsx scripts/run-integration-tests.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.scripts.json"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.9.0",

@@ -45,6 +45,15 @@ enum MembershipStatus {
   @@map("membership_status")
 }
 
+enum OutboxStatus {
+  PENDING     @map("pending")
+  PROCESSING  @map("processing")
+  COMPLETED   @map("completed")
+  DEAD_LETTER @map("dead_letter")
+
+  @@map("outbox_status")
+}
+
 model User {
   id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String                   @unique @db.VarChar(320)
@@ -89,4 +98,62 @@ model OrganizationMembership {
   @@unique([organizationId, userId])
   @@index([userId, status])
   @@map("organization_memberships")
+}
+
+model OutboxSchedule {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String        @unique @db.VarChar(120)
+  topic           String        @db.VarChar(120)
+  payload         Json
+  aggregateType   String?       @map("aggregate_type") @db.VarChar(80)
+  aggregateId     String?       @map("aggregate_id") @db.Uuid
+  intervalSeconds Int           @map("interval_seconds")
+  nextRunAt       DateTime      @map("next_run_at") @db.Timestamptz(6)
+  maxAttempts     Int           @default(8) @map("max_attempts")
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  events          OutboxEvent[]
+
+  @@index([nextRunAt, id], map: "outbox_schedules_due_idx")
+  @@map("outbox_schedules")
+}
+
+model OutboxEvent {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topic            String                @db.VarChar(120)
+  payload          Json
+  aggregateType    String?               @map("aggregate_type") @db.VarChar(80)
+  aggregateId      String?               @map("aggregate_id") @db.Uuid
+  deduplicationKey String?               @unique @map("deduplication_key") @db.VarChar(200)
+  scheduleId       String?               @map("schedule_id") @db.Uuid
+  scheduledFor     DateTime?             @map("scheduled_for") @db.Timestamptz(6)
+  status           OutboxStatus          @default(PENDING)
+  availableAt      DateTime              @default(now()) @map("available_at") @db.Timestamptz(6)
+  attemptCount     Int                   @default(0) @map("attempt_count")
+  maxAttempts      Int                   @default(8) @map("max_attempts")
+  lockedBy         String?               @map("locked_by") @db.VarChar(200)
+  lockedUntil      DateTime?             @map("locked_until") @db.Timestamptz(6)
+  lastErrorCode    String?               @map("last_error_code") @db.VarChar(80)
+  completedAt      DateTime?             @map("completed_at") @db.Timestamptz(6)
+  deadLetteredAt   DateTime?             @map("dead_lettered_at") @db.Timestamptz(6)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  schedule         OutboxSchedule?       @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  handlerReceipt   OutboxHandlerReceipt?
+
+  @@unique([scheduleId, scheduledFor])
+  @@index([availableAt, createdAt, id], map: "outbox_events_ready_idx")
+  @@index([lockedUntil, id], map: "outbox_events_expired_claim_idx")
+  @@index([deadLetteredAt, id], map: "outbox_events_dead_letter_idx")
+  @@map("outbox_events")
+}
+
+model OutboxHandlerReceipt {
+  eventId     String      @id @map("event_id") @db.Uuid
+  handlerName String      @map("handler_name") @db.VarChar(120)
+  completedAt DateTime    @default(now()) @map("completed_at") @db.Timestamptz(6)
+  event       OutboxEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("outbox_handler_receipts")
 }

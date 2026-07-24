@@ -9,16 +9,21 @@ stop startup through a Zod validation error.
 
 ## Environment variables
 
-| Variable                     | Default                    | Consumer    |
-| ---------------------------- | -------------------------- | ----------- |
-| `API_BASE_URL`               | `http://127.0.0.1:4000`    | web         |
-| `API_HOST`                   | `127.0.0.1`                | API         |
-| `API_PORT`                   | `4000`                     | API         |
-| `API_DEPENDENCY_TIMEOUT_MS`  | `2000`                     | API         |
-| `DATABASE_URL`               | local PostgreSQL container | API, worker |
-| `LOG_LEVEL`                  | `info`                     | API, worker |
-| `REDIS_URL`                  | `redis://127.0.0.1:6379`   | API, worker |
-| `WORKER_SHUTDOWN_TIMEOUT_MS` | `10000`                    | worker      |
+| Variable                         | Default                    | Consumer    |
+| -------------------------------- | -------------------------- | ----------- |
+| `API_BASE_URL`                   | `http://127.0.0.1:4000`    | web         |
+| `API_HOST`                       | `127.0.0.1`                | API         |
+| `API_PORT`                       | `4000`                     | API         |
+| `API_DEPENDENCY_TIMEOUT_MS`      | `2000`                     | API         |
+| `DATABASE_URL`                   | local PostgreSQL container | API, worker |
+| `LOG_LEVEL`                      | `info`                     | API, worker |
+| `REDIS_URL`                      | `redis://127.0.0.1:6379`   | API, worker |
+| `WORKER_SHUTDOWN_TIMEOUT_MS`     | `10000`                    | worker      |
+| `WORKER_OUTBOX_BATCH_SIZE`       | `10`                       | worker      |
+| `WORKER_OUTBOX_LEASE_MS`         | `30000`                    | worker      |
+| `WORKER_OUTBOX_POLL_INTERVAL_MS` | `1000`                     | worker      |
+| `WORKER_OUTBOX_RETRY_BASE_MS`    | `1000`                     | worker      |
+| `WORKER_OUTBOX_RETRY_MAXIMUM_MS` | `300000`                   | worker      |
 
 Invalid configuration throws `ConfigurationError`. The error names invalid
 variables without copying their values into the message.

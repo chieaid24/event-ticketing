@@ -9,6 +9,12 @@ driver adapter. The factory applies finite connection timeouts and bounded pool
 defaults. Import `withDatabaseConnection` when an operation owns a generic
 connection lifecycle.
 
+Import `createDatabasePool` and `withDatabaseTransaction` for raw,
+locking-sensitive repositories. Call `enqueueOutboxEvent` with the active
+transaction to commit domain state and asynchronous work atomically. Create an
+`OutboxRepository` for worker claims, retries, schedules, completion receipts,
+and metrics.
+
 ## Migrate and seed
 
 Start PostgreSQL, then apply the tracked migration and synthetic seed:
@@ -23,9 +29,13 @@ The seed upserts one `owner@example.test` user, one example organization, and
 one active owner membership with stable UUIDs. It creates no usable password.
 Running the seed again produces the same three logical records.
 
-The baseline enforces normalized email, organization slug and version checks,
-one membership per user and organization, explicit role and status enums, and
-active-membership join timestamps.
+The migrations enforce normalized email, organization slug and version checks,
+one membership per user and organization, explicit role and status enums,
+active-membership join timestamps, and outbox state-dependent fields.
+
+The seed transaction upserts three domain records and one deduplicated
+`organization.created` event. Running it again preserves the same four logical
+records.
 
 ## Integration test
 
@@ -33,9 +43,12 @@ active-membership join timestamps.
 pnpm test:integration
 ```
 
-The runner creates a unique PostgreSQL schema and Redis key prefix, applies the
-migration, runs the seed twice, verifies record counts and Redis access, then
-removes both scopes. `DATABASE_URL` and `REDIS_URL` default to the local
+The runner creates a unique PostgreSQL schema and Redis key prefix, applies
+migrations, and runs the seed twice. It verifies atomic rollback and commit,
+concurrent `SKIP LOCKED` claims, delayed work, bounded dead-letter transitions,
+lease recovery, graceful claim release, durable receipts, schedule
+materialization, metrics, and Redis isolation. It removes both scopes in a
+`finally` cleanup. `DATABASE_URL` and `REDIS_URL` default to the local
 containers.
 
 ## Test
@@ -45,4 +58,4 @@ pnpm --filter @event-ticketing/database test
 ```
 
 See the [domain model](../../docs/architecture/domain-model.md) and
-[inventory architecture](../../docs/architecture/inventory-and-checkout.md).
+[transactional outbox ADR](../../docs/adr/0002-postgresql-transactional-outbox.md).

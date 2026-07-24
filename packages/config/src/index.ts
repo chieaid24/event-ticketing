@@ -45,17 +45,47 @@ const webConfigSchema = z.object({
     .transform((url) => url.replace(/\/$/, "")),
 });
 
-const workerConfigSchema = z.object({
-  databaseUrl: databaseUrlSchema.default(localDatabaseUrl),
-  logLevel: logLevelSchema,
-  redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
-  shutdownTimeoutMs: z.coerce
-    .number()
-    .int()
-    .min(100)
-    .max(60_000)
-    .default(10_000),
-});
+const workerConfigSchema = z
+  .object({
+    databaseUrl: databaseUrlSchema.default(localDatabaseUrl),
+    logLevel: logLevelSchema,
+    outboxBatchSize: z.coerce.number().int().min(1).max(100).default(10),
+    outboxLeaseMs: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(3_600_000)
+      .default(30_000),
+    outboxPollIntervalMs: z.coerce
+      .number()
+      .int()
+      .min(50)
+      .max(60_000)
+      .default(1_000),
+    outboxRetryBaseMs: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(3_600_000)
+      .default(1_000),
+    outboxRetryMaximumMs: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(86_400_000)
+      .default(300_000),
+    redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
+    shutdownTimeoutMs: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(60_000)
+      .default(10_000),
+  })
+  .refine((config) => config.outboxRetryMaximumMs >= config.outboxRetryBaseMs, {
+    message: "must be greater than or equal to the retry base",
+    path: ["outboxRetryMaximumMs"],
+  });
 
 export type ApiConfig = z.infer<typeof apiConfigSchema>;
 export type WebConfig = z.infer<typeof webConfigSchema>;
@@ -150,12 +180,22 @@ export function loadWorkerConfig(
     {
       databaseUrl: environment["DATABASE_URL"],
       logLevel: environment["LOG_LEVEL"],
+      outboxBatchSize: environment["WORKER_OUTBOX_BATCH_SIZE"],
+      outboxLeaseMs: environment["WORKER_OUTBOX_LEASE_MS"],
+      outboxPollIntervalMs: environment["WORKER_OUTBOX_POLL_INTERVAL_MS"],
+      outboxRetryBaseMs: environment["WORKER_OUTBOX_RETRY_BASE_MS"],
+      outboxRetryMaximumMs: environment["WORKER_OUTBOX_RETRY_MAXIMUM_MS"],
       redisUrl: environment["REDIS_URL"],
       shutdownTimeoutMs: environment["WORKER_SHUTDOWN_TIMEOUT_MS"],
     },
     {
       databaseUrl: "DATABASE_URL",
       logLevel: "LOG_LEVEL",
+      outboxBatchSize: "WORKER_OUTBOX_BATCH_SIZE",
+      outboxLeaseMs: "WORKER_OUTBOX_LEASE_MS",
+      outboxPollIntervalMs: "WORKER_OUTBOX_POLL_INTERVAL_MS",
+      outboxRetryBaseMs: "WORKER_OUTBOX_RETRY_BASE_MS",
+      outboxRetryMaximumMs: "WORKER_OUTBOX_RETRY_MAXIMUM_MS",
       redisUrl: "REDIS_URL",
       shutdownTimeoutMs: "WORKER_SHUTDOWN_TIMEOUT_MS",
     }

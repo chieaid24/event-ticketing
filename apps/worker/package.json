@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@event-ticketing/config": "workspace:*"
+    "@event-ticketing/config": "workspace:*",
+    "@event-ticketing/database": "workspace:*"
   },
   "devDependencies": {
     "tsx": "4.23.1"
