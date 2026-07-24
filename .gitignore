@@ -1,0 +1,18 @@
+# Dependencies and builds
+node_modules/
+.turbo/
+.next/
+dist/
+coverage/
+
+# Environment and local state
+.env
+.env.*
+!.env.example
+*.log
+
+# Agent workspaces
+CLAUDE.md
+AGENTS.md
+.worktrees/
+
