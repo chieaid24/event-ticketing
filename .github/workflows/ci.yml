@@ -13,6 +13,9 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v7
         with:
