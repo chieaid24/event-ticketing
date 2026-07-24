@@ -21,7 +21,7 @@
     "smoke:api": "node scripts/smoke-api.mjs",
     "test": "node --test tests/repository.test.mjs && turbo run test",
     "test:integration": "pnpm --filter @event-ticketing/database test:integration",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "pnpm db:generate && turbo run typecheck",
     "prepare": "husky"
   },
   "devDependencies": {

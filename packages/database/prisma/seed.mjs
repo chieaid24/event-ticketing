@@ -1,10 +1,8 @@
 import pg from "pg";
 
-const databaseUrl = process.env["DATABASE_URL"];
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required for database seeding.");
-}
+const localDatabaseUrl =
+  "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public";
+const databaseUrl = process.env["DATABASE_URL"] ?? localDatabaseUrl;
 
 const parsedUrl = new URL(databaseUrl);
 const schema = parsedUrl.searchParams.get("schema") ?? "public";
