@@ -66,8 +66,8 @@ Agents perform all repository work through the dependency-aware GitHub Issues
 queue.
 
 - Label work `afk` by default. An agent plans, implements, tests, documents,
-  opens a pull request, fixes CI, squash-merges, and cleans up without waiting
-  for routine human review.
+  opens a pull request, fixes CI, merges with a merge commit, and cleans up
+  without waiting for routine human review.
 - Use `hitl` only when a person must provide credentials, approve external
   spending, make a legal or financial policy decision, or authorize an
   irreversible external action.
