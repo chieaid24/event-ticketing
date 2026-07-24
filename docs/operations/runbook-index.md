@@ -5,14 +5,29 @@ and recovery steps.
 
 ## Local development
 
-Docker Compose will start PostgreSQL, Redis, Mailpit, and MinIO when object
-storage is required. The root workspace will expose install, migrate, seed,
-develop, build, lint, type-check, unit, integration, E2E, concurrency, and
-format commands.
+Run the local platform:
 
-Each service validates configuration at startup and exposes bounded
-`/health/live` and `/health/ready` checks. Seed data is deterministic and uses
-documented development-only credentials.
+```bash
+pnpm install
+pnpm services:up
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
+
+Docker Compose starts PostgreSQL, Redis, Mailpit, and MinIO from pinned images,
+binds their ports to loopback, and waits for health checks. See
+[local infrastructure](../../infrastructure/README.md) for endpoints and reset
+behavior.
+
+The web, API, and worker validate separate configuration schemas before startup.
+`GET /health/live` reports API process liveness. `GET /health/ready` checks
+PostgreSQL and Redis within a bounded timeout and returns `503` without error
+details when either dependency fails.
+
+The seed writes three synthetic records with stable UUIDs and no usable
+password. Run `pnpm test:integration` to apply migrations and seed data in a
+unique PostgreSQL schema and verify Redis through a unique key prefix.
 
 ## Production
 

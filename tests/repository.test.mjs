@@ -10,6 +10,7 @@ const requiredFiles = [
   "VISION.md",
   "CONTEXT.md",
   "DESIGN.md",
+  "compose.yaml",
   "docs/README.md",
   "docs/maintenance.md",
   "docs/product/requirements.md",
@@ -31,6 +32,7 @@ const requiredFiles = [
   "packages/config/README.md",
   "packages/ui/README.md",
   "packages/test-utils/README.md",
+  "infrastructure/README.md",
 ];
 
 async function markdownFiles(directory) {
@@ -72,6 +74,8 @@ test("workspace entry points exist", async () => {
     "packages/config/package.json",
     "packages/ui/package.json",
     "packages/test-utils/package.json",
+    "packages/database/prisma/schema.prisma",
+    "packages/database/prisma/migrations/20260724190000_identity_baseline/migration.sql",
     "turbo.json",
     "tsconfig.base.json",
   ];
@@ -79,6 +83,23 @@ test("workspace entry points exist", async () => {
   for (const file of requiredEntryPoints) {
     assert.equal((await stat(join(root, file))).isFile(), true, file);
   }
+});
+
+test("local service images and health checks are pinned", async () => {
+  const compose = await readFile(join(root, "compose.yaml"), "utf8");
+  const services = ["postgres", "redis", "mailpit", "minio"];
+  const pinnedImage = /^\s+image: \S+:[^@\s]+@sha256:[0-9a-f]{64}\s*$/gm;
+
+  assert.equal([...compose.matchAll(pinnedImage)].length, services.length);
+
+  for (const service of services) {
+    assert.match(compose, new RegExp(`^  ${service}:$`, "m"));
+  }
+
+  assert.equal(
+    compose.match(/^\s+healthcheck:\s*$/gm)?.length,
+    services.length
+  );
 });
 
 test("project documents do not use discarded names", async () => {

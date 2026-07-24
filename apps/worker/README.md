@@ -13,8 +13,12 @@ and shutdown events, and handles `SIGINT` and `SIGTERM`.
 pnpm --filter @event-ticketing/worker dev
 ```
 
-Set `WORKER_SHUTDOWN_TIMEOUT_MS` to bound shutdown. The application depends on
-`@event-ticketing/config`.
+Set `WORKER_SHUTDOWN_TIMEOUT_MS` to bound shutdown. The worker also validates
+`DATABASE_URL`, `REDIS_URL`, and `LOG_LEVEL` before it starts. Invalid startup
+configuration writes one value-free JSON failure event.
+
+The application depends on `@event-ticketing/config`. Database and queue
+connections land with their owning worker features.
 
 ## Test
 

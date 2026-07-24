@@ -13,6 +13,9 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,11 +28,19 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: docker compose config --quiet
+      - run: docker compose up --detach --wait
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: pnpm test:integration
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm smoke:api
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: always()
+        run: docker compose down --volumes

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type DatabaseConnection, withDatabaseConnection } from "./index.js";
+import {
+  createDatabaseClient,
+  type DatabaseConnection,
+  withDatabaseConnection,
+} from "./index.js";
 
 describe("withDatabaseConnection", () => {
   it("disconnects after a successful operation", async () => {
@@ -28,5 +32,19 @@ describe("withDatabaseConnection", () => {
       })
     ).rejects.toThrow("operation failed");
     expect(connection.disconnect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("createDatabaseClient", () => {
+  it("creates a disconnected client without opening a network connection", async () => {
+    const client = createDatabaseClient(
+      "postgresql://example-user:example-password@127.0.0.1:1/database",
+      {
+        connectionTimeoutMs: 100,
+        maxConnections: 1,
+      }
+    );
+
+    await expect(client.$disconnect()).resolves.toBeUndefined();
   });
 });

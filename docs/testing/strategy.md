@@ -17,6 +17,12 @@ issuance, atomic check-in, outbox claims, and worker retries.
 
 Do not mock the database for locking tests.
 
+The database baseline integration runner creates a unique PostgreSQL schema and
+Redis key prefix for each run. It applies tracked migrations, runs the
+deterministic seed twice, verifies both services, and removes the isolated data
+in a `finally` cleanup. CI starts fresh pinned containers before invoking the
+runner.
+
 ## Concurrency tests
 
 - Race at least 100 attempts for one seat and require one winner.

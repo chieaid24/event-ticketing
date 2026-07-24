@@ -8,12 +8,20 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "db:generate": "pnpm --filter @event-ticketing/database db:generate",
+    "db:migrate": "pnpm --filter @event-ticketing/database db:migrate",
+    "db:seed": "pnpm --filter @event-ticketing/database db:seed",
     "dev": "turbo run dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
+    "services:down": "docker compose down",
+    "services:reset": "docker compose down --volumes",
+    "services:up": "docker compose up --detach --wait",
+    "smoke:api": "node scripts/smoke-api.mjs",
     "test": "node --test tests/repository.test.mjs && turbo run test",
-    "typecheck": "turbo run typecheck",
+    "test:integration": "pnpm --filter @event-ticketing/database test:integration",
+    "typecheck": "pnpm db:generate && turbo run typecheck",
     "prepare": "husky"
   },
   "devDependencies": {
