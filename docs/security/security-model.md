@@ -18,6 +18,9 @@ Hash passwords with Argon2id. Store verification and reset tokens only as
 single-use hashes with short expiry. Return generic account-lookup errors and
 rate limit sensitive routes.
 
+The session design is recorded in
+[ADR 0003](../adr/0003-database-backed-opaque-sessions.md).
+
 ## External boundaries
 
 - Verify Stripe signatures against the raw body and deduplicate provider event

@@ -7,7 +7,9 @@ import {
 } from "@event-ticketing/database";
 import { loadWorkerConfig } from "@event-ticketing/config";
 
+import { createAuthEmailHandlers } from "./auth-email-handlers.js";
 import { workerHandlers } from "./handlers.js";
+import { createSmtpEmailer } from "./mailer.js";
 import { createOutboxProcessor } from "./outbox-processor.js";
 import { createWorkerRuntime } from "./runtime.js";
 
@@ -17,10 +19,23 @@ async function startWorker(): Promise<void> {
     maxConnections: 5,
   });
   const repository = createOutboxRepository(database);
+  const emailer = createSmtpEmailer({
+    from: config.mailFrom,
+    smtpUrl: config.smtpUrl,
+  });
   const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
   const processor = createOutboxProcessor({
     batchSize: config.outboxBatchSize,
-    handlers: workerHandlers,
+    handlers: {
+      ...workerHandlers,
+      ...createAuthEmailHandlers({
+        emailer,
+        executor: database,
+        resetTokenTtlSeconds: config.resetTokenTtlSeconds,
+        verificationTokenTtlSeconds: config.verificationTokenTtlSeconds,
+        webBaseUrl: config.webBaseUrl,
+      }),
+    },
     leaseMs: config.outboxLeaseMs,
     repository,
     retryBaseDelayMs: config.outboxRetryBaseMs,
@@ -48,6 +63,7 @@ async function startWorker(): Promise<void> {
     forcedExit.unref();
 
     await runtime.stop();
+    emailer.close();
     await database.end();
     clearTimeout(forcedExit);
     process.stdout.write(

@@ -2,6 +2,7 @@ import { StatusBadge } from "@event-ticketing/ui";
 
 import { loadWebConfig } from "@event-ticketing/config";
 
+import { SiteHeader } from "../components/site-header";
 import { fetchApiStatus } from "../lib/api-status";
 
 export const dynamic = "force-dynamic";
@@ -16,19 +17,7 @@ export default async function Home() {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="site-header">
-        <a
-          aria-label="Event Ticketing Platform home"
-          className="brand"
-          href="/"
-        >
-          <span aria-hidden="true" className="brand__mark">
-            ET
-          </span>
-          <span>Event Ticketing Platform</span>
-        </a>
-        <span className="release-label">Foundation status</span>
-      </header>
+      <SiteHeader />
 
       <main className="page-shell" id="main-content">
         <section aria-labelledby="page-title" className="intro">

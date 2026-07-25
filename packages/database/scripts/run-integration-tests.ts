@@ -6,6 +6,18 @@ import { Redis } from "ioredis";
 import pg from "pg";
 
 import {
+  consumeAuthToken,
+  createAuthToken,
+  createSession,
+  createUser,
+  generateAuthSecret,
+  hashAuthSecret,
+  listActiveSessions,
+  markUserEmailVerified,
+  revokeSessionById,
+  revokeUserSessions,
+} from "../src/auth.js";
+import {
   createDatabasePool,
   createOutboxRepository,
   enqueueOutboxEvent,
@@ -397,6 +409,144 @@ try {
     assert.equal(metrics.pendingReady, 0);
     assert.equal(metrics.processing, 0);
 
+    const seededUser = await pool.query(
+      `SELECT "password_hash" AS "passwordHash" FROM "users" WHERE "id" = $1`,
+      ["11111111-1111-4111-8111-111111111111"]
+    );
+    assert.match(
+      String(seededUser.rows[0]?.passwordHash),
+      /^\$argon2id\$/,
+      "The seeded user must carry an argon2id password hash."
+    );
+
+    const authUser = await createUser(pool, {
+      email: "auth-probe@example.test",
+      passwordHash: "$argon2id$synthetic-integration-hash",
+    });
+    assert.ok(authUser);
+    assert.equal(authUser.status, "pending");
+    assert.equal(
+      await createUser(pool, {
+        email: "auth-probe@example.test",
+        passwordHash: "$argon2id$other-hash",
+      }),
+      null,
+      "A duplicate email must not create a second user."
+    );
+
+    const verifiedUser = await markUserEmailVerified(pool, authUser.id);
+    assert.equal(verifiedUser?.status, "active");
+    assert.equal(
+      await markUserEmailVerified(pool, authUser.id),
+      null,
+      "Verification must only transition pending users."
+    );
+
+    const singleUseSecret = generateAuthSecret();
+    await createAuthToken(pool, {
+      expiresAt: new Date(Date.now() + 60_000),
+      purpose: "password_reset",
+      tokenHash: hashAuthSecret(singleUseSecret),
+      userId: authUser.id,
+    });
+    const concurrentConsumes = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        consumeAuthToken(pool, {
+          purpose: "password_reset",
+          tokenHash: hashAuthSecret(singleUseSecret),
+        })
+      )
+    );
+    assert.equal(
+      concurrentConsumes.filter((token) => token !== null).length,
+      1,
+      "A token must be consumable exactly once under concurrency."
+    );
+
+    const expiredSecret = generateAuthSecret();
+    const expiredToken = await createAuthToken(pool, {
+      expiresAt: new Date(Date.now() + 60_000),
+      purpose: "password_reset",
+      tokenHash: hashAuthSecret(expiredSecret),
+      userId: authUser.id,
+    });
+    await pool.query(
+      `
+        UPDATE "auth_tokens"
+        SET
+          "created_at" = clock_timestamp() - interval '2 hours',
+          "expires_at" = clock_timestamp() - interval '1 hour'
+        WHERE "id" = $1
+      `,
+      [expiredToken.id]
+    );
+    assert.equal(
+      await consumeAuthToken(pool, {
+        purpose: "password_reset",
+        tokenHash: hashAuthSecret(expiredSecret),
+      }),
+      null,
+      "An expired token must not be consumable."
+    );
+
+    await assert.rejects(
+      pool.query(
+        `
+          INSERT INTO "sessions"
+            ("user_id", "token_hash", "csrf_token_hash", "absolute_expires_at")
+          VALUES ($1, 'not-a-sha256-hash', $2, clock_timestamp() + interval '1 hour')
+        `,
+        [authUser.id, hashAuthSecret(generateAuthSecret())]
+      ),
+      /sessions_token_hash_format|value too long/,
+      "The database must reject malformed session token hashes."
+    );
+
+    const keepSecret = generateAuthSecret();
+    const keepSession = await createSession(pool, {
+      absoluteExpiresAt: new Date(Date.now() + 3_600_000),
+      csrfTokenHash: hashAuthSecret(generateAuthSecret()),
+      deviceSummary: "integration-keep",
+      tokenHash: hashAuthSecret(keepSecret),
+      userId: authUser.id,
+    });
+    const dropSession = await createSession(pool, {
+      absoluteExpiresAt: new Date(Date.now() + 3_600_000),
+      csrfTokenHash: hashAuthSecret(generateAuthSecret()),
+      deviceSummary: "integration-drop",
+      tokenHash: hashAuthSecret(generateAuthSecret()),
+      userId: authUser.id,
+    });
+    assert.equal(
+      await revokeSessionById(pool, {
+        sessionId: dropSession.id,
+        userId: authUser.id,
+      }),
+      true
+    );
+    assert.equal(
+      await revokeSessionById(pool, {
+        sessionId: dropSession.id,
+        userId: authUser.id,
+      }),
+      false,
+      "Revocation must be idempotent and report no second change."
+    );
+    const activeSessions = await listActiveSessions(pool, {
+      idleCutoff: new Date(Date.now() - 60_000),
+      userId: authUser.id,
+    });
+    assert.deepEqual(
+      activeSessions.map((session) => session.id),
+      [keepSession.id],
+      "Only unrevoked, unexpired sessions may be listed."
+    );
+    assert.equal(
+      await revokeUserSessions(pool, { userId: authUser.id }),
+      1,
+      "Revoking every session must count the remaining active one."
+    );
+
     await redis.connect();
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
@@ -404,6 +554,7 @@ try {
     process.stdout.write(
       `${JSON.stringify({
         atomicOutbox: "verified",
+        authLifecycle: "verified",
         concurrentClaims: claimedIds.length,
         deadLetters: metrics.deadLetter,
         event: "integration.completed",

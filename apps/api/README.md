@@ -1,13 +1,42 @@
 # API
 
 `@event-ticketing/api` is the HTTP boundary for trusted platform decisions. It
-will own authentication, authorization, inventory, orders, payments, tickets,
-and administration. It does not render pages or run asynchronous jobs.
+owns authentication and will own authorization, inventory, orders, payments,
+tickets, and administration. It does not render pages or run asynchronous jobs.
 
 `GET /status` returns the shared `StatusResponse` contract. `GET /health/live`
 reports process liveness without checking dependencies. `GET /health/ready`
 checks PostgreSQL and Redis within `API_DEPENDENCY_TIMEOUT_MS` and returns `503`
 when either dependency is unavailable.
+
+## Authentication routes
+
+All bodies are validated with the shared Zod contracts and errors use the
+`{ code, message }` contract. Sessions are opaque cookie secrets stored only as
+hashes; see [ADR 0003](../../docs/adr/0003-database-backed-opaque-sessions.md).
+
+- `POST /auth/register` accepts email and password, always answers `202`, and
+  enqueues a verification email for new or still-pending accounts.
+- `POST /auth/verify-email` consumes a single-use token and activates the
+  account.
+- `POST /auth/login` verifies Argon2id credentials, requires a verified account,
+  and sets the `et_session` (HttpOnly) and `et_csrf` cookies.
+- `GET /auth/me` returns the current user and refreshes session idle expiry.
+- `POST /auth/logout` revokes the current session. CSRF protected.
+- `POST /auth/forgot-password` always answers `202` and enqueues a reset email
+  for active accounts.
+- `POST /auth/reset-password` consumes a single-use token, updates the password,
+  and revokes every session.
+- `POST /auth/change-password` verifies the current password, revokes every
+  session, and rotates the caller onto a fresh one. CSRF protected.
+- `GET /auth/sessions` lists active sessions with the current one flagged.
+- `DELETE /auth/sessions/:id` revokes one session. CSRF protected.
+
+Mutating cookie routes require the `x-csrf-token` header matching the session
+and reject untrusted `Origin` values from `API_TRUSTED_ORIGINS`. Sensitive
+routes are rate limited per client through Redis and fail open when Redis is
+unavailable. Session expiry uses `SESSION_IDLE_TTL_SECONDS` and
+`SESSION_ABSOLUTE_TTL_SECONDS`; cookie security uses `API_COOKIE_SECURE`.
 
 ## Run
 

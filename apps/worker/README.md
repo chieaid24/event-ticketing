@@ -30,8 +30,19 @@ The worker validates these values with `DATABASE_URL`, `REDIS_URL`, and
 JSON failure event.
 
 The application depends on `@event-ticketing/config` and
-`@event-ticketing/database`. Register handlers in `src/handlers.ts`. Each
-provider handler must use the event ID passed as `idempotencyKey`.
+`@event-ticketing/database`. Register handlers in `src/handlers.ts`; handlers
+that need runtime dependencies (such as the auth email handlers in
+`src/auth-email-handlers.ts`) are composed in `src/main.ts`. Each provider
+handler must use the event ID passed as `idempotencyKey`.
+
+## Auth email jobs
+
+`auth.email.verification.requested` and `auth.password.reset.requested` events
+carry only a `userId`. The worker mints the single-use token itself, stores its
+SHA-256 hash, and mails the plaintext link via SMTP, so secrets never appear in
+outbox payloads or logs. Configure delivery with `SMTP_URL` (Mailpit locally),
+`MAIL_FROM`, `WEB_BASE_URL`, `VERIFICATION_TOKEN_TTL_SECONDS`, and
+`RESET_TOKEN_TTL_SECONDS`.
 
 ## Test
 

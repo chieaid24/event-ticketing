@@ -10,6 +10,7 @@ import {
 describe("application configuration", () => {
   it("uses safe local development defaults", () => {
     expect(loadApiConfig({})).toEqual({
+      cookieSecure: false,
       databaseUrl:
         "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public",
       dependencyTimeoutMs: 2_000,
@@ -17,6 +18,9 @@ describe("application configuration", () => {
       logLevel: "info",
       port: 4000,
       redisUrl: "redis://127.0.0.1:6379",
+      sessionAbsoluteTtlSeconds: 2_592_000,
+      sessionIdleTtlSeconds: 86_400,
+      trustedOrigins: ["http://127.0.0.1:3000", "http://localhost:3000"],
     });
     expect(loadWebConfig({})).toEqual({
       apiBaseUrl: "http://127.0.0.1:4000",
@@ -25,13 +29,18 @@ describe("application configuration", () => {
       databaseUrl:
         "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public",
       logLevel: "info",
+      mailFrom: "Event Ticketing <no-reply@example.test>",
       outboxBatchSize: 10,
       outboxLeaseMs: 30_000,
       outboxPollIntervalMs: 1_000,
       outboxRetryBaseMs: 1_000,
       outboxRetryMaximumMs: 300_000,
       redisUrl: "redis://127.0.0.1:6379",
+      resetTokenTtlSeconds: 1_800,
       shutdownTimeoutMs: 10_000,
+      smtpUrl: "smtp://127.0.0.1:1025",
+      verificationTokenTtlSeconds: 86_400,
+      webBaseUrl: "http://127.0.0.1:3000",
     });
   });
 
