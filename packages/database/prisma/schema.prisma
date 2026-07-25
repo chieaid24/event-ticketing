@@ -45,6 +45,13 @@ enum MembershipStatus {
   @@map("membership_status")
 }
 
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION @map("email_verification")
+  PASSWORD_RESET     @map("password_reset")
+
+  @@map("auth_token_purpose")
+}
+
 enum OutboxStatus {
   PENDING     @map("pending")
   PROCESSING  @map("processing")
@@ -65,8 +72,40 @@ model User {
   updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships       OrganizationMembership[]
   invitedMembership OrganizationMembership[] @relation("MembershipInviter")
+  sessions          Session[]
+  authTokens        AuthToken[]
 
   @@map("users")
+}
+
+model Session {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  tokenHash         String    @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash     String    @map("csrf_token_hash") @db.Char(64)
+  deviceSummary     String    @default("unknown") @map("device_summary") @db.VarChar(160)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
+
+model AuthToken {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  purpose    AuthTokenPurpose
+  tokenHash  String           @unique @map("token_hash") @db.Char(64)
+  expiresAt  DateTime         @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, consumedAt])
+  @@map("auth_tokens")
 }
 
 model Organization {

@@ -120,6 +120,133 @@ try {
     status: "ready",
   });
 
+  const anonymousMe = await fetch(`${baseUrl}/auth/me`, {
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(anonymousMe.status, 401);
+  assert.deepEqual((await anonymousMe.json()).code, "unauthenticated");
+
+  const invalidRegister = await fetch(`${baseUrl}/auth/register`, {
+    body: JSON.stringify({ email: "not-an-email", password: "short" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(invalidRegister.status, 400);
+  assert.equal((await invalidRegister.json()).code, "invalid_request");
+
+  const loginAttempt = (email, password) =>
+    fetch(`${baseUrl}/auth/login`, {
+      body: JSON.stringify({ email, password }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      signal: AbortSignal.timeout(5_000),
+    });
+
+  const unknownUser = await loginAttempt(
+    "smoke-nobody@example.test",
+    "a-wrong-password"
+  );
+  const wrongPassword = await loginAttempt(
+    "owner@example.test",
+    "a-wrong-password"
+  );
+  assert.equal(unknownUser.status, 401);
+  assert.equal(wrongPassword.status, 401);
+  assert.deepEqual(
+    await unknownUser.json(),
+    await wrongPassword.json(),
+    "Login failures must not reveal whether the email exists."
+  );
+
+  const login = await loginAttempt("owner@example.test", "owner-password-dev");
+  assert.equal(login.status, 200);
+  const loginBody = await login.json();
+  assert.equal(loginBody.user.email, "owner@example.test");
+  const setCookies = login.headers.getSetCookie();
+  const sessionCookie = setCookies.find((value) =>
+    value.startsWith("et_session=")
+  );
+  const csrfCookie = setCookies.find((value) => value.startsWith("et_csrf="));
+  assert.ok(sessionCookie, "Login must set the session cookie.");
+  assert.ok(csrfCookie, "Login must set the CSRF cookie.");
+  assert.match(sessionCookie, /HttpOnly/);
+  assert.match(sessionCookie, /SameSite=Lax/);
+  assert.doesNotMatch(csrfCookie, /HttpOnly/);
+  const cookieHeader = [sessionCookie, csrfCookie]
+    .map((value) => value.split(";")[0])
+    .join("; ");
+  const csrfToken = csrfCookie.split(";")[0].split("=")[1];
+
+  const me = await fetch(`${baseUrl}/auth/me`, {
+    headers: { cookie: cookieHeader },
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(me.status, 200);
+  assert.equal((await me.json()).user.email, "owner@example.test");
+
+  const sessions = await fetch(`${baseUrl}/auth/sessions`, {
+    headers: { cookie: cookieHeader },
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(sessions.status, 200);
+  const sessionsBody = await sessions.json();
+  assert.ok(sessionsBody.sessions.length >= 1);
+  assert.equal(
+    sessionsBody.sessions.filter((session) => session.current).length,
+    1
+  );
+
+  const csrfMissing = await fetch(`${baseUrl}/auth/logout`, {
+    headers: { cookie: cookieHeader },
+    method: "POST",
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(csrfMissing.status, 403);
+  assert.equal((await csrfMissing.json()).code, "invalid_csrf_token");
+
+  const untrustedOrigin = await fetch(`${baseUrl}/auth/logout`, {
+    headers: {
+      cookie: cookieHeader,
+      origin: "https://evil.example.com",
+      "x-csrf-token": csrfToken,
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(untrustedOrigin.status, 403);
+  assert.equal((await untrustedOrigin.json()).code, "untrusted_origin");
+
+  const logout = await fetch(`${baseUrl}/auth/logout`, {
+    headers: { cookie: cookieHeader, "x-csrf-token": csrfToken },
+    method: "POST",
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(logout.status, 200);
+  const loggedOutMe = await fetch(`${baseUrl}/auth/me`, {
+    headers: { cookie: cookieHeader },
+    signal: AbortSignal.timeout(2_000),
+  });
+  assert.equal(loggedOutMe.status, 401, "Logout must revoke the session.");
+
+  const smokeEmail = `smoke-${String(Date.now())}@example.test`;
+  const register = await fetch(`${baseUrl}/auth/register`, {
+    body: JSON.stringify({
+      email: smokeEmail,
+      password: "a-smoke-test-password",
+    }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+    signal: AbortSignal.timeout(5_000),
+  });
+  assert.equal(register.status, 202);
+  const unverifiedLogin = await loginAttempt(
+    smokeEmail,
+    "a-smoke-test-password"
+  );
+  assert.equal(unverifiedLogin.status, 403);
+  assert.equal((await unverifiedLogin.json()).code, "email_not_verified");
+
   const requestId = "smoke-request-42";
   const statusResponse = await fetch(`${baseUrl}/status`, {
     headers: {
@@ -146,6 +273,7 @@ try {
 
   process.stdout.write(
     `${JSON.stringify({
+      auth: "verified",
       event: "api.smoke.completed",
       health: "ready",
       requestId: "propagated",

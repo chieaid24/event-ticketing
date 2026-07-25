@@ -70,6 +70,12 @@ importers:
       "@nestjs/platform-express":
         specifier: 11.1.28
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28)
+      argon2:
+        specifier: 0.45.1
+        version: 0.45.1
+      cookie:
+        specifier: 2.0.1
+        version: 2.0.1
       ioredis:
         specifier: 5.11.1
         version: 5.11.1
@@ -82,10 +88,16 @@ importers:
       rxjs:
         specifier: 7.8.2
         version: 7.8.2
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       "@types/express":
         specifier: 5.0.6
         version: 5.0.6
+      "@types/pg":
+        specifier: 8.20.0
+        version: 8.20.0
       tsx:
         specifier: 4.23.1
         version: 4.23.1
@@ -132,7 +144,16 @@ importers:
       "@event-ticketing/database":
         specifier: workspace:*
         version: link:../../packages/database
+      nodemailer:
+        specifier: 9.0.3
+        version: 9.0.3
     devDependencies:
+      "@types/nodemailer":
+        specifier: 8.0.1
+        version: 8.0.1
+      "@types/pg":
+        specifier: 8.20.0
+        version: 8.20.0
       tsx:
         specifier: 4.23.1
         version: 4.23.1
@@ -358,6 +379,12 @@ packages:
     resolution:
       {
         integrity: sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA==,
+      }
+
+  "@epic-web/invariant@1.0.0":
+    resolution:
+      {
+        integrity: sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA==,
       }
 
   "@esbuild/aix-ppc64@0.28.1":
@@ -1134,6 +1161,13 @@ packages:
         integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==,
       }
 
+  "@phc/format@1.0.0":
+    resolution:
+      {
+        integrity: sha512-m7X9U6BG2+J+R1lSOdCiITLLrxm+cWlNI3HUFA92oLO77ObGNzaKdh8pMLqdZcshtkKuV84olNNXDfMc4FezBQ==,
+      }
+    engines: { node: ">=10" }
+
   "@pinojs/redact@0.4.0":
     resolution:
       {
@@ -1718,6 +1752,12 @@ packages:
         integrity: sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw==,
       }
 
+  "@types/nodemailer@8.0.1":
+    resolution:
+      {
+        integrity: sha512-PxpaInm8V1JQDd4j0ds5HfvWQk8JupS1C0Picb96QJsrrRDjBH+DlK7L4ZdNSqNULhiZRQHc40nLVShaGxXAMw==,
+      }
+
   "@types/pg@8.20.0":
     resolution:
       {
@@ -2004,6 +2044,13 @@ packages:
         integrity: sha512-klpgFSWLW1ZEs8svjfb7g4qWY0YS5imI82dTg+QahUvJ8YqAY0P10Uk8tTyh9ZGuYEZEMaeJYCF5BFuX552hsw==,
       }
 
+  argon2@0.45.1:
+    resolution:
+      {
+        integrity: sha512-skm+/WCjkGqCQxF7FG1LuZXM5yvbFjgbfiCGsud2oLgaDhh6b6dbH0b1EkghbM+xx4Bj8Ape+KKgixoIlWZicQ==,
+      }
+    engines: { node: ">=16.17.0" }
+
   assertion-error@2.0.1:
     resolution:
       {
@@ -2206,12 +2253,27 @@ packages:
       }
     engines: { node: ">= 0.6" }
 
+  cookie@2.0.1:
+    resolution:
+      {
+        integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==,
+      }
+    engines: { node: ">=22" }
+
   cors@2.8.6:
     resolution:
       {
         integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==,
       }
     engines: { node: ">= 0.10" }
+
+  cross-env@10.1.0:
+    resolution:
+      {
+        integrity: sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==,
+      }
+    engines: { node: ">=20" }
+    hasBin: true
 
   cross-spawn@7.0.6:
     resolution:
@@ -3329,12 +3391,33 @@ packages:
       sass:
         optional: true
 
+  node-addon-api@8.9.0:
+    resolution:
+      {
+        integrity: sha512-ekZMeaaIzSQTSpr7X2X3iJM7lTzgnx8ahAG9pJfT/7+14mlEM8ZYQ9cgCDvSSRbReFK0oHli3WrZdCiRsgAT9Q==,
+      }
+    engines: { node: ^18 || ^20 || >= 21 }
+
+  node-gyp-build@4.8.4:
+    resolution:
+      {
+        integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==,
+      }
+    hasBin: true
+
   node-releases@2.0.51:
     resolution:
       {
         integrity: sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==,
       }
     engines: { node: ">=18" }
+
+  nodemailer@9.0.3:
+    resolution:
+      {
+        integrity: sha512-n+YP+NKwR5zRWa60k3GiQ6Q3B4KXCoAw40dAKeCtYn020iNN74aWK2liXIC3ZEATeGql7we3tE3t8QwhY0eskw==,
+      }
+    engines: { node: ">=6.0.0" }
 
   object-assign@4.1.1:
     resolution:
@@ -4538,6 +4621,8 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  "@epic-web/invariant@1.0.0": {}
+
   "@esbuild/aix-ppc64@0.28.1":
     optional: true
 
@@ -4872,6 +4957,8 @@ snapshots:
 
   "@oxc-project/types@0.139.0": {}
 
+  "@phc/format@1.0.0": {}
+
   "@pinojs/redact@0.4.0": {}
 
   "@prisma/adapter-pg@7.9.0":
@@ -5200,6 +5287,10 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
+  "@types/nodemailer@8.0.1":
+    dependencies:
+      "@types/node": 26.1.1
+
   "@types/pg@8.20.0":
     dependencies:
       "@types/node": 26.1.1
@@ -5463,6 +5554,13 @@ snapshots:
 
   append-field@1.0.0: {}
 
+  argon2@0.45.1:
+    dependencies:
+      "@phc/format": 1.0.0
+      cross-env: 10.1.0
+      node-addon-api: 8.9.0
+      node-gyp-build: 4.8.4
+
   assertion-error@2.0.1: {}
 
   atomic-sleep@1.0.0: {}
@@ -5569,10 +5667,17 @@ snapshots:
 
   cookie@0.7.2: {}
 
+  cookie@2.0.1: {}
+
   cors@2.8.6:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
+
+  cross-env@10.1.0:
+    dependencies:
+      "@epic-web/invariant": 1.0.0
+      cross-spawn: 7.0.6
 
   cross-spawn@7.0.6:
     dependencies:
@@ -6210,7 +6315,13 @@ snapshots:
       - "@types/node"
       - babel-plugin-macros
 
+  node-addon-api@8.9.0: {}
+
+  node-gyp-build@4.8.4: {}
+
   node-releases@2.0.51: {}
+
+  nodemailer@9.0.3: {}
 
   object-assign@4.1.1: {}
 

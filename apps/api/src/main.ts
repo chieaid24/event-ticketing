@@ -19,6 +19,14 @@ async function bootstrap(): Promise<void> {
     logger: false,
   });
 
+  app.enableCors({
+    allowedHeaders: ["content-type", "x-csrf-token", "x-request-id"],
+    credentials: true,
+    exposedHeaders: ["x-request-id"],
+    maxAge: 600,
+    methods: ["GET", "POST", "DELETE"],
+    origin: [...config.trustedOrigins],
+  });
   app.enableShutdownHooks();
   await app.listen(config.port, config.host);
   logger.info({

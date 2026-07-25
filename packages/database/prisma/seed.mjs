@@ -13,6 +13,11 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
 
 const client = new pg.Client({ connectionString: databaseUrl });
 
+// Argon2id hash of the synthetic development password "owner-password-dev".
+const ownerPasswordHash =
+  "$argon2id$v=19$m=19456,p=1,t=2$mKwK8cARnS8akUQlAFsR7g" +
+  "$BCp9DbDRNw28oOP5Yf5HaXl/hY6RDnQIYhS8vIcwt3c";
+
 try {
   await client.connect();
   await client.query("BEGIN");
@@ -22,13 +27,15 @@ try {
       INSERT INTO "users" (
         "id",
         "email",
+        "password_hash",
         "platform_role",
         "status",
         "email_verified_at"
       )
-      VALUES ($1, $2, 'customer', 'active', $3)
+      VALUES ($1, $2, $3, 'customer', 'active', $4)
       ON CONFLICT ("id") DO UPDATE SET
         "email" = EXCLUDED."email",
+        "password_hash" = EXCLUDED."password_hash",
         "platform_role" = EXCLUDED."platform_role",
         "status" = EXCLUDED."status",
         "email_verified_at" = EXCLUDED."email_verified_at"
@@ -36,6 +43,7 @@ try {
     [
       "11111111-1111-4111-8111-111111111111",
       "owner@example.test",
+      ownerPasswordHash,
       "2026-01-01T00:00:00.000Z",
     ]
   );
