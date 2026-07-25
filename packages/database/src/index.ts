@@ -5,6 +5,7 @@ import { PrismaClient } from "./generated/prisma/client.js";
 export * from "./auth.js";
 export * from "./organizations.js";
 export * from "./outbox.js";
+export * from "./venues.js";
 
 export interface DatabaseConnection {
   connect(): Promise<void>;

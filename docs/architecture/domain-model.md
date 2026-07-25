@@ -25,6 +25,20 @@ organization membership, and an active membership's join timestamp.
 Venues contain sections, rows, and seats with labels, coordinates, access
 attributes, and bounded metadata. A venue is a reusable template.
 
+A venue section is `assigned` (rows of seats on an x and y grid) or
+`general_admission` (a bounded capacity and no rows); the database check
+constraint makes the two shapes mutually exclusive. Names and labels are unique
+within their parent scope, coordinates are bounded integers, and a seat is
+accessible or a companion seat but never both. The shared `validateVenueLayout`
+contract adds the semantic rules both the organizer UI and the API enforce: no
+duplicate labels, no shared coordinates within a section, a bounded total seat
+count, and every companion seat directly beside an accessible seat in its row.
+
+Layout writes replace the whole template inside one transaction guarded by a
+version compare-and-swap on the venue, so concurrent replacements have exactly
+one winner. Template edits never rewrite sold inventory because events snapshot
+seats.
+
 An event references one venue, lifecycle state, IANA timezone, schedule, sale
 window, hold duration, refund policy, and version. Event seats snapshot relevant
 venue-seat fields so later layout edits cannot corrupt sold inventory.

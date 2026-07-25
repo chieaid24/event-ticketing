@@ -19,6 +19,7 @@ organization so probing cannot confirm one exists.
 | `members.role.update`          | yes   | yes   | no            | no      | no      | no     |
 | `members.remove`               | yes   | yes   | no            | no      | no      | no     |
 | `audit.read`                   | yes   | yes   | no            | no      | no      | no     |
+| `venues.manage`                | yes   | yes   | yes           | no      | no      | no     |
 | `events.manage`                | yes   | yes   | yes           | no      | no      | no     |
 | `finance.manage`               | yes   | yes   | no            | yes     | no      | no     |
 | `scanner.checkin`              | yes   | yes   | no            | no      | yes     | no     |
@@ -39,6 +40,12 @@ organization so probing cannot confirm one exists.
 - Role changes carry the role the caller last saw (`expectedRole`) and fail with
   `membership_conflict` when it is stale. Settings updates carry a `version` and
   fail with `version_conflict` the same way.
+- Venue reads need an active membership; venue mutations need `venues.manage`
+  and carry the venue `version`. Layout replacement is validated against the
+  shared layout contract and semantic rules before any write, and the version
+  compare-and-swap serializes concurrent replacements to one winner. A venue
+  addressed through the wrong organization answers the same `404` as a missing
+  venue.
 - Deleting an organization is owner-only, requires retyping the organization
   slug, and requires a current CSRF-checked session.
 - Invitations answer `202` whether or not the email has an account, so the
@@ -50,8 +57,9 @@ organization so probing cannot confirm one exists.
 Membership and organization mutations write an `audit_logs` row in the same
 transaction: `organization.created`, `organization.settings.updated`,
 `organization.deleted`, `member.invited`, `member.joined`,
-`member.invitation.declined`, `member.role.changed`, and `member.removed` (with
-a `left` flag when the member removed themselves). Entries keep the actor,
-target, and a small detail object, and survive actor or organization deletion
-through `SET NULL` foreign keys. Owners and admins read them at
+`member.invitation.declined`, `member.role.changed`, `member.removed` (with a
+`left` flag when the member removed themselves), `venue.created`,
+`venue.updated`, `venue.layout.replaced`, and `venue.deleted`. Entries keep the
+actor, target, and a small detail object, and survive actor or organization
+deletion through `SET NULL` foreign keys. Owners and admins read them at
 `GET /organizations/:id/audit-logs`.

@@ -52,6 +52,13 @@ enum AuthTokenPurpose {
   @@map("auth_token_purpose")
 }
 
+enum VenueSectionKind {
+  ASSIGNED          @map("assigned")
+  GENERAL_ADMISSION @map("general_admission")
+
+  @@map("venue_section_kind")
+}
+
 enum OutboxStatus {
   PENDING     @map("pending")
   PROCESSING  @map("processing")
@@ -118,8 +125,67 @@ model Organization {
   updatedAt   DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships OrganizationMembership[]
   auditLogs   AuditLog[]
+  venues      Venue[]
 
   @@map("organizations")
+}
+
+model Venue {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  name           String         @db.VarChar(120)
+  description    String?        @db.VarChar(400)
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sections       VenueSection[]
+
+  @@unique([organizationId, name])
+  @@map("venues")
+}
+
+model VenueSection {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId    String            @map("venue_id") @db.Uuid
+  name       String            @db.VarChar(80)
+  kind       VenueSectionKind
+  gaCapacity Int?              @map("ga_capacity")
+  position   Int
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  venue      Venue             @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  rows       VenueSeatingRow[]
+
+  @@unique([venueId, name])
+  @@map("venue_sections")
+}
+
+model VenueSeatingRow {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId String       @map("section_id") @db.Uuid
+  label     String       @db.VarChar(12)
+  position  Int
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  section   VenueSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  seats     VenueSeat[]
+
+  @@unique([sectionId, label])
+  @@map("venue_rows")
+}
+
+model VenueSeat {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rowId      String          @map("row_id") @db.Uuid
+  label      String          @db.VarChar(12)
+  x          Int
+  y          Int
+  accessible Boolean         @default(false)
+  companion  Boolean         @default(false)
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  row        VenueSeatingRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+
+  @@unique([rowId, label])
+  @@map("venue_seats")
 }
 
 model AuditLog {

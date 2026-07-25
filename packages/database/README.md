@@ -25,17 +25,21 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-The seed upserts one `owner@example.test` user, one example organization, and
-one active owner membership with stable UUIDs. It creates no usable password.
-Running the seed again produces the same three logical records.
+The seed upserts one `owner@example.test` user (development password
+`owner-password-dev`), one example organization, one active owner membership,
+and one venue template with an assigned section, a general-admission section,
+two rows, and eight seats, all with stable UUIDs.
 
 The migrations enforce normalized email, organization slug and version checks,
 one membership per user and organization, explicit role and status enums,
-active-membership join timestamps, and outbox state-dependent fields.
+active-membership join timestamps, outbox state-dependent fields, and venue
+layout rules: unique names and labels per scope, bounded coordinates,
+kind-dependent general-admission capacity, and mutually exclusive accessible and
+companion flags.
 
-The seed transaction upserts three domain records and one deduplicated
-`organization.created` event. Running it again preserves the same four logical
-records.
+The seed transaction upserts sixteen domain records and one deduplicated
+`organization.created` event. Running it again preserves the same seventeen
+logical records.
 
 ## Integration test
 
@@ -47,9 +51,10 @@ The runner creates a unique PostgreSQL schema and Redis key prefix, applies
 migrations, and runs the seed twice. It verifies atomic rollback and commit,
 concurrent `SKIP LOCKED` claims, delayed work, bounded dead-letter transitions,
 lease recovery, graceful claim release, durable receipts, schedule
-materialization, metrics, and Redis isolation. It removes both scopes in a
-`finally` cleanup. `DATABASE_URL` and `REDIS_URL` default to the local
-containers.
+materialization, metrics, venue layout replacement (version compare-and-swap
+under concurrency, organization scoping, constraint rejection, cascade
+deletion), and Redis isolation. It removes both scopes in a `finally` cleanup.
+`DATABASE_URL` and `REDIS_URL` default to the local containers.
 
 ## Test
 

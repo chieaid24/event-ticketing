@@ -7,3 +7,5 @@ export const ORGANIZATIONS_SERVICE = Symbol("ORGANIZATIONS_SERVICE");
 export const ORGANIZATIONS_STORE = Symbol("ORGANIZATIONS_STORE");
 export const REDIS_HEALTH = Symbol("REDIS_HEALTH");
 export const STRUCTURED_LOGGER = Symbol("STRUCTURED_LOGGER");
+export const VENUES_SERVICE = Symbol("VENUES_SERVICE");
+export const VENUES_STORE = Symbol("VENUES_STORE");
