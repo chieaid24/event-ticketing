@@ -38,6 +38,28 @@ routes are rate limited per client through Redis and fail open when Redis is
 unavailable. Session expiry uses `SESSION_IDLE_TTL_SECONDS` and
 `SESSION_ABSOLUTE_TTL_SECONDS`; cookie security uses `API_COOKIE_SECURE`.
 
+## Organization routes
+
+Role permissions follow the
+[authorization policy](../../docs/security/authorization.md). Every route
+requires an active membership in the addressed organization; non-members get the
+same `404` as a missing organization. Mutations are CSRF protected.
+
+- `POST /organizations` creates an organization with the caller as owner.
+- `GET /organizations` lists memberships and pending invitations.
+- `POST /organizations/invitations/:id/accept` and `.../decline` answer an
+  invitation addressed to the session user.
+- `GET /organizations/:id` returns the organization plus the caller's role,
+  permissions, and assignable roles.
+- `PATCH /organizations/:id` renames it with optimistic `version` checking.
+- `DELETE /organizations/:id` is owner-only and requires the slug retyped.
+- `GET /organizations/:id/members`, `POST .../members` (invite),
+  `PATCH .../members/:membershipId` (role change with `expectedRole`), and
+  `DELETE .../members/:membershipId` (remove, or leave when addressing your own
+  membership) manage the roster under last-owner protection.
+- `GET /organizations/:id/audit-logs` lists privileged changes for owners and
+  admins.
+
 ## Run
 
 ```bash

@@ -15,7 +15,7 @@ async function cookieHeader(): Promise<string> {
     .join("; ");
 }
 
-async function fetchAuthenticated(
+export async function fetchAuthenticated(
   apiBaseUrl: string,
   path: string
 ): Promise<unknown | null> {

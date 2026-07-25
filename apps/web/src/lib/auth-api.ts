@@ -32,10 +32,14 @@ export function readCsrfToken(): string | undefined {
   return value || undefined;
 }
 
-async function requestJson(
+export async function requestJson(
   apiBaseUrl: string,
   path: string,
-  init: { body?: unknown; csrf?: boolean; method: "POST" | "DELETE" }
+  init: {
+    body?: unknown;
+    csrf?: boolean;
+    method: "PATCH" | "POST" | "DELETE";
+  }
 ): Promise<unknown> {
   const headers: Record<string, string> = {};
   if (init.body !== undefined) {

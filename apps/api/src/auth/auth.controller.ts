@@ -26,12 +26,11 @@ import type {
 import {
   buildClearedSessionCookies,
   buildSessionCookies,
-  parseCookieHeader,
-  SESSION_COOKIE_NAME,
   type AuthCookieSettings,
 } from "./cookies.js";
-import type { AuthService, RequestAuthContext } from "./auth.service.js";
+import type { AuthService } from "./auth.service.js";
 import type { RateLimiter } from "./rate-limiter.js";
+import { contextFrom, deviceSummaryFrom } from "../request-context.js";
 import {
   AUTH_COOKIE_SETTINGS,
   AUTH_RATE_LIMITER,
@@ -209,19 +208,4 @@ export class AuthController {
       );
     }
   }
-}
-
-function contextFrom(request: Request): RequestAuthContext {
-  const cookies = parseCookieHeader(request.headers.cookie);
-  return {
-    csrfToken: request.header("x-csrf-token"),
-    origin: request.header("origin"),
-    sessionSecret: cookies[SESSION_COOKIE_NAME],
-  };
-}
-
-function deviceSummaryFrom(request: Request): string {
-  const userAgent = request.header("user-agent") ?? "";
-  const printable = userAgent.replace(/[^\x20-\x7E]/g, " ").trim();
-  return printable.slice(0, 160) || "unknown";
 }

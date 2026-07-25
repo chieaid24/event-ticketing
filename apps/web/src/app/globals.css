@@ -435,6 +435,96 @@ h2 {
   font-weight: 700;
 }
 
+.org-list {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.org-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.org-list--compact li {
+  padding-block: 12px;
+}
+
+.org-list__name {
+  margin: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.org-list__name a {
+  text-decoration: none;
+}
+
+.org-list__name a:hover {
+  text-decoration: underline;
+}
+
+.org-list__meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.org-list__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.role-badge--pending {
+  margin-left: 8px;
+  color: var(--accent);
+  border-color: currentColor;
+}
+
+.form-field select,
+.member-role-control select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.org-subheading {
+  margin: 32px 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 560;
+}
+
+.danger-zone h2 {
+  color: var(--danger);
+}
+
+.button-primary--danger {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
