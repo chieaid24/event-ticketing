@@ -13,6 +13,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 | Use domain terms                | [Glossary](../CONTEXT.md)                                        | [Domain model](architecture/domain-model.md)        |
 | Plan implementation order       | [Roadmap](product/roadmap.md)                                    | GitHub dependency queue                             |
 | Change inventory or checkout    | [Inventory and checkout](architecture/inventory-and-checkout.md) | [Security model](security/security-model.md)        |
+| Change roles or permissions     | [Authorization policy](security/authorization.md)                | [Security model](security/security-model.md)        |
 | Change API or data              | [System architecture](architecture/system.md)                    | [Domain model](architecture/domain-model.md)        |
 | Change UI                       | [Design system](../DESIGN.md)                                    | [Requirements](product/requirements.md)             |
 | Add or review tests             | [Testing strategy](testing/strategy.md)                          | [Engineering standards](engineering/standards.md)   |

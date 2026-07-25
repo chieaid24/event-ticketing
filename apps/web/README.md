@@ -16,6 +16,13 @@ the request cookies and redirects to `/login` without a valid session. Browse
 the site and the API on the same host (`127.0.0.1` by default) so the browser
 treats them as one site for cookies.
 
+Organization flows live at `/organizations` (memberships, invitations, creation)
+and `/organizations/[organizationId]` (settings, member roster with invite/role
+change/remove, audit log, owner-only deletion). Sections render only when the
+caller's permissions from the API allow them; visibility mirrors the
+[authorization policy](../../docs/security/authorization.md) and the API remains
+the enforcement point.
+
 ## Run
 
 ```bash

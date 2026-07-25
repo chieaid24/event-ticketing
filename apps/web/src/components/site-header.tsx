@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
-export function SiteHeader(): ReactNode {
+export function SiteHeader({
+  signedIn = false,
+}: Readonly<{ signedIn?: boolean }> = {}): ReactNode {
   return (
     <header className="site-header">
       <a aria-label="Event Ticketing Platform home" className="brand" href="/">
@@ -10,10 +12,21 @@ export function SiteHeader(): ReactNode {
         <span>Event Ticketing Platform</span>
       </a>
       <nav aria-label="Account" className="site-nav">
-        <a href="/login">Sign in</a>
-        <a className="site-nav__cta" href="/register">
-          Create account
-        </a>
+        {signedIn ? (
+          <>
+            <a href="/organizations">Organizations</a>
+            <a className="site-nav__cta" href="/account">
+              Account
+            </a>
+          </>
+        ) : (
+          <>
+            <a href="/login">Sign in</a>
+            <a className="site-nav__cta" href="/register">
+              Create account
+            </a>
+          </>
+        )}
       </nav>
     </header>
   );

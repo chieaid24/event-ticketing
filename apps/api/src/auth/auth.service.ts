@@ -1,8 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { HttpException } from "@nestjs/common";
-import type { output, ZodType } from "zod";
-
 import {
   changePasswordRequestSchema,
   forgotPasswordRequestSchema,
@@ -28,10 +25,13 @@ import {
 import type { SessionSecrets } from "./cookies.js";
 import { hashPassword, verifyPassword } from "./passwords.js";
 import type { AuthStore } from "./auth.store.js";
+import {
+  apiError as authError,
+  parseRequest,
+  uuidPattern,
+} from "../request-validation.js";
 
 const secretPattern = /^[A-Za-z0-9_-]{20,128}$/;
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface AuthServiceOptions {
   sessionAbsoluteTtlSeconds: number;
@@ -48,24 +48,6 @@ export interface RequestAuthContext {
 export interface AuthenticatedSession {
   session: SessionRow;
   user: AuthUserRow;
-}
-
-function authError(status: number, code: string, message: string): never {
-  throw new HttpException({ code, message }, status);
-}
-
-function parseRequest<S extends ZodType>(schema: S, input: unknown): output<S> {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    const path = issue?.path.join(".") ?? "";
-    authError(
-      400,
-      "invalid_request",
-      path ? `The field "${path}" is invalid.` : "The request body is invalid."
-    );
-  }
-  return parsed.data;
 }
 
 function toAuthUser(user: AuthUserRow): AuthUser {
@@ -269,6 +251,15 @@ export class AuthService {
     if (!authenticated) {
       authError(401, "unauthenticated", "Sign in to continue.");
     }
+    return authenticated;
+  }
+
+  /** Session plus CSRF and origin checks, for state-changing routes. */
+  async requireMutationSession(
+    context: RequestAuthContext
+  ): Promise<AuthenticatedSession> {
+    const authenticated = await this.requireSession(context);
+    this.requireCsrf(context, authenticated.session);
     return authenticated;
   }
 

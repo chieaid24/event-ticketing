@@ -18,6 +18,9 @@ import {
 } from "./dependency-health.js";
 import { HealthController } from "./health.controller.js";
 import { HealthService } from "./health.service.js";
+import { OrganizationsController } from "./organizations/organizations.controller.js";
+import { OrganizationsService } from "./organizations/organizations.service.js";
+import { PgOrganizationsStore } from "./organizations/organizations.store.js";
 import { RequestLoggingMiddleware } from "./request-logging.middleware.js";
 import {
   AUTH_COOKIE_SETTINGS,
@@ -25,6 +28,8 @@ import {
   AUTH_SERVICE,
   AUTH_STORE,
   DATABASE_HEALTH,
+  ORGANIZATIONS_SERVICE,
+  ORGANIZATIONS_STORE,
   REDIS_HEALTH,
   STRUCTURED_LOGGER,
 } from "./runtime.tokens.js";
@@ -35,7 +40,12 @@ export class AppModule implements NestModule {
   static register(config: ApiConfig, logger: Logger): DynamicModule {
     return {
       module: AppModule,
-      controllers: [AuthController, HealthController, StatusController],
+      controllers: [
+        AuthController,
+        HealthController,
+        OrganizationsController,
+        StatusController,
+      ],
       providers: [
         {
           provide: AUTH_STORE,
@@ -66,6 +76,16 @@ export class AppModule implements NestModule {
             maxAgeSeconds: config.sessionAbsoluteTtlSeconds,
             secure: config.cookieSecure,
           },
+        },
+        {
+          provide: ORGANIZATIONS_STORE,
+          useFactory: () => new PgOrganizationsStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, ORGANIZATIONS_STORE],
+          provide: ORGANIZATIONS_SERVICE,
+          useFactory: (auth: AuthService, store: PgOrganizationsStore) =>
+            new OrganizationsService(auth, store),
         },
         {
           provide: DATABASE_HEALTH,

@@ -74,6 +74,7 @@ model User {
   invitedMembership OrganizationMembership[] @relation("MembershipInviter")
   sessions          Session[]
   authTokens        AuthToken[]
+  auditLogs         AuditLog[]               @relation("AuditActor")
 
   @@map("users")
 }
@@ -116,8 +117,25 @@ model Organization {
   createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships OrganizationMembership[]
+  auditLogs   AuditLog[]
 
   @@map("organizations")
+}
+
+model AuditLog {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  actorUserId    String?       @map("actor_user_id") @db.Uuid
+  action         String        @db.VarChar(120)
+  targetType     String        @map("target_type") @db.VarChar(80)
+  targetId       String?       @map("target_id") @db.Uuid
+  detail         Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor          User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)], map: "audit_logs_org_created_idx")
+  @@map("audit_logs")
 }
 
 model OrganizationMembership {
