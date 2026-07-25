@@ -24,7 +24,7 @@ async function bootstrap(): Promise<void> {
     credentials: true,
     exposedHeaders: ["x-request-id"],
     maxAge: 600,
-    methods: ["GET", "PATCH", "POST", "DELETE"],
+    methods: ["GET", "PATCH", "POST", "PUT", "DELETE"],
     origin: [...config.trustedOrigins],
   });
   app.enableShutdownHooks();

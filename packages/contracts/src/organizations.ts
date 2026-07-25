@@ -20,6 +20,7 @@ export const organizationPermissionSchema = z.enum([
   "members.role.update",
   "members.remove",
   "audit.read",
+  "venues.manage",
   "events.manage",
   "finance.manage",
   "scanner.checkin",

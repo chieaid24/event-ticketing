@@ -32,8 +32,13 @@ import {
   ORGANIZATIONS_STORE,
   REDIS_HEALTH,
   STRUCTURED_LOGGER,
+  VENUES_SERVICE,
+  VENUES_STORE,
 } from "./runtime.tokens.js";
 import { StatusController } from "./status.controller.js";
+import { VenuesController } from "./venues/venues.controller.js";
+import { VenuesService } from "./venues/venues.service.js";
+import { PgVenuesStore } from "./venues/venues.store.js";
 
 @Module({})
 export class AppModule implements NestModule {
@@ -45,6 +50,7 @@ export class AppModule implements NestModule {
         HealthController,
         OrganizationsController,
         StatusController,
+        VenuesController,
       ],
       providers: [
         {
@@ -86,6 +92,16 @@ export class AppModule implements NestModule {
           provide: ORGANIZATIONS_SERVICE,
           useFactory: (auth: AuthService, store: PgOrganizationsStore) =>
             new OrganizationsService(auth, store),
+        },
+        {
+          provide: VENUES_STORE,
+          useFactory: () => new PgVenuesStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, VENUES_STORE],
+          provide: VENUES_SERVICE,
+          useFactory: (auth: AuthService, store: PgVenuesStore) =>
+            new VenuesService(auth, store),
         },
         {
           provide: DATABASE_HEALTH,

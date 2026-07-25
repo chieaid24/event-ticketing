@@ -5,8 +5,10 @@ by the web and API applications. It does not expose database records or own
 domain persistence.
 
 Import schemas and their inferred TypeScript types from
-`@event-ticketing/contracts`. The foundation slice exports the API status
-response contract.
+`@event-ticketing/contracts`. Exports cover the API status, authentication,
+organization, and venue contracts. Venue layouts additionally export
+`validateVenueLayout`, the semantic rule check both the organizer UI and the API
+run so validation summaries match the enforcement point.
 
 ## Dependencies and configuration
 

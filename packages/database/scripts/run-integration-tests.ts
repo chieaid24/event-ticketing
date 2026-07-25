@@ -23,6 +23,15 @@ import {
   enqueueOutboxEvent,
   withDatabaseTransaction,
 } from "../src/outbox.js";
+import {
+  claimVenueVersion,
+  deleteVenueById,
+  fetchVenueLayout,
+  findVenueById,
+  insertVenue,
+  listVenuesForOrganization,
+  replaceVenueLayout,
+} from "../src/venues.js";
 
 const localDatabaseUrl =
   "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public";
@@ -114,7 +123,11 @@ try {
         (
           SELECT count(*)::int FROM "organization_memberships"
         ) AS "memberships",
-        (SELECT count(*)::int FROM "outbox_events") AS "outbox_events"
+        (SELECT count(*)::int FROM "outbox_events") AS "outbox_events",
+        (SELECT count(*)::int FROM "venues") AS "venues",
+        (SELECT count(*)::int FROM "venue_sections") AS "venue_sections",
+        (SELECT count(*)::int FROM "venue_rows") AS "venue_rows",
+        (SELECT count(*)::int FROM "venue_seats") AS "venue_seats"
     `);
 
     assert.deepEqual(baseline.rows, [
@@ -123,6 +136,10 @@ try {
         organizations: 1,
         outbox_events: 1,
         users: 1,
+        venue_rows: 2,
+        venue_seats: 8,
+        venue_sections: 2,
+        venues: 1,
       },
     ]);
 
@@ -547,6 +564,159 @@ try {
       "Revoking every session must count the remaining active one."
     );
 
+    const seededOrganizationId = "22222222-2222-4222-8222-222222222222";
+    const seededVenueId = "66666666-6666-4666-8666-666666666666";
+    const seededLayout = await fetchVenueLayout(pool, seededVenueId);
+    assert.equal(seededLayout.length, 2);
+    assert.equal(seededLayout[0]?.rows.length, 2);
+    assert.equal(seededLayout[1]?.gaCapacity, 250);
+
+    assert.equal(
+      await findVenueById(pool, {
+        organizationId: "55555555-5555-4555-8555-555555555555",
+        venueId: seededVenueId,
+      }),
+      null,
+      "A venue must be invisible outside its owning organization."
+    );
+
+    const probeVenue = await insertVenue(pool, {
+      description: null,
+      name: "Integration Probe Hall",
+      organizationId: seededOrganizationId,
+    });
+    assert.ok(probeVenue);
+    assert.equal(
+      await insertVenue(pool, {
+        description: null,
+        name: "Integration Probe Hall",
+        organizationId: seededOrganizationId,
+      }),
+      null,
+      "Duplicate venue names within one organization must be rejected."
+    );
+
+    const probeLayout = [
+      {
+        gaCapacity: null,
+        kind: "assigned" as const,
+        name: "Probe Stalls",
+        rows: [
+          {
+            label: "A",
+            seats: [
+              { accessible: true, companion: false, label: "1", x: 0, y: 0 },
+              { accessible: false, companion: true, label: "2", x: 1, y: 0 },
+            ],
+          },
+        ],
+      },
+    ];
+    const layoutRaces = await Promise.all(
+      ["one", "two"].map(() =>
+        withDatabaseTransaction(pool, async (transaction) => {
+          const claimed = await claimVenueVersion(transaction, {
+            expectedVersion: probeVenue.version,
+            organizationId: seededOrganizationId,
+            venueId: probeVenue.id,
+          });
+          if (!claimed) {
+            return "conflict";
+          }
+          await replaceVenueLayout(transaction, {
+            sections: probeLayout,
+            venueId: probeVenue.id,
+          });
+          return "replaced";
+        })
+      )
+    );
+    assert.deepEqual(
+      layoutRaces.toSorted(),
+      ["conflict", "replaced"],
+      "Concurrent layout replacements must have exactly one winner."
+    );
+    const roundTripped = await fetchVenueLayout(pool, probeVenue.id);
+    assert.deepEqual(roundTripped, probeLayout);
+
+    const summaries = await listVenuesForOrganization(
+      pool,
+      seededOrganizationId
+    );
+    const probeSummary = summaries.find((row) => row.id === probeVenue.id);
+    assert.equal(probeSummary?.seatCount, 2);
+    assert.equal(probeSummary?.accessibleSeatCount, 1);
+    assert.equal(probeSummary?.generalAdmissionCapacity, 0);
+
+    const probeSection = await pool.query<{ id: string }>(
+      `SELECT "id" FROM "venue_sections" WHERE "venue_id" = $1`,
+      [probeVenue.id]
+    );
+    const probeSectionId = probeSection.rows[0]?.id;
+    assert.ok(probeSectionId);
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO "venue_rows" ("section_id", "label", "position")
+         VALUES ($1, 'A', 9)`,
+        [probeSectionId]
+      ),
+      /venue_rows_section_id_label_key/,
+      "Duplicate row labels within a section must be rejected."
+    );
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO "venue_sections"
+           ("venue_id", "name", "kind", "ga_capacity", "position")
+         VALUES ($1, 'Broken GA', 'general_admission', 0, 9)`,
+        [probeVenue.id]
+      ),
+      /venue_sections_kind_capacity/,
+      "A general-admission section must carry a positive capacity."
+    );
+    const probeRow = await pool.query<{ id: string }>(
+      `SELECT "id" FROM "venue_rows" WHERE "section_id" = $1 LIMIT 1`,
+      [probeSectionId]
+    );
+    const probeRowId = probeRow.rows[0]?.id;
+    assert.ok(probeRowId);
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO "venue_seats" ("row_id", "label", "x", "y")
+         VALUES ($1, 'far', 2000, 0)`,
+        [probeRowId]
+      ),
+      /venue_seats_coordinates_bounded/,
+      "Out-of-range seat coordinates must be rejected."
+    );
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO "venue_seats"
+           ("row_id", "label", "x", "y", "accessible", "companion")
+         VALUES ($1, 'both', 9, 9, true, true)`,
+        [probeRowId]
+      ),
+      /venue_seats_access_roles_exclusive/,
+      "A seat cannot be both accessible and companion."
+    );
+
+    assert.equal(
+      await deleteVenueById(pool, {
+        organizationId: seededOrganizationId,
+        venueId: probeVenue.id,
+      }),
+      true
+    );
+    const orphans = await pool.query(
+      `SELECT count(*)::int AS "count" FROM "venue_sections"
+       WHERE "venue_id" = $1`,
+      [probeVenue.id]
+    );
+    assert.deepEqual(
+      orphans.rows,
+      [{ count: 0 }],
+      "Deleting a venue must cascade to its layout."
+    );
+
     await redis.connect();
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
@@ -561,8 +731,9 @@ try {
         migrations: "applied",
         redis: "isolated",
         schedules: "verified",
-        seedDomainRecords: 3,
+        seedDomainRecords: 16,
         seedOutboxEvents: 1,
+        venueLayouts: "verified",
       })}\n`
     );
   } finally {

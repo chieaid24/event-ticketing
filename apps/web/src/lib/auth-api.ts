@@ -38,7 +38,7 @@ export async function requestJson(
   init: {
     body?: unknown;
     csrf?: boolean;
-    method: "PATCH" | "POST" | "DELETE";
+    method: "PATCH" | "POST" | "PUT" | "DELETE";
   }
 ): Promise<unknown> {
   const headers: Record<string, string> = {};

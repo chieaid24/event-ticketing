@@ -60,6 +60,29 @@ same `404` as a missing organization. Mutations are CSRF protected.
 - `GET /organizations/:id/audit-logs` lists privileged changes for owners and
   admins.
 
+## Venue routes
+
+Venue templates are organization scoped under
+`/organizations/:organizationId/venues`. Reads need an active membership;
+mutations need the `venues.manage` permission and CSRF. A venue addressed
+through the wrong organization answers the same `404` as a missing venue.
+
+- `POST .../venues` creates an empty template; duplicate names answer
+  `venue_name_taken`.
+- `GET .../venues` lists templates with section, seat, accessible-seat, and
+  general-admission counts.
+- `GET .../venues/:venueId` returns the template and its full layout document.
+- `PATCH .../venues/:venueId` updates name and description with optimistic
+  `version` checking.
+- `PUT .../venues/:venueId/layout` validates the shared layout contract plus the
+  semantic rules in `validateVenueLayout` (duplicate labels, shared coordinates,
+  companion adjacency, seat cap) and replaces the whole layout atomically under
+  the same `version` check.
+- `DELETE .../venues/:venueId` removes the template and cascades its layout.
+
+Venue mutations write `venue.created`, `venue.updated`, `venue.layout.replaced`,
+and `venue.deleted` audit entries.
+
 ## Run
 
 ```bash

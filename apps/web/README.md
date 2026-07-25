@@ -23,6 +23,12 @@ caller's permissions from the API allow them; visibility mirrors the
 [authorization policy](../../docs/security/authorization.md) and the API remains
 the enforcement point.
 
+Venue flows live at `/organizations/[organizationId]/venues` (template list and
+creation) and `.../venues/[venueId]` (accessible seat-map preview with a table
+alternative, name and description editing, JSON layout editing with a full
+client-side validation summary from the shared contract, and confirmed
+deletion). Editing controls render only with the `venues.manage` permission.
+
 ## Run
 
 ```bash

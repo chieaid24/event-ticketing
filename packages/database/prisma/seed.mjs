@@ -88,6 +88,99 @@ try {
   );
   await client.query(
     `
+      INSERT INTO "venues" ("id", "organization_id", "name", "description")
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT ("id") DO UPDATE SET
+        "organization_id" = EXCLUDED."organization_id",
+        "name" = EXCLUDED."name",
+        "description" = EXCLUDED."description"
+    `,
+    [
+      "66666666-6666-4666-8666-666666666666",
+      "22222222-2222-4222-8222-222222222222",
+      "Example Test Hall",
+      "Synthetic venue template for development.",
+    ]
+  );
+  const seedSections = [
+    ["77777777-7777-4777-8777-777777777771", "Stalls", "assigned", null, 0],
+    [
+      "77777777-7777-4777-8777-777777777772",
+      "Standing Floor",
+      "general_admission",
+      250,
+      1,
+    ],
+  ];
+  for (const [id, name, kind, gaCapacity, position] of seedSections) {
+    await client.query(
+      `
+        INSERT INTO "venue_sections"
+          ("id", "venue_id", "name", "kind", "ga_capacity", "position")
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT ("id") DO UPDATE SET
+          "venue_id" = EXCLUDED."venue_id",
+          "name" = EXCLUDED."name",
+          "kind" = EXCLUDED."kind",
+          "ga_capacity" = EXCLUDED."ga_capacity",
+          "position" = EXCLUDED."position"
+      `,
+      [
+        id,
+        "66666666-6666-4666-8666-666666666666",
+        name,
+        kind,
+        gaCapacity,
+        position,
+      ]
+    );
+  }
+  const seedRows = [
+    ["88888888-8888-4888-8888-888888888881", "A", 0],
+    ["88888888-8888-4888-8888-888888888882", "B", 1],
+  ];
+  for (const [id, label, position] of seedRows) {
+    await client.query(
+      `
+        INSERT INTO "venue_rows" ("id", "section_id", "label", "position")
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT ("id") DO UPDATE SET
+          "section_id" = EXCLUDED."section_id",
+          "label" = EXCLUDED."label",
+          "position" = EXCLUDED."position"
+      `,
+      [id, "77777777-7777-4777-8777-777777777771", label, position]
+    );
+  }
+  const seedSeats = [
+    ["99999999-9999-4999-8999-999999999901", 0, "1", 0, 0, false, false],
+    ["99999999-9999-4999-8999-999999999902", 0, "2", 1, 0, false, false],
+    ["99999999-9999-4999-8999-999999999903", 0, "3", 3, 0, true, false],
+    ["99999999-9999-4999-8999-999999999904", 0, "4", 4, 0, false, true],
+    ["99999999-9999-4999-8999-999999999905", 1, "1", 0, 1, false, false],
+    ["99999999-9999-4999-8999-999999999906", 1, "2", 1, 1, false, false],
+    ["99999999-9999-4999-8999-999999999907", 1, "3", 3, 1, false, false],
+    ["99999999-9999-4999-8999-999999999908", 1, "4", 4, 1, false, false],
+  ];
+  for (const [id, rowIndex, label, x, y, accessible, companion] of seedSeats) {
+    await client.query(
+      `
+        INSERT INTO "venue_seats"
+          ("id", "row_id", "label", "x", "y", "accessible", "companion")
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT ("id") DO UPDATE SET
+          "row_id" = EXCLUDED."row_id",
+          "label" = EXCLUDED."label",
+          "x" = EXCLUDED."x",
+          "y" = EXCLUDED."y",
+          "accessible" = EXCLUDED."accessible",
+          "companion" = EXCLUDED."companion"
+      `,
+      [id, seedRows[rowIndex][0], label, x, y, accessible, companion]
+    );
+  }
+  await client.query(
+    `
       INSERT INTO "outbox_events" (
         "topic",
         "payload",
@@ -113,7 +206,7 @@ try {
   await client.query("COMMIT");
   process.stdout.write(
     `${JSON.stringify({
-      domainRecords: 3,
+      domainRecords: 16,
       event: "database.seed.completed",
       outboxEvents: 1,
     })}\n`
