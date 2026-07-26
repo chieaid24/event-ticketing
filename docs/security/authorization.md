@@ -46,6 +46,12 @@ organization so probing cannot confirm one exists.
   compare-and-swap serializes concurrent replacements to one winner. A venue
   addressed through the wrong organization answers the same `404` as a missing
   venue.
+- Event reads need an active membership; event mutations need `events.manage`
+  and carry the event `version`. Only a draft accepts edits. Publication runs
+  the shared `validateEventForPublication` check server-side, rejects an
+  incomplete or inconsistent event, and snapshots the venue seats so later
+  layout edits never change sold inventory. The version compare-and-swap
+  serializes concurrent draft writes and publication to one winner.
 - Deleting an organization is owner-only, requires retyping the organization
   slug, and requires a current CSRF-checked session.
 - Invitations answer `202` whether or not the email has an account, so the
@@ -59,7 +65,8 @@ transaction: `organization.created`, `organization.settings.updated`,
 `organization.deleted`, `member.invited`, `member.joined`,
 `member.invitation.declined`, `member.role.changed`, `member.removed` (with a
 `left` flag when the member removed themselves), `venue.created`,
-`venue.updated`, `venue.layout.replaced`, and `venue.deleted`. Entries keep the
-actor, target, and a small detail object, and survive actor or organization
-deletion through `SET NULL` foreign keys. Owners and admins read them at
-`GET /organizations/:id/audit-logs`.
+`venue.updated`, `venue.layout.replaced`, `venue.deleted`, `event.created`,
+`event.updated`, `event.ticket_types.replaced`, and `event.published`. Entries
+keep the actor, target, and a small detail object, and survive actor or
+organization deletion through `SET NULL` foreign keys. Owners and admins read
+them at `GET /organizations/:id/audit-logs`.

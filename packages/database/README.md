@@ -35,7 +35,10 @@ one membership per user and organization, explicit role and status enums,
 active-membership join timestamps, outbox state-dependent fields, and venue
 layout rules: unique names and labels per scope, bounded coordinates,
 kind-dependent general-admission capacity, and mutually exclusive accessible and
-companion flags.
+companion flags. Event tables enforce positive versions, bounded hold duration,
+supported currencies, kind-dependent ticket-type capacity, unique event-seat
+positions, and a publication timestamp that matches event status. A published
+event cannot delete its venue because the venue foreign key restricts it.
 
 The seed transaction upserts sixteen domain records and one deduplicated
 `organization.created` event. Running it again preserves the same seventeen
@@ -53,8 +56,10 @@ concurrent `SKIP LOCKED` claims, delayed work, bounded dead-letter transitions,
 lease recovery, graceful claim release, durable receipts, schedule
 materialization, metrics, venue layout replacement (version compare-and-swap
 under concurrency, organization scoping, constraint rejection, cascade
-deletion), and Redis isolation. It removes both scopes in a `finally` cleanup.
-`DATABASE_URL` and `REDIS_URL` default to the local containers.
+deletion), event publishing (draft version compare-and-swap, assigned-seat
+snapshot, audit and outbox effects, and transaction rollback), and Redis
+isolation. It removes both scopes in a `finally` cleanup. `DATABASE_URL` and
+`REDIS_URL` default to the local containers.
 
 ## Test
 
