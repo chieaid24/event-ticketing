@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
 
 export * from "./auth.js";
+export * from "./events.js";
 export * from "./organizations.js";
 export * from "./outbox.js";
 export * from "./venues.js";

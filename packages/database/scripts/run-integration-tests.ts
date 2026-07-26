@@ -18,6 +18,18 @@ import {
   revokeUserSessions,
 } from "../src/auth.js";
 import {
+  claimEventVersion,
+  fetchSectionSeats,
+  fetchTicketTypes,
+  fetchVenueSectionSummaries,
+  insertEvent,
+  insertEventSeats,
+  markEventPublished,
+  replaceTicketTypes,
+  updateEventDraft,
+} from "../src/events.js";
+import { insertAuditLog } from "../src/organizations.js";
+import {
   createDatabasePool,
   createOutboxRepository,
   enqueueOutboxEvent,
@@ -717,6 +729,209 @@ try {
       "Deleting a venue must cascade to its layout."
     );
 
+    const eventSections = await fetchVenueSectionSummaries(pool, seededVenueId);
+    assert.equal(eventSections.length, 2);
+    const assignedSection = eventSections.find(
+      (section) => section.kind === "assigned"
+    );
+    const gaSection = eventSections.find(
+      (section) => section.kind === "general_admission"
+    );
+    assert.ok(assignedSection);
+    assert.ok(gaSection);
+    assert.ok(assignedSection.seatCount > 0);
+
+    const draftEvent = await insertEvent(pool, {
+      organizationId: seededOrganizationId,
+      title: "Integration Concert",
+      venueId: seededVenueId,
+    });
+    assert.equal(draftEvent.status, "draft");
+    assert.equal(draftEvent.version, 1);
+
+    const updatedDraft = await updateEventDraft(pool, {
+      currency: "USD",
+      description: "An integration probe event.",
+      endsAt: new Date("2026-09-01T04:00:00.000Z"),
+      eventId: draftEvent.id,
+      expectedVersion: 1,
+      holdDurationSeconds: 600,
+      mediaUrl: null,
+      organizationId: seededOrganizationId,
+      refundPolicy: "Full refund up to 24 hours before.",
+      salesEndAt: new Date("2026-08-31T23:00:00.000Z"),
+      salesStartAt: new Date("2026-08-01T00:00:00.000Z"),
+      startsAt: new Date("2026-09-01T01:00:00.000Z"),
+      timezone: "America/Toronto",
+      title: "Integration Concert",
+    });
+    assert.equal(updatedDraft?.version, 2);
+    assert.equal(
+      await updateEventDraft(pool, {
+        currency: "USD",
+        description: null,
+        endsAt: null,
+        eventId: draftEvent.id,
+        expectedVersion: 1,
+        holdDurationSeconds: 600,
+        mediaUrl: null,
+        organizationId: seededOrganizationId,
+        refundPolicy: null,
+        salesEndAt: null,
+        salesStartAt: null,
+        startsAt: null,
+        timezone: "UTC",
+        title: "Stale Update",
+      }),
+      null,
+      "A stale draft update must not overwrite a newer version."
+    );
+
+    await withDatabaseTransaction(pool, async (transaction) => {
+      const claimed = await claimEventVersion(transaction, {
+        eventId: draftEvent.id,
+        expectedVersion: 2,
+        organizationId: seededOrganizationId,
+      });
+      assert.ok(claimed);
+      await replaceTicketTypes(transaction, {
+        eventId: draftEvent.id,
+        ticketTypes: [
+          {
+            capacity: null,
+            feeMinor: 250,
+            kind: "assigned",
+            name: "Reserved",
+            priceMinor: 5_000,
+            sectionName: assignedSection.name,
+          },
+          {
+            capacity: 100,
+            feeMinor: 0,
+            kind: "general_admission",
+            name: "Lawn",
+            priceMinor: 3_000,
+            sectionName: gaSection.name,
+          },
+        ],
+      });
+    });
+    const ticketTypes = await fetchTicketTypes(pool, draftEvent.id);
+    assert.equal(ticketTypes.length, 2);
+
+    // A publication that fails midway must leave no snapshot and no state change.
+    await assert.rejects(
+      withDatabaseTransaction(pool, async (transaction) => {
+        await claimEventVersion(transaction, {
+          eventId: draftEvent.id,
+          expectedVersion: 3,
+          organizationId: seededOrganizationId,
+        });
+        await insertEventSeats(transaction, {
+          eventId: draftEvent.id,
+          priceMinor: 5_000,
+          sectionName: assignedSection.name,
+          seats: await fetchSectionSeats(transaction, {
+            sectionName: assignedSection.name,
+            venueId: seededVenueId,
+          }),
+          ticketTypeId: ticketTypes[0]!.id,
+        });
+        throw new Error("publish probe rollback");
+      }),
+      /publish probe rollback/
+    );
+    const afterRollback = await pool.query<{ seats: number; status: string }>(
+      `SELECT
+         (SELECT count(*)::int FROM "event_seats" WHERE "event_id" = $1) AS "seats",
+         (SELECT "status" FROM "events" WHERE "id" = $1) AS "status"`,
+      [draftEvent.id]
+    );
+    assert.deepEqual(afterRollback.rows, [{ seats: 0, status: "draft" }]);
+
+    // A committed publication snapshots assigned seats and records the effect.
+    const assignedTicketType = ticketTypes.find(
+      (ticketType) => ticketType.kind === "assigned"
+    );
+    assert.ok(assignedTicketType);
+    const published = await withDatabaseTransaction(
+      pool,
+      async (transaction) => {
+        const claimed = await claimEventVersion(transaction, {
+          eventId: draftEvent.id,
+          expectedVersion: 3,
+          organizationId: seededOrganizationId,
+        });
+        assert.ok(claimed);
+        const seats = await fetchSectionSeats(transaction, {
+          sectionName: assignedSection.name,
+          venueId: seededVenueId,
+        });
+        await insertEventSeats(transaction, {
+          eventId: draftEvent.id,
+          priceMinor: assignedTicketType.priceMinor,
+          sectionName: assignedSection.name,
+          seats,
+          ticketTypeId: assignedTicketType.id,
+        });
+        await insertAuditLog(transaction, {
+          action: "event.published",
+          actorUserId: null,
+          detail: { seatCount: seats.length },
+          organizationId: seededOrganizationId,
+          targetId: draftEvent.id,
+          targetType: "event",
+        });
+        await enqueueOutboxEvent(transaction, {
+          aggregateId: draftEvent.id,
+          aggregateType: "event",
+          deduplicationKey: `event.published:${draftEvent.id}`,
+          payload: { eventId: draftEvent.id },
+          topic: "event.published",
+        });
+        return markEventPublished(transaction, {
+          eventId: draftEvent.id,
+          organizationId: seededOrganizationId,
+        });
+      }
+    );
+    assert.equal(published?.status, "published");
+    assert.ok(published?.publishedAt);
+
+    const snapshot = await pool.query<{ seats: number; sold: number }>(
+      `SELECT
+         count(*)::int AS "seats",
+         count(*) FILTER (WHERE "status" = 'available')::int AS "sold"
+       FROM "event_seats" WHERE "event_id" = $1`,
+      [draftEvent.id]
+    );
+    assert.equal(snapshot.rows[0]?.seats, assignedSection.seatCount);
+    assert.equal(snapshot.rows[0]?.sold, assignedSection.seatCount);
+
+    const publishEffects = await pool.query<{ audits: number; outbox: number }>(
+      `SELECT
+         (
+           SELECT count(*)::int FROM "audit_logs"
+           WHERE "target_id" = $1 AND "action" = 'event.published'
+         ) AS "audits",
+         (
+           SELECT count(*)::int FROM "outbox_events"
+           WHERE "aggregate_id" = $1 AND "topic" = 'event.published'
+         ) AS "outbox"`,
+      [draftEvent.id]
+    );
+    assert.deepEqual(publishEffects.rows, [{ audits: 1, outbox: 1 }]);
+
+    assert.equal(
+      await claimEventVersion(pool, {
+        eventId: draftEvent.id,
+        expectedVersion: published!.version,
+        organizationId: seededOrganizationId,
+      }),
+      null,
+      "A published event must not accept further draft writes."
+    );
+
     await redis.connect();
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
@@ -728,6 +943,7 @@ try {
         concurrentClaims: claimedIds.length,
         deadLetters: metrics.deadLetter,
         event: "integration.completed",
+        eventPublishing: "verified",
         migrations: "applied",
         redis: "isolated",
         schedules: "verified",

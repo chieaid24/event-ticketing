@@ -57,6 +57,8 @@ export default async function OrganizationDetailPage({
         <p className="auth-shell__summary">/{detail.organization.slug}</p>
         <p className="auth-shell__summary">
           <a href={`/organizations/${organizationId}/venues`}>Manage venues</a>
+          {" | "}
+          <a href={`/organizations/${organizationId}/events`}>Manage events</a>
         </p>
         <OrganizationDetailPanels
           apiBaseUrl={config.apiBaseUrl}

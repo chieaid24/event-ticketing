@@ -83,6 +83,37 @@ through the wrong organization answers the same `404` as a missing venue.
 Venue mutations write `venue.created`, `venue.updated`, `venue.layout.replaced`,
 and `venue.deleted` audit entries.
 
+## Event routes
+
+Events are organization scoped under `/organizations/:organizationId/events`.
+Reads need an active membership; mutations need the `events.manage` permission
+and CSRF. Only a draft accepts edits; a non-draft answers `event_not_draft`. An
+event addressed through the wrong organization answers the same `404` as a
+missing event.
+
+- `POST .../events` drafts an event against an existing venue. An unknown venue
+  answers `venue_not_found`.
+- `GET .../events` lists events with venue name, start time, ticket-type count,
+  and materialized capacity.
+- `GET .../events/:eventId` returns the event, its ticket types, the venue
+  sections available to sell, and the outstanding publication problems.
+- `PATCH .../events/:eventId` saves draft basics (title, description, timezone,
+  currency, schedule, sale window, hold duration, refund policy, media) under
+  optimistic `version` checking; a stale save answers `version_conflict`.
+- `PUT .../events/:eventId/ticket-types` replaces the ticket-type set under the
+  same `version` check. Each type must match a venue section of its kind, or the
+  request answers `ticket_types_invalid`.
+- `POST .../events/:eventId/publish` runs `validateEventForPublication` and
+  answers `422 event_incomplete` when the event is incomplete or inconsistent.
+  On success it snapshots each assigned section's seats into `event_seats`,
+  marks the event published, writes an audit entry, and enqueues an
+  `event.published` outbox event, all in one transaction.
+
+Money is stored as integer minor units with an ISO 4217 currency; times are UTC
+instants paired with the event's IANA timezone. Event mutations write
+`event.created`, `event.updated`, `event.ticket_types.replaced`, and
+`event.published` audit entries.
+
 ## Run
 
 ```bash
