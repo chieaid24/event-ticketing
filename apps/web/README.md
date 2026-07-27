@@ -7,6 +7,15 @@ providers, or private object storage.
 The current entry point is `/`, a server-rendered service status page. It parses
 `GET /status` with the shared contract before displaying API availability.
 
+Public discovery lives at `/events` (published-event listing with search,
+timeframe filtering, and pagination) and `/events/[eventId]` (event details,
+ticket types, and an accessible availability view). The listing and details
+render on the server without a session; the availability view is a client
+component that reads advisory seat and admission data, offers a keyboard- and
+screen-reader-friendly seat map with a table alternative, and never presents a
+client selection as a hold before the server confirms one. Event times render in
+the event's own timezone.
+
 Account flows live at `/register`, `/verify-email`, `/login`,
 `/forgot-password`, `/reset-password`, and `/account` (session details, password
 change, session revocation, sign out). Forms call the API directly with

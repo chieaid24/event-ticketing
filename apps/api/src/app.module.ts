@@ -16,6 +16,9 @@ import {
   DatabaseHealthDependency,
   RedisHealthDependency,
 } from "./dependency-health.js";
+import { DiscoveryController } from "./discovery/discovery.controller.js";
+import { DiscoveryService } from "./discovery/discovery.service.js";
+import { PgDiscoveryStore } from "./discovery/discovery.store.js";
 import { EventsController } from "./events/events.controller.js";
 import { EventsService } from "./events/events.service.js";
 import { PgEventsStore } from "./events/events.store.js";
@@ -31,6 +34,8 @@ import {
   AUTH_SERVICE,
   AUTH_STORE,
   DATABASE_HEALTH,
+  DISCOVERY_SERVICE,
+  DISCOVERY_STORE,
   EVENTS_SERVICE,
   EVENTS_STORE,
   ORGANIZATIONS_SERVICE,
@@ -52,6 +57,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         AuthController,
+        DiscoveryController,
         HealthController,
         OrganizationsController,
         StatusController,
@@ -108,6 +114,15 @@ export class AppModule implements NestModule {
           provide: VENUES_SERVICE,
           useFactory: (auth: AuthService, store: PgVenuesStore) =>
             new VenuesService(auth, store),
+        },
+        {
+          provide: DISCOVERY_STORE,
+          useFactory: () => new PgDiscoveryStore(config.databaseUrl),
+        },
+        {
+          inject: [DISCOVERY_STORE],
+          provide: DISCOVERY_SERVICE,
+          useFactory: (store: PgDiscoveryStore) => new DiscoveryService(store),
         },
         {
           provide: EVENTS_STORE,
