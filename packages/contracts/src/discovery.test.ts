@@ -16,6 +16,7 @@ describe("publicEventListQuerySchema", () => {
     expect(parsed.data).toEqual({
       limit: DISCOVERY_DEFAULT_LIMIT,
       offset: 0,
+      timeframe: "upcoming",
     });
   });
 
@@ -24,9 +25,20 @@ describe("publicEventListQuerySchema", () => {
       limit: "5",
       offset: "10",
       search: "  gala  ",
+      timeframe: "all",
     });
     expect(parsed.success).toBe(true);
-    expect(parsed.data).toEqual({ limit: 5, offset: 10, search: "gala" });
+    expect(parsed.data).toEqual({
+      limit: 5,
+      offset: 10,
+      search: "gala",
+      timeframe: "all",
+    });
+  });
+
+  it("rejects an unknown timeframe", () => {
+    const parsed = publicEventListQuerySchema.safeParse({ timeframe: "soon" });
+    expect(parsed.success).toBe(false);
   });
 
   it("rejects a limit above the cap", () => {

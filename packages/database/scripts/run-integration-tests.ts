@@ -18,6 +18,13 @@ import {
   revokeUserSessions,
 } from "../src/auth.js";
 import {
+  fetchAvailabilitySeats,
+  fetchGeneralAdmissionCapacity,
+  fetchPublicTicketTypes,
+  findPublishedEventById,
+  listPublishedEvents,
+} from "../src/discovery.js";
+import {
   claimEventVersion,
   fetchSectionSeats,
   fetchTicketTypes,
@@ -139,14 +146,20 @@ try {
         (SELECT count(*)::int FROM "venues") AS "venues",
         (SELECT count(*)::int FROM "venue_sections") AS "venue_sections",
         (SELECT count(*)::int FROM "venue_rows") AS "venue_rows",
-        (SELECT count(*)::int FROM "venue_seats") AS "venue_seats"
+        (SELECT count(*)::int FROM "venue_seats") AS "venue_seats",
+        (SELECT count(*)::int FROM "events") AS "events",
+        (SELECT count(*)::int FROM "ticket_types") AS "ticket_types",
+        (SELECT count(*)::int FROM "event_seats") AS "event_seats"
     `);
 
     assert.deepEqual(baseline.rows, [
       {
+        event_seats: 8,
+        events: 1,
         memberships: 1,
         organizations: 1,
         outbox_events: 1,
+        ticket_types: 2,
         users: 1,
         venue_rows: 2,
         venue_seats: 8,
@@ -932,6 +945,180 @@ try {
       "A published event must not accept further draft writes."
     );
 
+    // Public discovery reads: published events only, advisory availability,
+    // and no blocked seats or internal fields in any response.
+    const seededGalaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+    const draftProbe = await insertEvent(pool, {
+      organizationId: seededOrganizationId,
+      title: "Discovery Draft Probe",
+      venueId: seededVenueId,
+    });
+    const dayMs = 24 * 60 * 60 * 1000;
+    const pastProbe = await insertEvent(pool, {
+      organizationId: seededOrganizationId,
+      title: "Discovery Past Probe",
+      venueId: seededVenueId,
+    });
+    await updateEventDraft(pool, {
+      currency: "USD",
+      description: null,
+      endsAt: new Date(Date.now() - 7 * dayMs),
+      eventId: pastProbe.id,
+      expectedVersion: 1,
+      holdDurationSeconds: 600,
+      mediaUrl: null,
+      organizationId: seededOrganizationId,
+      refundPolicy: null,
+      salesEndAt: new Date(Date.now() - 8 * dayMs),
+      salesStartAt: new Date(Date.now() - 30 * dayMs),
+      startsAt: new Date(Date.now() - 8 * dayMs),
+      timezone: "UTC",
+      title: "Discovery Past Probe",
+    });
+    assert.ok(
+      await markEventPublished(pool, {
+        eventId: pastProbe.id,
+        organizationId: seededOrganizationId,
+      })
+    );
+
+    const allListing = await listPublishedEvents(pool, {
+      limit: 50,
+      offset: 0,
+      timeframe: "all",
+    });
+    const listedIds = allListing.events.map((event) => event.id);
+    assert.ok(listedIds.includes(seededGalaId));
+    assert.ok(listedIds.includes(draftEvent.id));
+    assert.ok(listedIds.includes(pastProbe.id));
+    assert.ok(
+      !listedIds.includes(draftProbe.id),
+      "A draft event must never be discoverable."
+    );
+    assert.equal(allListing.total, listedIds.length);
+
+    const seededGalaSummary = allListing.events.find(
+      (event) => event.id === seededGalaId
+    );
+    assert.ok(seededGalaSummary);
+    assert.deepEqual(Object.keys(seededGalaSummary).sort(), [
+      "currency",
+      "endsAt",
+      "id",
+      "mediaUrl",
+      "minPriceMinor",
+      "salesEndAt",
+      "salesStartAt",
+      "startsAt",
+      "timezone",
+      "title",
+      "venueName",
+    ]);
+    assert.equal(seededGalaSummary.venueName, "Example Test Hall");
+    assert.equal(seededGalaSummary.minPriceMinor, 1800);
+
+    const upcomingListing = await listPublishedEvents(pool, {
+      limit: 50,
+      offset: 0,
+      timeframe: "upcoming",
+    });
+    const upcomingIds = upcomingListing.events.map((event) => event.id);
+    assert.ok(upcomingIds.includes(seededGalaId));
+    assert.ok(!upcomingIds.includes(pastProbe.id));
+
+    const pastListing = await listPublishedEvents(pool, {
+      limit: 50,
+      offset: 0,
+      timeframe: "past",
+    });
+    const pastIds = pastListing.events.map((event) => event.id);
+    assert.ok(pastIds.includes(pastProbe.id));
+    assert.ok(!pastIds.includes(seededGalaId));
+
+    const searched = await listPublishedEvents(pool, {
+      limit: 50,
+      offset: 0,
+      search: "GALA",
+      timeframe: "all",
+    });
+    assert.deepEqual(
+      searched.events.map((event) => event.id),
+      [seededGalaId],
+      "Search must match titles case-insensitively."
+    );
+    const wildcardProbe = await listPublishedEvents(pool, {
+      limit: 50,
+      offset: 0,
+      search: "%",
+      timeframe: "all",
+    });
+    assert.equal(
+      wildcardProbe.total,
+      0,
+      "LIKE wildcards in a search term must be treated literally."
+    );
+
+    const galaDetail = await findPublishedEventById(pool, seededGalaId);
+    assert.ok(galaDetail);
+    assert.equal(galaDetail.venueName, "Example Test Hall");
+    assert.ok(galaDetail.refundPolicy);
+    assert.equal(
+      await findPublishedEventById(pool, draftProbe.id),
+      null,
+      "A draft event must not resolve publicly."
+    );
+
+    const galaTicketTypes = await fetchPublicTicketTypes(pool, seededGalaId);
+    assert.deepEqual(galaTicketTypes, [
+      {
+        feeMinor: 250,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+        kind: "assigned",
+        name: "Stalls Reserved",
+        priceMinor: 2500,
+        sectionName: "Stalls",
+      },
+      {
+        feeMinor: 150,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+        kind: "general_admission",
+        name: "Standing Floor",
+        priceMinor: 1800,
+        sectionName: "Standing Floor",
+      },
+    ]);
+
+    const galaSeats = await fetchAvailabilitySeats(pool, seededGalaId);
+    assert.equal(
+      galaSeats.length,
+      7,
+      "The blocked seat must be excluded from availability."
+    );
+    assert.ok(
+      galaSeats.every(
+        (seat) => seat.id !== "cccccccc-cccc-4ccc-8ccc-ccccccccccc8"
+      )
+    );
+    assert.equal(
+      galaSeats.filter((seat) => seat.status === "available").length,
+      6
+    );
+    assert.equal(galaSeats.filter((seat) => seat.status === "sold").length, 1);
+
+    const galaGeneralAdmission = await fetchGeneralAdmissionCapacity(
+      pool,
+      seededGalaId
+    );
+    assert.deepEqual(galaGeneralAdmission, [
+      {
+        capacity: 200,
+        feeMinor: 150,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+        name: "Standing Floor",
+        priceMinor: 1800,
+      },
+    ]);
+
     await redis.connect();
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
@@ -942,12 +1129,13 @@ try {
         authLifecycle: "verified",
         concurrentClaims: claimedIds.length,
         deadLetters: metrics.deadLetter,
+        discovery: "verified",
         event: "integration.completed",
         eventPublishing: "verified",
         migrations: "applied",
         redis: "isolated",
         schedules: "verified",
-        seedDomainRecords: 16,
+        seedDomainRecords: 27,
         seedOutboxEvents: 1,
         venueLayouts: "verified",
       })}\n`

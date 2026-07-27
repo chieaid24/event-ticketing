@@ -181,6 +181,247 @@ try {
   }
   await client.query(
     `
+      INSERT INTO "events" (
+        "id",
+        "organization_id",
+        "venue_id",
+        "title",
+        "description",
+        "status",
+        "timezone",
+        "currency",
+        "starts_at",
+        "ends_at",
+        "sales_start_at",
+        "sales_end_at",
+        "refund_policy",
+        "published_at"
+      )
+      VALUES ($1, $2, $3, $4, $5, 'published', $6, 'USD',
+              $7, $8, $9, $10, $11, $12)
+      ON CONFLICT ("id") DO UPDATE SET
+        "organization_id" = EXCLUDED."organization_id",
+        "venue_id" = EXCLUDED."venue_id",
+        "title" = EXCLUDED."title",
+        "description" = EXCLUDED."description",
+        "status" = EXCLUDED."status",
+        "timezone" = EXCLUDED."timezone",
+        "currency" = EXCLUDED."currency",
+        "starts_at" = EXCLUDED."starts_at",
+        "ends_at" = EXCLUDED."ends_at",
+        "sales_start_at" = EXCLUDED."sales_start_at",
+        "sales_end_at" = EXCLUDED."sales_end_at",
+        "refund_policy" = EXCLUDED."refund_policy",
+        "published_at" = EXCLUDED."published_at"
+    `,
+    [
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      "22222222-2222-4222-8222-222222222222",
+      "66666666-6666-4666-8666-666666666666",
+      "Example Test Gala",
+      "A synthetic published event for development and demos.",
+      "America/Toronto",
+      "2027-03-01T00:00:00.000Z",
+      "2027-03-01T03:00:00.000Z",
+      "2026-01-02T00:00:00.000Z",
+      "2027-03-01T00:00:00.000Z",
+      "Full refund up to 24 hours before the event starts.",
+      "2026-01-02T00:00:00.000Z",
+    ]
+  );
+  const seedTicketTypes = [
+    [
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      "Stalls Reserved",
+      "assigned",
+      "Stalls",
+      2500,
+      250,
+      null,
+      0,
+    ],
+    [
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+      "Standing Floor",
+      "general_admission",
+      "Standing Floor",
+      1800,
+      150,
+      200,
+      1,
+    ],
+  ];
+  for (const [
+    id,
+    name,
+    kind,
+    sectionName,
+    priceMinor,
+    feeMinor,
+    capacity,
+    position,
+  ] of seedTicketTypes) {
+    await client.query(
+      `
+        INSERT INTO "ticket_types"
+          ("id", "event_id", "name", "kind", "section_name",
+           "price_minor", "fee_minor", "capacity", "position")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT ("id") DO UPDATE SET
+          "event_id" = EXCLUDED."event_id",
+          "name" = EXCLUDED."name",
+          "kind" = EXCLUDED."kind",
+          "section_name" = EXCLUDED."section_name",
+          "price_minor" = EXCLUDED."price_minor",
+          "fee_minor" = EXCLUDED."fee_minor",
+          "capacity" = EXCLUDED."capacity",
+          "position" = EXCLUDED."position"
+      `,
+      [
+        id,
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        name,
+        kind,
+        sectionName,
+        priceMinor,
+        feeMinor,
+        capacity,
+        position,
+      ]
+    );
+  }
+  // Snapshot of the Stalls venue seats, with one sold and one blocked seat so
+  // public availability states are demonstrable before holds exist.
+  const seedEventSeats = [
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+      "A",
+      "1",
+      0,
+      0,
+      false,
+      false,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
+      "A",
+      "2",
+      1,
+      0,
+      false,
+      false,
+      "sold",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc3",
+      "A",
+      "3",
+      3,
+      0,
+      true,
+      false,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc4",
+      "A",
+      "4",
+      4,
+      0,
+      false,
+      true,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc5",
+      "B",
+      "1",
+      0,
+      1,
+      false,
+      false,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc6",
+      "B",
+      "2",
+      1,
+      1,
+      false,
+      false,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc7",
+      "B",
+      "3",
+      3,
+      1,
+      false,
+      false,
+      "available",
+    ],
+    [
+      "cccccccc-cccc-4ccc-8ccc-ccccccccccc8",
+      "B",
+      "4",
+      4,
+      1,
+      false,
+      false,
+      "blocked",
+    ],
+  ];
+  for (const [
+    id,
+    rowLabel,
+    seatLabel,
+    x,
+    y,
+    accessible,
+    companion,
+    status,
+  ] of seedEventSeats) {
+    await client.query(
+      `
+        INSERT INTO "event_seats"
+          ("id", "event_id", "ticket_type_id", "section_name", "row_label",
+           "seat_label", "x", "y", "accessible", "companion", "price_minor",
+           "status")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT ("id") DO UPDATE SET
+          "event_id" = EXCLUDED."event_id",
+          "ticket_type_id" = EXCLUDED."ticket_type_id",
+          "section_name" = EXCLUDED."section_name",
+          "row_label" = EXCLUDED."row_label",
+          "seat_label" = EXCLUDED."seat_label",
+          "x" = EXCLUDED."x",
+          "y" = EXCLUDED."y",
+          "accessible" = EXCLUDED."accessible",
+          "companion" = EXCLUDED."companion",
+          "price_minor" = EXCLUDED."price_minor",
+          "status" = EXCLUDED."status"
+      `,
+      [
+        id,
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+        "Stalls",
+        rowLabel,
+        seatLabel,
+        x,
+        y,
+        accessible,
+        companion,
+        2500,
+        status,
+      ]
+    );
+  }
+  await client.query(
+    `
       INSERT INTO "outbox_events" (
         "topic",
         "payload",
@@ -206,7 +447,7 @@ try {
   await client.query("COMMIT");
   process.stdout.write(
     `${JSON.stringify({
-      domainRecords: 16,
+      domainRecords: 27,
       event: "database.seed.completed",
       outboxEvents: 1,
     })}\n`

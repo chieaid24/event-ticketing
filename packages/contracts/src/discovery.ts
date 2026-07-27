@@ -36,8 +36,13 @@ export const publicEventListQuerySchema = z
       .default(DISCOVERY_DEFAULT_LIMIT),
     offset: z.coerce.number().int().min(0).max(DISCOVERY_MAX_OFFSET).default(0),
     search: z.string().trim().max(MAX_DISCOVERY_SEARCH).optional(),
+    timeframe: z.enum(["upcoming", "past", "all"]).default("upcoming"),
   })
   .strict();
+
+export type DiscoveryTimeframe = z.infer<
+  typeof publicEventListQuerySchema
+>["timeframe"];
 
 /**
  * The discoverable slice of a published event. Purpose-built: never reuse the
