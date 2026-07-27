@@ -11,7 +11,8 @@ export function SiteHeader({
         </span>
         <span>Event Ticketing Platform</span>
       </a>
-      <nav aria-label="Account" className="site-nav">
+      <nav aria-label="Primary" className="site-nav">
+        <a href="/events">Events</a>
         {signedIn ? (
           <>
             <a href="/organizations">Organizations</a>
