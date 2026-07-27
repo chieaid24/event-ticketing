@@ -114,6 +114,30 @@ instants paired with the event's IANA timezone. Event mutations write
 `event.created`, `event.updated`, `event.ticket_types.replaced`, and
 `event.published` audit entries.
 
+## Public discovery routes
+
+Discovery routes under `/discovery` are public and unauthenticated. They never
+resolve a session and expose only published events and public fields; organizer
+schemas, hold ownership, and internal metadata never leave the service. Each
+route is rate limited per client IP through Redis and fails open when Redis is
+unavailable.
+
+- `GET /discovery/events` lists published events with venue name, start time,
+  minimum price, and sale window. It accepts `search`, `timeframe` (`upcoming`,
+  `past`, or `all`), `limit`, and `offset`; invalid parameters answer `400`.
+  Limited to 120 requests per minute.
+- `GET /discovery/events/:eventId` returns the event, its public ticket types,
+  and the venue name, or `404` when the event is missing or unpublished. Limited
+  to 240 requests per minute.
+- `GET /discovery/events/:eventId/availability` returns advisory seat sections
+  and general-admission levels. Held and sold seats both read as `unavailable`,
+  and admission counts collapse to coarse `available`, `limited`, and `sold_out`
+  levels so responses never disclose sales volume. Limited to 120 requests per
+  minute.
+
+Availability is advisory: it can change until checkout confirms a hold, and a
+client selection is never a reservation.
+
 ## Run
 
 ```bash
