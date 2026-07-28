@@ -43,11 +43,13 @@ import {
 } from "../src/hold-availability-mirror.js";
 import {
   cancelHold,
+  createAssignedSeatHold,
   createGeneralAdmissionHold,
   expireDueHolds,
   expireHold,
   fetchGeneralAdmissionAvailability,
   finalizeGeneralAdmissionHold,
+  SeatsUnavailableError,
 } from "../src/holds.js";
 import { insertAuditLog } from "../src/organizations.js";
 import {
@@ -1441,8 +1443,360 @@ try {
       null
     );
 
+    // Assigned-seat holds: per-seat row locks that elect exactly one winner,
+    // never return a partial multi-seat hold, keep PostgreSQL authoritative over
+    // Redis, honour database-time expiry, and replay idempotently.
+    async function createAssignedSeats(seatCount: number): Promise<{
+      eventId: string;
+      seatIds: string[];
+      ticketTypeId: string;
+    }> {
+      const eventId = randomUUID();
+      const ticketTypeId = randomUUID();
+      const seatIds = Array.from({ length: seatCount }, () => randomUUID());
+      await withDatabaseTransaction(pool, async (transaction) => {
+        await transaction.query(
+          `INSERT INTO "events"
+             ("id", "organization_id", "venue_id", "title")
+           VALUES ($1, $2, $3, $4)`,
+          [eventId, seededOrganizationId, seededVenueId, `Assigned ${eventId}`]
+        );
+        await transaction.query(
+          `INSERT INTO "ticket_types"
+             ("id", "event_id", "name", "kind", "section_name",
+              "price_minor", "fee_minor", "position")
+           VALUES ($1, $2, 'Reserved', 'assigned', 'Reserved', $3, $4, 0)`,
+          [ticketTypeId, eventId, 4_000, 200]
+        );
+        await transaction.query(
+          `INSERT INTO "event_seats"
+             ("id", "event_id", "ticket_type_id", "section_name", "row_label",
+              "seat_label", "x", "y", "price_minor", "status")
+           SELECT d."id", $2, $3, 'Reserved', 'A', d."seat_label", d."x", 0,
+                  $4, 'available'
+           FROM unnest($1::uuid[], $5::text[], $6::int[])
+             AS d("id", "seat_label", "x")`,
+          [
+            seatIds,
+            eventId,
+            ticketTypeId,
+            4_000,
+            seatIds.map((_seat, index) => String(index + 1)),
+            seatIds.map((_seat, index) => index),
+          ]
+        );
+      });
+      return { eventId, seatIds, ticketTypeId };
+    }
+
+    // At least 100 concurrent attempts for one seat elect exactly one winner.
+    const rushFixture = await createAssignedSeats(1);
+    const rushSeatId = rushFixture.seatIds[0]!;
+    const rushAttempts = await Promise.allSettled(
+      Array.from({ length: 100 }, (_unused, index) =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createAssignedSeatHold(transaction, {
+            actor: { guestSessionId: `rush-${index}` },
+            eventId: rushFixture.eventId,
+            idempotencyKey: `rush-${index}`,
+            seatIds: [rushSeatId],
+          })
+        )
+      )
+    );
+    const rushWon = rushAttempts.filter(
+      (attempt) => attempt.status === "fulfilled"
+    );
+    const rushLost = rushAttempts.filter(
+      (attempt) => attempt.status === "rejected"
+    );
+    assert.equal(
+      rushWon.length,
+      1,
+      "Exactly one of a hundred concurrent attempts wins the seat."
+    );
+    assert.ok(
+      rushLost.every(
+        (attempt) =>
+          attempt.status === "rejected" &&
+          attempt.reason instanceof Error &&
+          attempt.reason.name === "SeatsUnavailableError"
+      ),
+      "Every losing attempt fails with a seats-unavailable conflict."
+    );
+    const rushWinner = rushWon[0] as PromiseFulfilledResult<
+      Awaited<ReturnType<typeof createAssignedSeatHold>>
+    >;
+    const rushState = await pool.query<{ hold_id: string; status: string }>(
+      `SELECT "status", "hold_id" FROM "event_seats" WHERE "id" = $1`,
+      [rushSeatId]
+    );
+    assert.equal(rushState.rows[0]?.status, "held");
+    assert.equal(rushState.rows[0]?.hold_id, rushWinner.value.id);
+
+    // Overlapping multi-seat requests never leave a partial hold, and only the
+    // unavailable seat id is disclosed.
+    const partialFixture = await createAssignedSeats(2);
+    const [freeSeatId, takenSeatId] = partialFixture.seatIds as [
+      string,
+      string,
+    ];
+    await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { guestSessionId: "seat-owner" },
+        eventId: partialFixture.eventId,
+        idempotencyKey: "partial-owner",
+        seatIds: [takenSeatId],
+      })
+    );
+    let partialError: unknown;
+    try {
+      await withDatabaseTransaction(pool, (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: "seat-rival" },
+          eventId: partialFixture.eventId,
+          idempotencyKey: "partial-rival",
+          seatIds: [freeSeatId, takenSeatId],
+        })
+      );
+    } catch (error) {
+      partialError = error;
+    }
+    assert.ok(
+      partialError instanceof SeatsUnavailableError,
+      "A conflicting multi-seat request fails as a whole."
+    );
+    assert.deepEqual(
+      (partialError as SeatsUnavailableError).seatIds,
+      [takenSeatId],
+      "Only the unavailable seat is disclosed, never another customer's hold."
+    );
+    const partialFreeState = await pool.query<{ status: string }>(
+      `SELECT "status" FROM "event_seats" WHERE "id" = $1`,
+      [freeSeatId]
+    );
+    assert.equal(
+      partialFreeState.rows[0]?.status,
+      "available",
+      "A rejected multi-seat request reserves none of its seats."
+    );
+
+    // Two concurrent full-set requests for the same seats resolve to one hold
+    // that owns every seat; there is never a split.
+    const contendFixture = await createAssignedSeats(2);
+    const contendAttempts = await Promise.allSettled([
+      withDatabaseTransaction(pool, (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: "contend-one" },
+          eventId: contendFixture.eventId,
+          idempotencyKey: "contend-one",
+          seatIds: contendFixture.seatIds,
+        })
+      ),
+      withDatabaseTransaction(pool, (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: "contend-two" },
+          eventId: contendFixture.eventId,
+          idempotencyKey: "contend-two",
+          seatIds: [...contendFixture.seatIds].reverse(),
+        })
+      ),
+    ]);
+    assert.equal(
+      contendAttempts.filter((attempt) => attempt.status === "fulfilled")
+        .length,
+      1,
+      "Overlapping full-set requests elect exactly one winner."
+    );
+    const contendHeld = await pool.query<{ holds: number; seats: number }>(
+      `SELECT count(*)::int AS "seats", count(DISTINCT "hold_id")::int AS "holds"
+       FROM "event_seats"
+       WHERE "event_id" = $1 AND "status" = 'held'`,
+      [contendFixture.eventId]
+    );
+    assert.deepEqual(
+      { holds: contendHeld.rows[0]?.holds, seats: contendHeld.rows[0]?.seats },
+      { holds: 1, seats: 2 },
+      "Both seats belong to a single hold; a partial split never occurs."
+    );
+
+    // Database time is authority: a held-but-expired seat is reclaimable before
+    // any sweep, and a late sweep never steals the seat from its new owner.
+    const reclaimFixture = await createAssignedSeats(1);
+    const reclaimSeatId = reclaimFixture.seatIds[0]!;
+    const staleAssignedHold = await withDatabaseTransaction(
+      pool,
+      (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: "reclaim-first" },
+          eventId: reclaimFixture.eventId,
+          idempotencyKey: "reclaim-first",
+          seatIds: [reclaimSeatId],
+        })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 minute'
+       WHERE "id" = $1`,
+      [staleAssignedHold.id]
+    );
+    const reclaimingHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { guestSessionId: "reclaim-second" },
+        eventId: reclaimFixture.eventId,
+        idempotencyKey: "reclaim-second",
+        seatIds: [reclaimSeatId],
+      })
+    );
+    assert.notEqual(reclaimingHold.id, staleAssignedHold.id);
+    const reclaimedState = await pool.query<{
+      hold_id: string;
+      status: string;
+    }>(`SELECT "status", "hold_id" FROM "event_seats" WHERE "id" = $1`, [
+      reclaimSeatId,
+    ]);
+    assert.equal(reclaimedState.rows[0]?.status, "held");
+    assert.equal(reclaimedState.rows[0]?.hold_id, reclaimingHold.id);
+    // Expiring the original hold now must not free the reclaimed seat.
+    const lateExpire = await withDatabaseTransaction(pool, (transaction) =>
+      expireHold(transaction, staleAssignedHold.id)
+    );
+    assert.deepEqual(lateExpire, { changed: true, status: "expired" });
+    const afterLateExpire = await pool.query<{
+      hold_id: string;
+      status: string;
+    }>(`SELECT "status", "hold_id" FROM "event_seats" WHERE "id" = $1`, [
+      reclaimSeatId,
+    ]);
+    assert.equal(
+      afterLateExpire.rows[0]?.hold_id,
+      reclaimingHold.id,
+      "A late sweep of an expired hold never reclaims a seat held by another."
+    );
+
+    // The reconciliation sweep frees an expired assigned seat.
+    const sweepFixture = await createAssignedSeats(1);
+    const sweepSeatId = sweepFixture.seatIds[0]!;
+    const sweepHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { guestSessionId: "sweep-owner" },
+        eventId: sweepFixture.eventId,
+        idempotencyKey: "sweep-owner",
+        seatIds: [sweepSeatId],
+      })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 minute'
+       WHERE "id" = $1`,
+      [sweepHold.id]
+    );
+    assert.ok(
+      (await expireDueHolds(pool, { limit: 100 })) >= 1,
+      "The sweep expires at least the due assigned hold."
+    );
+    const sweptState = await pool.query<{ hold_id: string; status: string }>(
+      `SELECT "status", "hold_id" FROM "event_seats" WHERE "id" = $1`,
+      [sweepSeatId]
+    );
+    assert.equal(sweptState.rows[0]?.status, "available");
+    assert.equal(sweptState.rows[0]?.hold_id, null);
+
+    // Redis loss cannot make held or sold inventory available: PostgreSQL alone
+    // decides, so a total mirror flush changes nothing.
+    const authorityFixture = await createAssignedSeats(2);
+    const [authHeldSeatId, authSoldSeatId] = authorityFixture.seatIds as [
+      string,
+      string,
+    ];
+    await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { guestSessionId: "authority-holder" },
+        eventId: authorityFixture.eventId,
+        idempotencyKey: "authority-hold",
+        seatIds: [authHeldSeatId],
+      })
+    );
+    await pool.query(
+      `UPDATE "event_seats" SET "status" = 'sold', "hold_id" = NULL
+       WHERE "id" = $1`,
+      [authSoldSeatId]
+    );
+    await deleteRedisScope();
+    for (const unavailableSeatId of [authHeldSeatId, authSoldSeatId]) {
+      await assert.rejects(
+        withDatabaseTransaction(pool, (transaction) =>
+          createAssignedSeatHold(transaction, {
+            actor: { guestSessionId: "authority-raider" },
+            eventId: authorityFixture.eventId,
+            idempotencyKey: `authority-raid-${unavailableSeatId}`,
+            seatIds: [unavailableSeatId],
+          })
+        ),
+        (error: unknown) =>
+          error instanceof Error && error.name === "SeatsUnavailableError",
+        "PostgreSQL keeps sold and held seats unavailable after a Redis flush."
+      );
+    }
+
+    // Retrying one logical request returns one hold; concurrent duplicates
+    // collapse to a single reservation.
+    const idempotencyFixture = await createAssignedSeats(2);
+    const [replaySeatId, duplicateSeatId] = idempotencyFixture.seatIds as [
+      string,
+      string,
+    ];
+    const replayActor = { userId: seededUserId };
+    const firstSeatHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: replayActor,
+        eventId: idempotencyFixture.eventId,
+        idempotencyKey: "assigned-idem",
+        seatIds: [replaySeatId],
+      })
+    );
+    assert.equal(firstSeatHold.replayed, false);
+    const replayedSeatHold = await withDatabaseTransaction(
+      pool,
+      (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: replayActor,
+          eventId: idempotencyFixture.eventId,
+          idempotencyKey: "assigned-idem",
+          seatIds: [replaySeatId],
+        })
+    );
+    assert.equal(replayedSeatHold.replayed, true);
+    assert.equal(replayedSeatHold.id, firstSeatHold.id);
+    assert.deepEqual(
+      replayedSeatHold.seats.map((seat) => seat.eventSeatId),
+      [replaySeatId]
+    );
+    const duplicateSeatHolds = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createAssignedSeatHold(transaction, {
+            actor: { userId: seededUserId },
+            eventId: idempotencyFixture.eventId,
+            idempotencyKey: "assigned-idem-duplicate",
+            seatIds: [duplicateSeatId],
+          })
+        )
+      )
+    );
+    assert.equal(
+      new Set(duplicateSeatHolds.map((hold) => hold.id)).size,
+      1,
+      "Concurrent identical seat creates resolve to one hold."
+    );
+    const duplicateHeld = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS "count" FROM "event_seats"
+       WHERE "id" = $1 AND "status" = 'held'`,
+      [duplicateSeatId]
+    );
+    assert.equal(duplicateHeld.rows[0]?.count, 1);
+
     process.stdout.write(
       `${JSON.stringify({
+        assignedSeatHolds: "verified",
         atomicOutbox: "verified",
         authLifecycle: "verified",
         concurrentClaims: claimedIds.length,

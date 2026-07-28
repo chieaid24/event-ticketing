@@ -22,6 +22,10 @@ import { PgDiscoveryStore } from "./discovery/discovery.store.js";
 import { EventsController } from "./events/events.controller.js";
 import { EventsService } from "./events/events.service.js";
 import { PgEventsStore } from "./events/events.store.js";
+import { RedisHoldExpiryMirror } from "./holds/hold-expiry-mirror.js";
+import { HoldsController } from "./holds/holds.controller.js";
+import { HoldsService } from "./holds/holds.service.js";
+import { PgHoldsStore } from "./holds/holds.store.js";
 import { HealthController } from "./health.controller.js";
 import { HealthService } from "./health.service.js";
 import { OrganizationsController } from "./organizations/organizations.controller.js";
@@ -38,6 +42,9 @@ import {
   DISCOVERY_STORE,
   EVENTS_SERVICE,
   EVENTS_STORE,
+  HOLD_EXPIRY_MIRROR,
+  HOLDS_SERVICE,
+  HOLDS_STORE,
   ORGANIZATIONS_SERVICE,
   ORGANIZATIONS_STORE,
   REDIS_HEALTH,
@@ -63,6 +70,7 @@ export class AppModule implements NestModule {
         StatusController,
         VenuesController,
         EventsController,
+        HoldsController,
       ],
       providers: [
         {
@@ -133,6 +141,27 @@ export class AppModule implements NestModule {
           provide: EVENTS_SERVICE,
           useFactory: (auth: AuthService, store: PgEventsStore) =>
             new EventsService(auth, store),
+        },
+        {
+          provide: HOLD_EXPIRY_MIRROR,
+          useFactory: () =>
+            new RedisHoldExpiryMirror(
+              config.redisUrl,
+              config.dependencyTimeoutMs,
+              logger
+            ),
+        },
+        {
+          inject: [HOLD_EXPIRY_MIRROR],
+          provide: HOLDS_STORE,
+          useFactory: (mirror: RedisHoldExpiryMirror) =>
+            new PgHoldsStore(config.databaseUrl, mirror),
+        },
+        {
+          inject: [AUTH_SERVICE, HOLDS_STORE],
+          provide: HOLDS_SERVICE,
+          useFactory: (auth: AuthService, store: PgHoldsStore) =>
+            new HoldsService(auth, store),
         },
         {
           provide: DATABASE_HEALTH,

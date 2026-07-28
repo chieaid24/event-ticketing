@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   cancelHold,
+  createAssignedSeatHold,
   createGeneralAdmissionHold,
   HoldEventNotFoundError,
   HoldInputError,
+  MAX_SEATS_PER_HOLD,
+  type CreateAssignedSeatHoldInput,
   type CreateGeneralAdmissionHoldInput,
   type DatabaseExecutor,
 } from "./index.js";
@@ -95,6 +98,92 @@ describe("createGeneralAdmissionHold input", () => {
 
     await expect(
       createGeneralAdmissionHold(executor, baseInput())
+    ).rejects.toBeInstanceOf(HoldEventNotFoundError);
+    expect(executor.query).toHaveBeenCalledTimes(1);
+  });
+});
+
+function assignedInput(
+  overrides: Partial<CreateAssignedSeatHoldInput> = {}
+): CreateAssignedSeatHoldInput {
+  return {
+    actor: { userId: "22222222-2222-4222-8222-222222222222" },
+    eventId: "33333333-3333-4333-8333-333333333333",
+    idempotencyKey: "idem-seat-1",
+    seatIds: ["44444444-4444-4444-8444-444444444444"],
+    ...overrides,
+  };
+}
+
+describe("createAssignedSeatHold input", () => {
+  it("rejects an empty seat list before querying PostgreSQL", async () => {
+    const executor: DatabaseExecutor = { query: vi.fn() };
+
+    await expect(
+      createAssignedSeatHold(executor, assignedInput({ seatIds: [] }))
+    ).rejects.toBeInstanceOf(HoldInputError);
+    expect(executor.query).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than the per-hold seat limit", async () => {
+    const executor: DatabaseExecutor = { query: vi.fn() };
+    const seatIds = Array.from(
+      { length: MAX_SEATS_PER_HOLD + 1 },
+      (_unused, index) => `seat-${index}`
+    );
+
+    await expect(
+      createAssignedSeatHold(executor, assignedInput({ seatIds }))
+    ).rejects.toBeInstanceOf(HoldInputError);
+    expect(executor.query).not.toHaveBeenCalled();
+  });
+
+  it("rejects a duplicate seat", async () => {
+    const executor: DatabaseExecutor = { query: vi.fn() };
+    const seatId = "44444444-4444-4444-8444-444444444444";
+
+    await expect(
+      createAssignedSeatHold(
+        executor,
+        assignedInput({ seatIds: [seatId, seatId] })
+      )
+    ).rejects.toBeInstanceOf(HoldInputError);
+    expect(executor.query).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty or oversized idempotency key", async () => {
+    const executor: DatabaseExecutor = { query: vi.fn() };
+
+    for (const idempotencyKey of ["", "x".repeat(201)]) {
+      await expect(
+        createAssignedSeatHold(executor, assignedInput({ idempotencyKey }))
+      ).rejects.toBeInstanceOf(HoldInputError);
+    }
+    expect(executor.query).not.toHaveBeenCalled();
+  });
+
+  it("requires exactly one actor", async () => {
+    const executor: DatabaseExecutor = { query: vi.fn() };
+
+    await expect(
+      createAssignedSeatHold(executor, assignedInput({ actor: {} }))
+    ).rejects.toBeInstanceOf(HoldInputError);
+    await expect(
+      createAssignedSeatHold(
+        executor,
+        assignedInput({ actor: { guestSessionId: "g", userId: "u" } })
+      )
+    ).rejects.toBeInstanceOf(HoldInputError);
+    expect(executor.query).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing event", async () => {
+    const executor: DatabaseExecutor = {
+      query: vi.fn().mockResolvedValue({ rowCount: 0, rows: [] }),
+    };
+
+    await expect(
+      createAssignedSeatHold(executor, assignedInput())
     ).rejects.toBeInstanceOf(HoldEventNotFoundError);
     expect(executor.query).toHaveBeenCalledTimes(1);
   });

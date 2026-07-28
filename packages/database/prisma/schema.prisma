@@ -387,12 +387,17 @@ model EventSeat {
   companion    Boolean         @default(false)
   priceMinor   Int             @map("price_minor")
   status       EventSeatStatus @default(AVAILABLE)
+  // The hold currently reserving this seat; null unless the seat is held.
+  holdId       String?         @map("hold_id") @db.Uuid
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   event        Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   ticketType   TicketType      @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  hold         Hold?           @relation(fields: [holdId], references: [id], onDelete: SetNull)
+  holdItems    HoldItem[]
 
   @@unique([eventId, sectionName, rowLabel, seatLabel])
   @@index([eventId, status])
+  @@index([holdId])
   @@map("event_seats")
 }
 
@@ -408,9 +413,10 @@ model Hold {
   expiresAt      DateTime   @map("expires_at") @db.Timestamptz(6)
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  event          Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user           User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user           User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items          HoldItem[]
+  seats          EventSeat[]
 
   @@unique([actorKey, idempotencyKey])
   @@index([status, expiresAt])
@@ -422,14 +428,21 @@ model HoldItem {
   id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   holdId         String     @map("hold_id") @db.Uuid
   ticketTypeId   String     @map("ticket_type_id") @db.Uuid
+  // Set for an assigned-seat line (one seat, quantity one); null for a
+  // general-admission line, whose quantity carries the count.
+  eventSeatId    String?    @map("event_seat_id") @db.Uuid
   quantity       Int
   unitPriceMinor Int        @map("unit_price_minor")
   unitFeeMinor   Int        @map("unit_fee_minor")
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   hold           Hold       @relation(fields: [holdId], references: [id], onDelete: Cascade)
   ticketType     TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  eventSeat      EventSeat? @relation(fields: [eventSeatId], references: [id], onDelete: Restrict)
 
-  @@unique([holdId, ticketTypeId])
+  // Kind-specific uniqueness lives in partial indexes (see the migration):
+  // (hold, ticket type) for general admission, (hold, seat) for assigned.
   @@index([ticketTypeId])
+  @@index([holdId])
+  @@index([eventSeatId])
   @@map("hold_items")
 }

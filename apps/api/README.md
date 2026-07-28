@@ -114,6 +114,22 @@ instants paired with the event's IANA timezone. Event mutations write
 `event.created`, `event.updated`, `event.ticket_types.replaced`, and
 `event.published` audit entries.
 
+## Hold routes
+
+Hold routes reserve inventory for the authenticated actor. They require a
+session and, as mutations, the `x-csrf-token` header and a trusted origin, and
+are rate limited per client through Redis.
+
+- `POST /holds/assigned` reserves specific seats. It requires an
+  `Idempotency-Key` header (`400 idempotency_key_required` when absent) and a
+  body of `{ eventId, seatIds }`. The server locks each seat, prices it from the
+  database, and either holds every requested seat or none. It answers `201` with
+  the hold, its seats, server-computed totals, and a database-derived expiry. A
+  conflict answers `409 seats_unavailable` listing only the unavailable seat
+  ids, never another customer or hold. A repeated key replays the original hold
+  rather than reserving twice. PostgreSQL remains authoritative; the hold's
+  expiry is mirrored to Redis only as an advisory client countdown.
+
 ## Public discovery routes
 
 Discovery routes under `/discovery` are public and unauthenticated. They never
