@@ -35,6 +35,15 @@ that need runtime dependencies (such as the auth email handlers in
 `src/auth-email-handlers.ts`) are composed in `src/main.ts`. Each provider
 handler must use the event ID passed as `idempotencyKey`.
 
+## Hold expiration sweep
+
+On startup the worker upserts a recurring `hold.expiration.sweep` schedule that
+runs every 60 seconds. The handler reclaims general-admission holds past their
+database expiry, returning reserved quantity in batches of up to 500 holds per
+run, one hold per transaction. The sweep is a backstop: checkout re-checks
+database expiry, so a delayed sweep never lets an expired hold check out. The
+handler is idempotent, so outbox redelivery only re-sweeps.
+
 ## Auth email jobs
 
 `auth.email.verification.requested` and `auth.password.reset.requested` events

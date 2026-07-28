@@ -87,6 +87,16 @@ enum TicketTypeKind {
   @@map("ticket_type_kind")
 }
 
+enum HoldStatus {
+  ACTIVE           @map("active")
+  CHECKOUT_STARTED @map("checkout_started")
+  CONSUMED         @map("consumed")
+  EXPIRED          @map("expired")
+  CANCELLED        @map("cancelled")
+
+  @@map("hold_status")
+}
+
 enum EventSeatStatus {
   AVAILABLE @map("available")
   HELD      @map("held")
@@ -110,6 +120,7 @@ model User {
   sessions          Session[]
   authTokens        AuthToken[]
   auditLogs         AuditLog[]               @relation("AuditActor")
+  holds             Hold[]
 
   @@map("users")
 }
@@ -335,6 +346,7 @@ model Event {
   venue               Venue        @relation(fields: [venueId], references: [id], onDelete: Restrict)
   ticketTypes         TicketType[]
   seats               EventSeat[]
+  holds               Hold[]
 
   @@index([organizationId, status])
   @@map("events")
@@ -349,10 +361,14 @@ model TicketType {
   priceMinor  Int            @map("price_minor")
   feeMinor    Int            @default(0) @map("fee_minor")
   capacity    Int?
+  // General-admission inventory counters; assigned types track state per seat.
+  reservedQuantity Int       @default(0) @map("reserved_quantity")
+  soldQuantity     Int       @default(0) @map("sold_quantity")
   position    Int
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   seats       EventSeat[]
+  holdItems   HoldItem[]
 
   @@unique([eventId, name])
   @@map("ticket_types")
@@ -378,4 +394,42 @@ model EventSeat {
   @@unique([eventId, sectionName, rowLabel, seatLabel])
   @@index([eventId, status])
   @@map("event_seats")
+}
+
+model Hold {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId        String     @map("event_id") @db.Uuid
+  userId         String?    @map("user_id") @db.Uuid
+  guestSessionId String?    @map("guest_session_id") @db.VarChar(64)
+  // Actor identity, "user:<uuid>" or "guest:<token>", derived by the service.
+  actorKey       String     @map("actor_key") @db.VarChar(80)
+  idempotencyKey String     @map("idempotency_key") @db.VarChar(200)
+  status         HoldStatus @default(ACTIVE)
+  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  event          Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user           User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items          HoldItem[]
+
+  @@unique([actorKey, idempotencyKey])
+  @@index([status, expiresAt])
+  @@index([eventId])
+  @@map("holds")
+}
+
+model HoldItem {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  holdId         String     @map("hold_id") @db.Uuid
+  ticketTypeId   String     @map("ticket_type_id") @db.Uuid
+  quantity       Int
+  unitPriceMinor Int        @map("unit_price_minor")
+  unitFeeMinor   Int        @map("unit_fee_minor")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  hold           Hold       @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  ticketType     TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([holdId, ticketTypeId])
+  @@index([ticketTypeId])
+  @@map("hold_items")
 }

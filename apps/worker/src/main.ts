@@ -9,6 +9,12 @@ import { loadWorkerConfig } from "@event-ticketing/config";
 
 import { createAuthEmailHandlers } from "./auth-email-handlers.js";
 import { workerHandlers } from "./handlers.js";
+import {
+  createHoldExpirationHandlers,
+  HOLD_EXPIRATION_SWEEP_BATCH_LIMIT,
+  HOLD_EXPIRATION_SWEEP_INTERVAL_SECONDS,
+  HOLD_EXPIRATION_SWEEP_TOPIC,
+} from "./hold-expiration-handlers.js";
 import { createSmtpEmailer } from "./mailer.js";
 import { createOutboxProcessor } from "./outbox-processor.js";
 import { createWorkerRuntime } from "./runtime.js";
@@ -28,6 +34,10 @@ async function startWorker(): Promise<void> {
     batchSize: config.outboxBatchSize,
     handlers: {
       ...workerHandlers,
+      ...createHoldExpirationHandlers({
+        batchLimit: HOLD_EXPIRATION_SWEEP_BATCH_LIMIT,
+        pool: database,
+      }),
       ...createAuthEmailHandlers({
         emailer,
         executor: database,
@@ -83,6 +93,14 @@ async function startWorker(): Promise<void> {
 
   try {
     await database.query("SELECT 1");
+    // Recurring reconciliation sweep that reclaims expired holds.
+    await repository.upsertSchedule({
+      intervalSeconds: HOLD_EXPIRATION_SWEEP_INTERVAL_SECONDS,
+      name: "hold-expiration-sweep",
+      nextRunAt: new Date(),
+      payload: {},
+      topic: HOLD_EXPIRATION_SWEEP_TOPIC,
+    });
     runtime.start();
   } catch (error) {
     process.removeListener("SIGINT", handleSigint);

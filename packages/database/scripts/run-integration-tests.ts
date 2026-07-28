@@ -35,6 +35,20 @@ import {
   replaceTicketTypes,
   updateEventDraft,
 } from "../src/events.js";
+import {
+  clearHoldExpiry,
+  holdExpiryKey,
+  mirrorHoldExpiry,
+  readHoldExpiry,
+} from "../src/hold-availability-mirror.js";
+import {
+  cancelHold,
+  createGeneralAdmissionHold,
+  expireDueHolds,
+  expireHold,
+  fetchGeneralAdmissionAvailability,
+  finalizeGeneralAdmissionHold,
+} from "../src/holds.js";
 import { insertAuditLog } from "../src/organizations.js";
 import {
   createDatabasePool,
@@ -1119,9 +1133,313 @@ try {
       },
     ]);
 
+    // General-admission holds: locked ticket-type counters that never oversell,
+    // reserve once under contention, and move reserved to sold on finalization.
+    const seededUserId = "11111111-1111-4111-8111-111111111111";
+    const gaSectionName = gaSection.name;
+
+    async function createGaTicketType(
+      capacity: number
+    ): Promise<{ eventId: string; ticketTypeId: string }> {
+      const event = await insertEvent(pool, {
+        organizationId: seededOrganizationId,
+        title: `GA Holds Probe ${randomUUID()}`,
+        venueId: seededVenueId,
+      });
+      await withDatabaseTransaction(pool, async (transaction) => {
+        const claimed = await claimEventVersion(transaction, {
+          eventId: event.id,
+          expectedVersion: 1,
+          organizationId: seededOrganizationId,
+        });
+        assert.ok(claimed);
+        await replaceTicketTypes(transaction, {
+          eventId: event.id,
+          ticketTypes: [
+            {
+              capacity,
+              feeMinor: 100,
+              kind: "general_admission",
+              name: "Floor",
+              priceMinor: 2_500,
+              sectionName: gaSectionName,
+            },
+          ],
+        });
+      });
+      const [ticketType] = await fetchTicketTypes(pool, event.id);
+      assert.ok(ticketType);
+      return { eventId: event.id, ticketTypeId: ticketType.id };
+    }
+
+    const oversell = await createGaTicketType(5);
+    const oversellAttempts = await Promise.allSettled(
+      Array.from({ length: 5 }, (_unused, index) =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createGeneralAdmissionHold(transaction, {
+            actor: { guestSessionId: `oversell-guest-${index}` },
+            eventId: oversell.eventId,
+            idempotencyKey: `oversell-${index}`,
+            items: [{ quantity: 2, ticketTypeId: oversell.ticketTypeId }],
+          })
+        )
+      )
+    );
+    const oversellWon = oversellAttempts.filter(
+      (attempt) => attempt.status === "fulfilled"
+    );
+    const oversellLost = oversellAttempts.filter(
+      (attempt) => attempt.status === "rejected"
+    );
+    assert.equal(
+      oversellWon.length,
+      2,
+      "Only two holds of two units each fit within a capacity of five."
+    );
+    assert.ok(
+      oversellLost.every(
+        (attempt) =>
+          attempt.reason instanceof Error &&
+          attempt.reason.name === "HoldCapacityError"
+      ),
+      "Every rejected create must fail with a capacity error, never oversell."
+    );
+    const [oversellState] = await fetchGeneralAdmissionAvailability(
+      pool,
+      oversell.eventId
+    );
+    assert.ok(oversellState);
+    assert.deepEqual(
+      {
+        available: oversellState.available,
+        reserved: oversellState.reserved,
+        sold: oversellState.sold,
+      },
+      { available: 1, reserved: 4, sold: 0 }
+    );
+    assert.ok(
+      oversellState.reserved >= 0 &&
+        oversellState.sold >= 0 &&
+        oversellState.reserved + oversellState.sold <= oversellState.capacity,
+      "Counters stay nonnegative and within capacity."
+    );
+
+    // A repeated idempotency key returns the same hold and reserves only once.
+    const firstHold = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { userId: seededUserId },
+        eventId: oversell.eventId,
+        idempotencyKey: "oversell-idem",
+        items: [{ quantity: 1, ticketTypeId: oversell.ticketTypeId }],
+      })
+    );
+    assert.equal(firstHold.replayed, false);
+    const replayedHold = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { userId: seededUserId },
+        eventId: oversell.eventId,
+        idempotencyKey: "oversell-idem",
+        items: [{ quantity: 1, ticketTypeId: oversell.ticketTypeId }],
+      })
+    );
+    assert.equal(replayedHold.replayed, true);
+    assert.equal(replayedHold.id, firstHold.id);
+    const [afterReplay] = await fetchGeneralAdmissionAvailability(
+      pool,
+      oversell.eventId
+    );
+    assert.ok(afterReplay);
+    assert.deepEqual(
+      { available: afterReplay.available, reserved: afterReplay.reserved },
+      { available: 0, reserved: 5 }
+    );
+
+    // A roomy ticket type for the lifecycle transitions below.
+    const lifecycle = await createGaTicketType(100);
+    const availabilityOf = async (): Promise<{
+      reserved: number;
+      sold: number;
+    }> => {
+      const [row] = await fetchGeneralAdmissionAvailability(
+        pool,
+        lifecycle.eventId
+      );
+      assert.ok(row);
+      return { reserved: row.reserved, sold: row.sold };
+    };
+
+    // Concurrent duplicate requests collapse to a single reservation.
+    const concurrentActor = { guestSessionId: "concurrent-guest" };
+    const concurrentHolds = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createGeneralAdmissionHold(transaction, {
+            actor: concurrentActor,
+            eventId: lifecycle.eventId,
+            idempotencyKey: "concurrent-key",
+            items: [{ quantity: 3, ticketTypeId: lifecycle.ticketTypeId }],
+          })
+        )
+      )
+    );
+    assert.equal(
+      new Set(concurrentHolds.map((hold) => hold.id)).size,
+      1,
+      "Concurrent duplicate creates must resolve to one hold."
+    );
+    assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
+
+    // Expiration returns reserved quantity exactly once.
+    const expiringHold = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { guestSessionId: "expiry-guest" },
+        eventId: lifecycle.eventId,
+        idempotencyKey: "expiry-1",
+        items: [{ quantity: 4, ticketTypeId: lifecycle.ticketTypeId }],
+      })
+    );
+    assert.deepEqual(await availabilityOf(), { reserved: 7, sold: 0 });
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 minute'
+       WHERE "id" = $1`,
+      [expiringHold.id]
+    );
+    assert.equal(await expireDueHolds(pool, { limit: 100 }), 1);
+    assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
+    // A second sweep and a direct re-expire are no-ops.
+    assert.equal(await expireDueHolds(pool, { limit: 100 }), 0);
+    const reExpire = await withDatabaseTransaction(pool, (transaction) =>
+      expireHold(transaction, expiringHold.id)
+    );
+    assert.deepEqual(reExpire, { changed: false, status: "expired" });
+    assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
+
+    // Finalization atomically moves reserved quantity to sold, idempotently.
+    const purchase = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { guestSessionId: "buyer" },
+        eventId: lifecycle.eventId,
+        idempotencyKey: "buy-1",
+        items: [{ quantity: 2, ticketTypeId: lifecycle.ticketTypeId }],
+      })
+    );
+    assert.deepEqual(await availabilityOf(), { reserved: 5, sold: 0 });
+    const finalized = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeGeneralAdmissionHold(transaction, purchase.id)
+    );
+    assert.deepEqual(finalized, { changed: true, status: "consumed" });
+    assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 2 });
+    const refinalized = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeGeneralAdmissionHold(transaction, purchase.id)
+    );
+    assert.deepEqual(refinalized, { changed: false, status: "consumed" });
+    assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 2 });
+
+    // An expired hold cannot check out.
+    const staleHold = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { guestSessionId: "stale-buyer" },
+        eventId: lifecycle.eventId,
+        idempotencyKey: "stale-1",
+        items: [{ quantity: 1, ticketTypeId: lifecycle.ticketTypeId }],
+      })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 minute'
+       WHERE "id" = $1`,
+      [staleHold.id]
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeGeneralAdmissionHold(transaction, staleHold.id)
+      ),
+      (error: unknown) =>
+        error instanceof Error && error.name === "HoldNotFinalizableError"
+    );
+
+    // An actor cancels its own hold and returns the reservation; a stranger cannot.
+    const cancelActor = { guestSessionId: "canceller" };
+    const cancellable = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: cancelActor,
+        eventId: lifecycle.eventId,
+        idempotencyKey: "cancel-1",
+        items: [{ quantity: 2, ticketTypeId: lifecycle.ticketTypeId }],
+      })
+    );
+    const beforeCancel = await availabilityOf();
+    const cancelled = await withDatabaseTransaction(pool, (transaction) =>
+      cancelHold(transaction, { actor: cancelActor, holdId: cancellable.id })
+    );
+    assert.deepEqual(cancelled, { changed: true, status: "cancelled" });
+    assert.equal((await availabilityOf()).reserved, beforeCancel.reserved - 2);
+    // The owner re-cancelling is an idempotent no-op that returns no quantity.
+    const reCancelled = await withDatabaseTransaction(pool, (transaction) =>
+      cancelHold(transaction, { actor: cancelActor, holdId: cancellable.id })
+    );
+    assert.deepEqual(reCancelled, { changed: false, status: "cancelled" });
+    assert.equal((await availabilityOf()).reserved, beforeCancel.reserved - 2);
+    // A stranger cannot see or cancel another actor's hold.
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        cancelHold(transaction, {
+          actor: { guestSessionId: "intruder" },
+          holdId: cancellable.id,
+        })
+      ),
+      (error: unknown) =>
+        error instanceof Error && error.name === "HoldNotFoundError",
+      "A stranger's cancel is rejected as if the hold does not exist."
+    );
+
     await redis.connect();
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
+
+    // The Redis mirror advises a hold's expiry as a TTL key; Postgres stays
+    // authoritative, so the mirror only ever accelerates client countdowns.
+    const holdMirrorClient = {
+      del: (key: string): Promise<number> => redis.del(key),
+      get: (key: string): Promise<string | null> => redis.get(key),
+      set: (
+        key: string,
+        value: string,
+        mode: "PX",
+        ttlMs: number
+      ): Promise<string | null> => redis.set(key, value, mode, ttlMs),
+    };
+    const mirrorExpiry = new Date(Date.now() + 60_000);
+    assert.equal(
+      await mirrorHoldExpiry(holdMirrorClient, {
+        expiresAt: mirrorExpiry,
+        holdId: purchase.id,
+        prefix: redisPrefix,
+      }),
+      true
+    );
+    const mirroredExpiry = await readHoldExpiry(holdMirrorClient, {
+      holdId: purchase.id,
+      prefix: redisPrefix,
+    });
+    assert.equal(mirroredExpiry?.toISOString(), mirrorExpiry.toISOString());
+    const mirroredTtl = await redis.pttl(
+      holdExpiryKey(redisPrefix, purchase.id)
+    );
+    assert.ok(
+      mirroredTtl > 0 && mirroredTtl <= 60_000,
+      "The mirror TTL tracks the remaining hold lifetime."
+    );
+    await clearHoldExpiry(holdMirrorClient, {
+      holdId: purchase.id,
+      prefix: redisPrefix,
+    });
+    assert.equal(
+      await readHoldExpiry(holdMirrorClient, {
+        holdId: purchase.id,
+        prefix: redisPrefix,
+      }),
+      null
+    );
 
     process.stdout.write(
       `${JSON.stringify({
@@ -1132,6 +1450,7 @@ try {
         discovery: "verified",
         event: "integration.completed",
         eventPublishing: "verified",
+        generalAdmissionHolds: "verified",
         migrations: "applied",
         redis: "isolated",
         schedules: "verified",
