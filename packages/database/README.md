@@ -15,6 +15,14 @@ transaction to commit domain state and asynchronous work atomically. Create an
 `OutboxRepository` for worker claims, retries, schedules, completion receipts,
 and metrics.
 
+Import `createGeneralAdmissionHold`, `expireHold`, `expireDueHolds`,
+`finalizeGeneralAdmissionHold`, `cancelHold`, and
+`fetchGeneralAdmissionAvailability` for general-admission inventory held on
+locked ticket-type counters. Run them inside a transaction; they lock ticket
+types in sorted id order. Import `mirrorHoldExpiry`, `clearHoldExpiry`, and
+`readHoldExpiry` to advise Redis of a hold's expiry without ceding inventory
+authority to it.
+
 ## Migrate and seed
 
 Start PostgreSQL, then apply the tracked migration and synthetic seed:
@@ -39,6 +47,8 @@ companion flags. Event tables enforce positive versions, bounded hold duration,
 supported currencies, kind-dependent ticket-type capacity, unique event-seat
 positions, and a publication timestamp that matches event status. A published
 event cannot delete its venue because the venue foreign key restricts it.
+General-admission holds enforce nonnegative reserved and sold quantities within
+capacity, exactly one hold actor per hold, and a positive hold-item quantity.
 
 The seed transaction upserts sixteen domain records and one deduplicated
 `organization.created` event. Running it again preserves the same seventeen
@@ -57,9 +67,12 @@ lease recovery, graceful claim release, durable receipts, schedule
 materialization, metrics, venue layout replacement (version compare-and-swap
 under concurrency, organization scoping, constraint rejection, cascade
 deletion), event publishing (draft version compare-and-swap, assigned-seat
-snapshot, audit and outbox effects, and transaction rollback), and Redis
-isolation. It removes both scopes in a `finally` cleanup. `DATABASE_URL` and
-`REDIS_URL` default to the local containers.
+snapshot, audit and outbox effects, and transaction rollback), general-admission
+holds (no oversell under concurrent reservation, reserved and sold bounds,
+single-decrement expiry, reserved-to-sold finalization, idempotent create, and
+the Redis expiry mirror), and Redis isolation. It removes both scopes in a
+`finally` cleanup. `DATABASE_URL` and `REDIS_URL` default to the local
+containers.
 
 ## Test
 
@@ -67,5 +80,7 @@ isolation. It removes both scopes in a `finally` cleanup. `DATABASE_URL` and
 pnpm --filter @event-ticketing/database test
 ```
 
-See the [domain model](../../docs/architecture/domain-model.md) and
-[transactional outbox ADR](../../docs/adr/0002-postgresql-transactional-outbox.md).
+See the [domain model](../../docs/architecture/domain-model.md), the
+[transactional outbox ADR](../../docs/adr/0002-postgresql-transactional-outbox.md),
+and the
+[general-admission inventory ADR](../../docs/adr/0004-general-admission-inventory-counters.md).

@@ -37,6 +37,9 @@ Expiration locks the active hold and decrements reserved quantity once. Purchase
 finalization locks the hold and ticket type, moves reserved to sold, consumes
 the hold, and creates tickets in one transaction.
 
+See [ADR 0004](../adr/0004-general-admission-inventory-counters.md) for the
+counter representation and locking order.
+
 ## Expiration
 
 Use database time as authority, Redis TTL for client updates, one delayed job,
