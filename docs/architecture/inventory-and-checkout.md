@@ -19,10 +19,18 @@ transaction. Resolve an existing idempotency record, lock all requested event
 seat rows in stable order, and reject missing, foreign, blocked, sold, or
 unexpired-held rows.
 
-Create one hold and server-priced items. Update every seat to held with the same
-hold and database-derived expiry. Require the affected-row count to match the
-request. Insert outbox and idempotency records, commit, and then mirror expiry
-in Redis.
+Create one hold and server-priced items, one item per seat. Update every seat to
+held with the same hold and database-derived expiry, and store that hold on the
+seat so a later transaction can find and reclaim it. Require the affected-row
+count to match the request. Record the idempotency claim through the unique
+actor-and-key index and commit, then mirror expiry in Redis. Hold creation
+performs no external side effect, so it emits no outbox event; durable events
+follow from the checkout, refund, and notification flows that consume a hold.
+
+A new hold transaction may reclaim a held seat whose hold has already expired by
+database time, so a missed expiry sweep never grants purchase rights. Expiring
+or cancelling a hold frees only the seats it still holds; a seat reclaimed by a
+newer hold is left untouched.
 
 Return a generic conflict with unavailable seat IDs. Never expose another
 customer or hold.
