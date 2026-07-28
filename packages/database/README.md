@@ -18,10 +18,13 @@ and metrics.
 Import `createGeneralAdmissionHold`, `expireHold`, `expireDueHolds`,
 `finalizeGeneralAdmissionHold`, `cancelHold`, and
 `fetchGeneralAdmissionAvailability` for general-admission inventory held on
-locked ticket-type counters. Run them inside a transaction; they lock ticket
-types in sorted id order. Import `mirrorHoldExpiry`, `clearHoldExpiry`, and
-`readHoldExpiry` to advise Redis of a hold's expiry without ceding inventory
-authority to it.
+locked ticket-type counters. Import `createAssignedSeatHold` for specific seats
+reserved under per-seat row locks in sorted id order; it prices each seat from
+the locked row, holds all requested seats or none, may reclaim a seat whose hold
+has expired by database time, and raises `SeatsUnavailableError` carrying only
+the unavailable seat ids. Run them inside a transaction; they lock in sorted id
+order. Import `mirrorHoldExpiry`, `clearHoldExpiry`, and `readHoldExpiry` to
+advise Redis of a hold's expiry without ceding inventory authority to it.
 
 ## Migrate and seed
 
@@ -49,6 +52,8 @@ positions, and a publication timestamp that matches event status. A published
 event cannot delete its venue because the venue foreign key restricts it.
 General-admission holds enforce nonnegative reserved and sold quantities within
 capacity, exactly one hold actor per hold, and a positive hold-item quantity.
+Assigned-seat holds link each held seat to its hold, permit that link only while
+the seat is held, and keep at most one hold item per seat within a hold.
 
 The seed transaction upserts sixteen domain records and one deduplicated
 `organization.created` event. Running it again preserves the same seventeen

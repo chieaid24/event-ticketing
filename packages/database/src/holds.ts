@@ -9,6 +9,7 @@ export type HoldStatus =
 
 export const MAX_HOLD_ITEMS = 20;
 export const MAX_HOLD_ITEM_QUANTITY = 50;
+export const MAX_SEATS_PER_HOLD = 10;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const MAX_GUEST_SESSION_LENGTH = 64;
 
@@ -27,6 +28,41 @@ export interface CreateGeneralAdmissionHoldInput {
   eventId: string;
   idempotencyKey: string;
   items: HoldItemInput[];
+}
+
+export interface CreateAssignedSeatHoldInput {
+  actor: HoldActor;
+  eventId: string;
+  idempotencyKey: string;
+  seatIds: string[];
+}
+
+export interface AssignedSeatHoldItem {
+  eventSeatId: string;
+  rowLabel: string;
+  seatLabel: string;
+  sectionName: string;
+  ticketTypeId: string;
+  unitFeeMinor: number;
+  unitPriceMinor: number;
+}
+
+export interface AssignedSeatHoldRecord {
+  createdAt: Date;
+  currency: string;
+  eventId: string;
+  expiresAt: Date;
+  feeMinor: number;
+  guestSessionId: string | null;
+  id: string;
+  idempotencyKey: string;
+  /** True when an existing hold was returned for a repeated idempotency key. */
+  replayed: boolean;
+  seats: AssignedSeatHoldItem[];
+  status: HoldStatus;
+  subtotalMinor: number;
+  totalMinor: number;
+  userId: string | null;
 }
 
 export interface HoldItemRecord {
@@ -89,6 +125,16 @@ export class HoldCapacityError extends Error {
     );
     this.name = "HoldCapacityError";
     this.unavailableTicketTypeIds = unavailableTicketTypeIds;
+  }
+}
+
+export class SeatsUnavailableError extends Error {
+  readonly seatIds: string[];
+
+  constructor(seatIds: string[]) {
+    super("One or more requested seats are unavailable.");
+    this.name = "SeatsUnavailableError";
+    this.seatIds = seatIds;
   }
 }
 
@@ -232,6 +278,47 @@ async function lockHoldTicketTypes(
      WHERE hi."hold_id" = $1
      ORDER BY t."id"
      FOR UPDATE OF t`,
+    [holdId]
+  );
+}
+
+/** Returns only general-admission reserved quantity; assigned lines hold no counter. */
+async function decrementGeneralAdmissionReserved(
+  executor: DatabaseExecutor,
+  holdId: string
+): Promise<void> {
+  await executor.query(
+    `UPDATE "ticket_types" t
+     SET "reserved_quantity" = t."reserved_quantity" - hi."quantity"
+     FROM "hold_items" hi
+     WHERE hi."hold_id" = $1
+       AND hi."event_seat_id" IS NULL
+       AND t."id" = hi."ticket_type_id"`,
+    [holdId]
+  );
+}
+
+/**
+ * Frees every seat still held by this hold. Seats are locked in id order first
+ * so this cannot deadlock with a concurrent create that locks its seats the same
+ * way; a seat already reclaimed by a newer hold carries a different hold id and
+ * is left untouched.
+ */
+async function releaseHeldSeats(
+  executor: DatabaseExecutor,
+  holdId: string
+): Promise<void> {
+  await executor.query(
+    `SELECT "id" FROM "event_seats"
+     WHERE "hold_id" = $1 AND "status" = 'held'
+     ORDER BY "id"
+     FOR UPDATE`,
+    [holdId]
+  );
+  await executor.query(
+    `UPDATE "event_seats"
+     SET "status" = 'available', "hold_id" = NULL
+     WHERE "hold_id" = $1 AND "status" = 'held'`,
     [holdId]
   );
 }
@@ -414,13 +501,8 @@ export async function expireHold(
   }
 
   await lockHoldTicketTypes(executor, holdId);
-  await executor.query(
-    `UPDATE "ticket_types" t
-     SET "reserved_quantity" = t."reserved_quantity" - hi."quantity"
-     FROM "hold_items" hi
-     WHERE hi."hold_id" = $1 AND t."id" = hi."ticket_type_id"`,
-    [holdId]
-  );
+  await decrementGeneralAdmissionReserved(executor, holdId);
+  await releaseHeldSeats(executor, holdId);
   await executor.query(
     `UPDATE "holds"
      SET "status" = 'expired', "updated_at" = CURRENT_TIMESTAMP
@@ -510,7 +592,9 @@ export async function finalizeGeneralAdmissionHold(
      SET "reserved_quantity" = t."reserved_quantity" - hi."quantity",
          "sold_quantity" = t."sold_quantity" + hi."quantity"
      FROM "hold_items" hi
-     WHERE hi."hold_id" = $1 AND t."id" = hi."ticket_type_id"`,
+     WHERE hi."hold_id" = $1
+       AND hi."event_seat_id" IS NULL
+       AND t."id" = hi."ticket_type_id"`,
     [holdId]
   );
   await executor.query(
@@ -552,13 +636,8 @@ export async function cancelHold(
   }
 
   await lockHoldTicketTypes(executor, input.holdId);
-  await executor.query(
-    `UPDATE "ticket_types" t
-     SET "reserved_quantity" = t."reserved_quantity" - hi."quantity"
-     FROM "hold_items" hi
-     WHERE hi."hold_id" = $1 AND t."id" = hi."ticket_type_id"`,
-    [input.holdId]
-  );
+  await decrementGeneralAdmissionReserved(executor, input.holdId);
+  await releaseHeldSeats(executor, input.holdId);
   await executor.query(
     `UPDATE "holds"
      SET "status" = 'cancelled', "updated_at" = CURRENT_TIMESTAMP
@@ -567,6 +646,251 @@ export async function cancelHold(
   );
 
   return { changed: true, status: "cancelled" };
+}
+
+interface LockedSeatRow extends QueryResultRow {
+  eventId: string;
+  feeMinor: number;
+  id: string;
+  isAvailable: boolean;
+  isReclaimable: boolean;
+  priceMinor: number;
+  rowLabel: string;
+  seatLabel: string;
+  sectionName: string;
+  ticketTypeId: string;
+  ticketTypeKind: "assigned" | "general_admission";
+}
+
+function normalizeSeatIds(seatIds: string[]): string[] {
+  if (!Array.isArray(seatIds) || seatIds.length === 0) {
+    throw new HoldInputError("A seat hold must request at least one seat.");
+  }
+
+  if (seatIds.length > MAX_SEATS_PER_HOLD) {
+    throw new HoldInputError(
+      `A seat hold may request at most ${MAX_SEATS_PER_HOLD} seats.`
+    );
+  }
+
+  const seen = new Set<string>();
+  for (const seatId of seatIds) {
+    if (typeof seatId !== "string" || seatId.length === 0) {
+      throw new HoldInputError("Each requested seat needs an identifier.");
+    }
+    if (seen.has(seatId)) {
+      throw new HoldInputError("A seat may appear at most once per hold.");
+    }
+    seen.add(seatId);
+  }
+
+  // Stable seat lock order (sorted ids) prevents deadlocks between a create, an
+  // expiry, and a cancel that touch overlapping seats.
+  return [...seatIds].sort((left, right) => (left < right ? -1 : 1));
+}
+
+async function loadAssignedSeatItems(
+  executor: DatabaseExecutor,
+  holdId: string
+): Promise<AssignedSeatHoldItem[]> {
+  const result = await executor.query<AssignedSeatHoldItem & QueryResultRow>(
+    `SELECT
+       hi."event_seat_id" AS "eventSeatId",
+       hi."ticket_type_id" AS "ticketTypeId",
+       hi."unit_price_minor" AS "unitPriceMinor",
+       hi."unit_fee_minor" AS "unitFeeMinor",
+       s."section_name" AS "sectionName",
+       s."row_label" AS "rowLabel",
+       s."seat_label" AS "seatLabel"
+     FROM "hold_items" hi
+     JOIN "event_seats" s ON s."id" = hi."event_seat_id"
+     WHERE hi."hold_id" = $1 AND hi."event_seat_id" IS NOT NULL
+     ORDER BY hi."event_seat_id"`,
+    [holdId]
+  );
+  return result.rows;
+}
+
+function summarizeSeats(seats: AssignedSeatHoldItem[]): {
+  feeMinor: number;
+  subtotalMinor: number;
+  totalMinor: number;
+} {
+  let subtotalMinor = 0;
+  let feeMinor = 0;
+  for (const seat of seats) {
+    subtotalMinor += seat.unitPriceMinor;
+    feeMinor += seat.unitFeeMinor;
+  }
+  return { feeMinor, subtotalMinor, totalMinor: subtotalMinor + feeMinor };
+}
+
+/**
+ * Reserves specific assigned seats under per-seat row locks. Must run inside a
+ * transaction. Idempotent on `(actor, idempotencyKey)`: a repeated request
+ * returns the original hold without holding a seat twice. Server-priced from the
+ * locked seat rows; the browser never supplies a price. Either all requested
+ * seats are held or none are, and only unavailable seat ids are disclosed.
+ */
+export async function createAssignedSeatHold(
+  executor: DatabaseExecutor,
+  input: CreateAssignedSeatHoldInput
+): Promise<AssignedSeatHoldRecord> {
+  if (
+    typeof input.idempotencyKey !== "string" ||
+    input.idempotencyKey.length === 0 ||
+    input.idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+  ) {
+    throw new HoldInputError("A hold needs a bounded idempotency key.");
+  }
+
+  const actorKey = resolveActorKey(input.actor);
+  const seatIds = normalizeSeatIds(input.seatIds);
+
+  const event = await executor.query<{ currency: string } & QueryResultRow>(
+    `SELECT "currency" FROM "events" WHERE "id" = $1`,
+    [input.eventId]
+  );
+  const currency = event.rows[0]?.currency;
+  if (currency === undefined) {
+    throw new HoldEventNotFoundError();
+  }
+
+  // Insert the hold first so the unique (actor, idempotency key) index arbitrates
+  // duplicate requests. A conflict means a hold already exists: replay it.
+  const inserted = await executor.query<HoldRow>(
+    `INSERT INTO "holds"
+       ("event_id", "user_id", "guest_session_id", "actor_key",
+        "idempotency_key", "expires_at")
+     SELECT
+       e."id",
+       $2,
+       $3,
+       $4,
+       $5,
+       CURRENT_TIMESTAMP + make_interval(secs => e."hold_duration_seconds")
+     FROM "events" e
+     WHERE e."id" = $1
+     ON CONFLICT ("actor_key", "idempotency_key") DO NOTHING
+     RETURNING ${holdColumns}`,
+    [
+      input.eventId,
+      input.actor.userId ?? null,
+      input.actor.guestSessionId ?? null,
+      actorKey,
+      input.idempotencyKey,
+    ]
+  );
+
+  const holdRow = inserted.rows[0];
+  if (!holdRow) {
+    const existing = await executor.query<HoldRow>(
+      `SELECT ${holdColumns} FROM "holds"
+       WHERE "actor_key" = $1 AND "idempotency_key" = $2`,
+      [actorKey, input.idempotencyKey]
+    );
+    const existingRow = existing.rows[0]!;
+    const seats = await loadAssignedSeatItems(executor, existingRow.id);
+    return {
+      ...existingRow,
+      currency,
+      ...summarizeSeats(seats),
+      seats,
+      replayed: true,
+    };
+  }
+
+  // Lock the requested seats in id order. Expiry uses database time so a missed
+  // sweep never grants rights: a held-but-expired seat is reclaimable, a held
+  // seat whose hold has not expired belongs to a live reservation.
+  const locked = await executor.query<LockedSeatRow>(
+    `SELECT
+       s."id",
+       s."event_id" AS "eventId",
+       s."ticket_type_id" AS "ticketTypeId",
+       s."price_minor" AS "priceMinor",
+       s."section_name" AS "sectionName",
+       s."row_label" AS "rowLabel",
+       s."seat_label" AS "seatLabel",
+       t."kind" AS "ticketTypeKind",
+       t."fee_minor" AS "feeMinor",
+       (s."status" = 'available') AS "isAvailable",
+       (s."status" = 'held' AND h."expires_at" <= CURRENT_TIMESTAMP)
+         AS "isReclaimable"
+     FROM "event_seats" s
+     JOIN "ticket_types" t ON t."id" = s."ticket_type_id"
+     LEFT JOIN "holds" h ON h."id" = s."hold_id"
+     WHERE s."id" = ANY($1::uuid[])
+     ORDER BY s."id"
+     FOR UPDATE OF s`,
+    [seatIds]
+  );
+
+  const lockedById = new Map(locked.rows.map((row) => [row.id, row]));
+  const unavailable: string[] = [];
+  const takeable: LockedSeatRow[] = [];
+  for (const seatId of seatIds) {
+    const seat = lockedById.get(seatId);
+    const usable =
+      seat !== undefined &&
+      seat.eventId === input.eventId &&
+      seat.ticketTypeKind === "assigned" &&
+      (seat.isAvailable || seat.isReclaimable);
+    if (!usable) {
+      unavailable.push(seatId);
+      continue;
+    }
+    takeable.push(seat);
+  }
+
+  if (unavailable.length > 0) {
+    throw new SeatsUnavailableError(unavailable);
+  }
+
+  const seatOrder = takeable.map((seat) => seat.id);
+  const ticketTypeIds = takeable.map((seat) => seat.ticketTypeId);
+  const unitPrices = takeable.map((seat) => seat.priceMinor);
+  const unitFees = takeable.map((seat) => seat.feeMinor);
+  const quantities = takeable.map(() => 1);
+
+  await executor.query(
+    `INSERT INTO "hold_items"
+       ("hold_id", "ticket_type_id", "event_seat_id", "quantity",
+        "unit_price_minor", "unit_fee_minor")
+     SELECT $1, * FROM unnest(
+       $2::uuid[], $3::uuid[], $4::int[], $5::int[], $6::int[]
+     )`,
+    [holdRow.id, ticketTypeIds, seatOrder, quantities, unitPrices, unitFees]
+  );
+
+  const updated = await executor.query(
+    `UPDATE "event_seats"
+     SET "status" = 'held', "hold_id" = $2
+     WHERE "id" = ANY($1::uuid[])`,
+    [seatOrder, holdRow.id]
+  );
+  // The seats were validated under lock, so every requested row must flip.
+  if ((updated.rowCount ?? 0) !== seatOrder.length) {
+    throw new SeatsUnavailableError(seatIds);
+  }
+
+  const seats: AssignedSeatHoldItem[] = takeable.map((seat) => ({
+    eventSeatId: seat.id,
+    rowLabel: seat.rowLabel,
+    seatLabel: seat.seatLabel,
+    sectionName: seat.sectionName,
+    ticketTypeId: seat.ticketTypeId,
+    unitFeeMinor: seat.feeMinor,
+    unitPriceMinor: seat.priceMinor,
+  }));
+
+  return {
+    ...holdRow,
+    currency,
+    ...summarizeSeats(seats),
+    seats,
+    replayed: false,
+  };
 }
 
 /** Remaining general-admission quantity per ticket type for an event. */
