@@ -46,6 +46,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [ADR 0002: PostgreSQL transactional outbox](adr/0002-postgresql-transactional-outbox.md)
 - [ADR 0006: Stripe payment finalization](adr/0006-stripe-payment-finalization.md)
 - [ADR 0007: Redis waiting-room admission](adr/0007-redis-waiting-room-admission.md)
+- [ADR 0008: QR ticket tokens](adr/0008-qr-ticket-tokens.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
 
 ## Ownership map

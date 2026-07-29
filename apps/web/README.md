@@ -25,6 +25,14 @@ the request cookies and redirects to `/login` without a valid session. Browse
 the site and the API on the same host (`127.0.0.1` by default) so the browser
 treats them as one site for cookies.
 
+Ticket flows live at `/account/tickets` (the customer's issued tickets) and
+`/tickets/[ticketId]` (one ticket with event timezone, venue and access details,
+seat or general-admission line, status, and accessible text). The QR code is a
+client component that reveals a fresh bearer on demand and renders it entirely
+in the browser, so no raw token reaches server-rendered HTML; revealing again
+rotates it. Both pages render dynamically, forward the request cookies, and set
+`robots: noindex` so authenticated ticket data is never indexed.
+
 Organization flows live at `/organizations` (memberships, invitations, creation)
 and `/organizations/[organizationId]` (settings, member roster with invite/role
 change/remove, audit log, owner-only deletion). Sections render only when the

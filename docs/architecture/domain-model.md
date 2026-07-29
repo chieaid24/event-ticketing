@@ -58,8 +58,11 @@ keys, amounts, currency, status, and safe failure codes.
 
 ## Tickets and scans
 
-Create one ticket per purchased unit. Store a public ticket number and QR token
-hash, never the raw token after issuance. Scans are append-only attempts.
+Create one ticket per purchased unit. Store a nonsecret public number and the
+hash of the current QR bearer, never the raw token. Issuance writes a
+placeholder hash; the authenticated owner mints a usable 256-bit bearer through
+a reveal that rotates the hash and invalidates the prior bearer. See
+[ADR 0008](../adr/0008-qr-ticket-tokens.md). Scans are append-only attempts.
 Check-in updates the locked ticket and adds a scan record in one transaction.
 
 ## Reliability records

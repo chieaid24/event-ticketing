@@ -6,11 +6,12 @@ domain persistence.
 
 Import schemas and their inferred TypeScript types from
 `@event-ticketing/contracts`. Exports cover the API status, authentication,
-organization, venue, and event contracts. Venue layouts additionally export
-`validateVenueLayout`, and events export `validateEventForPublication`. Both are
-semantic rule checks that the organizer UI and the API run so validation
-summaries match the enforcement point. Event contracts represent money as
-integer minor units and validate IANA timezones and ISO 4217 currencies.
+organization, venue, event, checkout, waiting-room, and ticket contracts. Venue
+layouts additionally export `validateVenueLayout`, and events export
+`validateEventForPublication`. Both are semantic rule checks that the organizer
+UI and the API run so validation summaries match the enforcement point. Event
+contracts represent money as integer minor units and validate IANA timezones and
+ISO 4217 currencies.
 
 ## Dependencies and configuration
 

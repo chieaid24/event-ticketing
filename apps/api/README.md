@@ -178,6 +178,25 @@ commercial state decided only by verified webhook processing.
 - `POST /payments/simulate` exists only under the fake provider and turns a
   simulated outcome into a signed delivery through the production webhook path.
 
+## Ticket routes
+
+Ticket routes expose a customer's own admission credentials and follow
+[ADR 0008](../../docs/adr/0008-qr-ticket-tokens.md): a nonsecret public number
+plus the hash of a rotating 256-bit QR bearer, never a stored raw token. Every
+response sets `Cache-Control: no-store, private` and
+`X-Robots-Tag: noindex, nofollow` so authenticated ticket data is never cached
+or indexed. All routes are actor-scoped; another actor's ticket answers the same
+`404` as a missing one.
+
+- `GET /account/tickets` lists the session user's tickets with event timezone,
+  venue, seat or general-admission detail, and status. It requires a session.
+- `GET /tickets/:ticketId` returns one owned ticket's full detail.
+- `POST /tickets/:ticketId/qr` mints a fresh QR bearer, stores only its hash,
+  and returns the raw token exactly once. It requires a mutation session (CSRF
+  and trusted origin). Each call rotates, invalidating the prior bearer; a
+  non-active ticket answers `409 ticket_not_active`. The raw token is never
+  logged or persisted.
+
 ## Public discovery routes
 
 Discovery routes under `/discovery` are public and unauthenticated. They never

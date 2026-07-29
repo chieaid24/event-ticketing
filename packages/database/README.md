@@ -26,6 +26,13 @@ the unavailable seat ids. Run them inside a transaction; they lock in sorted id
 order. Import `mirrorHoldExpiry`, `clearHoldExpiry`, and `readHoldExpiry` to
 advise Redis of a hold's expiry without ceding inventory authority to it.
 
+Import `listTicketsForActor`, `loadTicketForActor`, and `rotateTicketQrToken`
+for a customer's own admission tickets. All three are actor-scoped, so one actor
+never sees another's ticket. `rotateTicketQrToken` stores only the SHA-256 hash
+of a fresh 256-bit QR bearer and stamps the rotation time, atomically
+invalidating the prior bearer; the raw token never reaches persistence (see
+[ADR 0008](../../docs/adr/0008-qr-ticket-tokens.md)).
+
 ## Migrate and seed
 
 Start PostgreSQL, then apply the tracked migration and synthetic seed:
@@ -48,7 +55,8 @@ layout rules: unique names and labels per scope, bounded coordinates,
 kind-dependent general-admission capacity, and mutually exclusive accessible and
 companion flags. Event tables enforce positive versions, bounded hold duration,
 supported currencies, kind-dependent ticket-type capacity, unique event-seat
-positions, and a publication timestamp that matches event status. A published
+positions, and a publication timestamp that matches event status. Each issued
+ticket carries a unique public number and a unique QR token hash. A published
 event cannot delete its venue because the venue foreign key restricts it.
 General-admission holds enforce nonnegative reserved and sold quantities within
 capacity, exactly one hold actor per hold, and a positive hold-item quantity.
