@@ -698,6 +698,100 @@ h2 {
   border: 0;
 }
 
+/* Customer tickets */
+
+.ticket-list {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticket-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ticket-list__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 560;
+}
+
+.ticket-list__title a {
+  text-decoration: none;
+}
+
+.ticket-list__title a:hover {
+  text-decoration: underline;
+}
+
+.ticket-list__meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ticket-status[data-status="void"] {
+  color: var(--danger);
+}
+
+.ticket-accessible {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--success);
+  border-radius: 999px;
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.account-section-lead {
+  max-width: 60ch;
+  margin: 16px 0 0;
+  color: var(--muted);
+}
+
+.ticket-qr {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.ticket-qr__frame {
+  /* Always light so the code scans on a phone set to a dark theme. */
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: oklch(1 0 0);
+}
+
+.ticket-qr__image {
+  display: block;
+  width: 320px;
+  max-width: 100%;
+  height: auto;
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
