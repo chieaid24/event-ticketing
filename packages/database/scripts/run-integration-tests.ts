@@ -72,6 +72,13 @@ import {
   withDatabaseTransaction,
 } from "../src/outbox.js";
 import {
+  hashQrToken,
+  listTicketsForActor,
+  loadTicketForActor,
+  rotateTicketQrToken,
+  TicketNotFoundError,
+} from "../src/tickets.js";
+import {
   claimVenueVersion,
   deleteVenueById,
   fetchVenueLayout,
@@ -2017,6 +2024,152 @@ try {
       sold_seats: 2,
       tickets: 2,
     });
+
+    // QR credentials: issuance mints one nonsecret public number per ticket plus
+    // an unmatchable placeholder hash (no raw bearer escapes issuance), and the
+    // owner materializes and rotates a usable bearer through actor-scoped reads.
+    const paidTickets = await withDatabaseTransaction(pool, (transaction) =>
+      listTicketsForActor(transaction, {
+        actor: { guestSessionId: "finalize-paid" },
+      })
+    );
+    assert.equal(paidTickets.length, 2, "Each paid unit yields one ticket.");
+    for (const ticket of paidTickets) {
+      assert.match(
+        ticket.publicNumber,
+        /^TK-[0-9A-F]{12}$/,
+        "A ticket public number is a nonsecret TK- code."
+      );
+      assert.equal(
+        ticket.qrRotatedAt,
+        null,
+        "A freshly issued ticket has not rotated a bearer yet."
+      );
+      assert.equal(ticket.status, "active");
+      assert.ok(
+        ticket.eventTimezone.length > 0,
+        "A ticket surfaces its event timezone."
+      );
+      assert.ok(ticket.venueName.length > 0, "A ticket surfaces its venue.");
+    }
+    const issuedHashes = await pool.query<{ hash: string }>(
+      `SELECT "qr_token_hash" AS "hash" FROM "tickets" WHERE "order_id" = $1`,
+      [paidFixture.orderId]
+    );
+    assert.equal(
+      new Set(issuedHashes.rows.map((row) => row.hash)).size,
+      2,
+      "Every issued QR hash is unique."
+    );
+    for (const row of issuedHashes.rows) {
+      assert.match(row.hash, /^[0-9a-f]{64}$/, "A QR hash is 64 hex chars.");
+    }
+    assert.equal(
+      new Set(paidTickets.map((ticket) => ticket.publicNumber)).size,
+      2,
+      "Every ticket public number is unique."
+    );
+
+    // Actor scoping: another actor lists none of these tickets and cannot load one.
+    const strangerTickets = await withDatabaseTransaction(pool, (transaction) =>
+      listTicketsForActor(transaction, {
+        actor: { guestSessionId: "ticket-stranger" },
+      })
+    );
+    assert.equal(
+      strangerTickets.filter((ticket) =>
+        paidTickets.some((owned) => owned.id === ticket.id)
+      ).length,
+      0,
+      "An actor never lists another actor's tickets."
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        loadTicketForActor(transaction, {
+          actor: { guestSessionId: "ticket-stranger" },
+          ticketId: paidTickets[0]!.id,
+        })
+      ),
+      (error: unknown) => error instanceof TicketNotFoundError,
+      "An actor never loads another actor's ticket."
+    );
+
+    // Rotation mints a fresh bearer and invalidates the prior credential.
+    const rotatingTicketId = paidTickets[0]!.id;
+    const placeholderHash = (
+      await pool.query<{ hash: string }>(
+        `SELECT "qr_token_hash" AS "hash" FROM "tickets" WHERE "id" = $1`,
+        [rotatingTicketId]
+      )
+    ).rows[0]!.hash;
+    const firstToken = `first-bearer-${randomUUID()}`;
+    const firstRotation = await withDatabaseTransaction(pool, (transaction) =>
+      rotateTicketQrToken(transaction, {
+        actor: { guestSessionId: "finalize-paid" },
+        ticketId: rotatingTicketId,
+        tokenHash: hashQrToken(firstToken),
+      })
+    );
+    assert.equal(firstRotation.outcome, "rotated");
+    const afterFirst = (
+      await pool.query<{ hash: string; rotated: Date | null }>(
+        `SELECT "qr_token_hash" AS "hash", "qr_rotated_at" AS "rotated"
+         FROM "tickets" WHERE "id" = $1`,
+        [rotatingTicketId]
+      )
+    ).rows[0]!;
+    assert.equal(afterFirst.hash, hashQrToken(firstToken));
+    assert.notEqual(
+      afterFirst.hash,
+      placeholderHash,
+      "Rotation replaces the placeholder hash."
+    );
+    assert.notEqual(afterFirst.rotated, null, "Rotation stamps qr_rotated_at.");
+
+    const secondToken = `second-bearer-${randomUUID()}`;
+    await withDatabaseTransaction(pool, (transaction) =>
+      rotateTicketQrToken(transaction, {
+        actor: { guestSessionId: "finalize-paid" },
+        ticketId: rotatingTicketId,
+        tokenHash: hashQrToken(secondToken),
+      })
+    );
+    const afterSecond = (
+      await pool.query<{ hash: string }>(
+        `SELECT "qr_token_hash" AS "hash" FROM "tickets" WHERE "id" = $1`,
+        [rotatingTicketId]
+      )
+    ).rows[0]!;
+    assert.equal(afterSecond.hash, hashQrToken(secondToken));
+    assert.notEqual(
+      afterSecond.hash,
+      hashQrToken(firstToken),
+      "A new bearer invalidates the prior bearer's stored hash."
+    );
+
+    // A stranger cannot rotate; a voided ticket carries no live credential.
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        rotateTicketQrToken(transaction, {
+          actor: { guestSessionId: "ticket-stranger" },
+          ticketId: rotatingTicketId,
+          tokenHash: hashQrToken("stranger-bearer"),
+        })
+      ),
+      (error: unknown) => error instanceof TicketNotFoundError,
+      "A stranger cannot rotate another actor's ticket."
+    );
+    await pool.query(`UPDATE "tickets" SET "status" = 'void' WHERE "id" = $1`, [
+      paidTickets[1]!.id,
+    ]);
+    const voidRotation = await withDatabaseTransaction(pool, (transaction) =>
+      rotateTicketQrToken(transaction, {
+        actor: { guestSessionId: "finalize-paid" },
+        ticketId: paidTickets[1]!.id,
+        tokenHash: hashQrToken("void-bearer"),
+      })
+    );
+    assert.deepEqual(voidRotation, { outcome: "not_active", status: "void" });
 
     // General admission finalizes by moving reserved quantity to sold.
     const gaCheckoutEvent = randomUUID();

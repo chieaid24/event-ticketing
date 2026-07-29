@@ -10,6 +10,7 @@ export * from "./holds.js";
 export * from "./orders.js";
 export * from "./organizations.js";
 export * from "./outbox.js";
+export * from "./tickets.js";
 export * from "./venues.js";
 
 export interface DatabaseConnection {
