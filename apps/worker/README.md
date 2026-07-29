@@ -29,6 +29,22 @@ The worker validates these values with `DATABASE_URL`, `REDIS_URL`, and
 `LOG_LEVEL` before startup. Invalid startup configuration writes one value-free
 JSON failure event.
 
+## Payment processing
+
+Verified payment webhooks finalize orders here, never in the API request (see
+[ADR 0006](../../docs/adr/0006-stripe-payment-finalization.md)):
+
+- `payment.intent.succeeded` locks the order, hold, and inventory, re-verifies
+  amount and currency, then sells every unit and issues one ticket per unit, or
+  records `payment_conflict` and enqueues compensation when inventory was lost.
+- `payment.intent.failed` records the failure code and leaves the order open for
+  another attempt.
+- `payment.compensation.requested` starts an idempotent full refund through the
+  payment gateway and notifies the customer and `OPS_ALERT_EMAIL`.
+
+`PAYMENT_PROVIDER` selects the Stripe or fake gateway; the stripe provider also
+requires `STRIPE_SECRET_KEY`.
+
 The application depends on `@event-ticketing/config` and
 `@event-ticketing/database`. Register handlers in `src/handlers.ts`; handlers
 that need runtime dependencies (such as the auth email handlers in

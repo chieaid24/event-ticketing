@@ -129,6 +129,30 @@ are rate limited per client through Redis.
   ids, never another customer or hold. A repeated key replays the original hold
   rather than reserving twice. PostgreSQL remains authoritative; the hold's
   expiry is mirrored to Redis only as an advisory client countdown.
+- `POST /holds/general-admission` reserves quantities of general-admission
+  ticket types with the same idempotency, pricing, and replay rules. A capacity
+  conflict answers `409 capacity_unavailable` listing only the oversubscribed
+  ticket type ids.
+
+## Checkout and payment routes
+
+Checkout follows [ADR 0006](../../docs/adr/0006-stripe-payment-finalization.md):
+one order per hold, provider intents under stable idempotency keys, and
+commercial state decided only by verified webhook processing.
+
+- `POST /checkout` accepts `{ holdId }` for the caller's own hold, creates or
+  replays its one order, guarantees a payment intent exists, and answers `201`
+  with the authoritative summary and client secret. An expired hold answers
+  `409 hold_expired`; a provider outage answers `502` and a retry resumes at
+  intent creation.
+- `GET /orders/:orderId` returns the actor-scoped authoritative summary. The
+  client secret appears only while payment can still proceed.
+- `POST /webhooks/payments` is the provider-facing endpoint. It verifies the
+  Stripe signature scheme against the raw body, durably records the unique
+  event, and commits the asynchronous processing request atomically. Invalid
+  signatures answer `400`; duplicates acknowledge without recording twice.
+- `POST /payments/simulate` exists only under the fake provider and turns a
+  simulated outcome into a signed delivery through the production webhook path.
 
 ## Public discovery routes
 
