@@ -79,6 +79,27 @@ If payment succeeds after inventory is lost, record `PAYMENT_CONFLICT`, start an
 idempotent full refund, notify the customer, and alert operations. Never
 substitute seats or leave a charge without admission or compensation.
 
+## Waiting room
+
+An organizer can enable the waiting room on a draft event. Authenticated
+customers join one Redis sorted-set position per session, maintain it with a
+heartbeat, and poll the status route. Atomic Lua scripts admit the oldest live
+entries while the event's active lease count remains below the configured
+capacity.
+
+Queue tokens bind the event and session to a short expiry. Admission tokens add
+a single-use nonce and an admission lease. A hold request consumes that nonce
+under its idempotency key, so a network retry can replay the same hold request
+but cannot spend the admission on a different request.
+
+Both hold routes check waiting-room admission before entering the existing
+inventory transaction. PostgreSQL still locks and validates every seat or
+general-admission counter. Redis loss fails admission closed for enabled events;
+it never makes inventory available or changes a committed hold.
+
+See [ADR 0007](../adr/0007-redis-waiting-room-admission.md) for queue ordering,
+token, lease, and failure decisions.
+
 ## Refunds
 
 Accept order items and quantities, not a client amount. Lock the order and

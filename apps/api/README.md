@@ -98,8 +98,9 @@ missing event.
 - `GET .../events/:eventId` returns the event, its ticket types, the venue
   sections available to sell, and the outstanding publication problems.
 - `PATCH .../events/:eventId` saves draft basics (title, description, timezone,
-  currency, schedule, sale window, hold duration, refund policy, media) under
-  optimistic `version` checking; a stale save answers `version_conflict`.
+  currency, schedule, sale window, hold duration, waiting-room requirement,
+  refund policy, media) under optimistic `version` checking; a stale save
+  answers `version_conflict`.
 - `PUT .../events/:eventId/ticket-types` replaces the ticket-type set under the
   same `version` check. Each type must match a venue section of its kind, or the
   request answers `ticket_types_invalid`.
@@ -133,6 +134,29 @@ are rate limited per client through Redis.
   ticket types with the same idempotency, pricing, and replay rules. A capacity
   conflict answers `409 capacity_unavailable` listing only the oversubscribed
   ticket type ids.
+
+When an event has `waitingRoomEnabled`, both hold routes require an
+`x-waiting-room-token` admission token. The first hold attempt binds the token
+to its `Idempotency-Key`; retries with the same key remain safe, while another
+hold attempt cannot reuse it.
+
+## Waiting-room routes
+
+Waiting-room routes require an authenticated mutation session, CSRF, a trusted
+origin, and per-client rate limits.
+
+- `POST /waiting-room/events/:eventId/join` creates or returns the session's one
+  queue position and a signed queue token.
+- `POST /waiting-room/events/:eventId/heartbeat` extends a live queue entry.
+- `POST /waiting-room/events/:eventId/status` returns position and depth, or
+  atomically exchanges the head entry for an expiring admission token when
+  capacity is available.
+
+Set `WAITING_ROOM_TOKEN_SECRET` to a random value with at least 32 characters.
+Tune `WAITING_ROOM_ADMISSION_CAPACITY`, `WAITING_ROOM_HEARTBEAT_TTL_SECONDS`,
+`WAITING_ROOM_LEASE_TTL_SECONDS`, and `WAITING_ROOM_TOKEN_TTL_SECONDS` for the
+deployment. Enabled events fail closed when Redis is unavailable; PostgreSQL
+still decides every inventory mutation.
 
 ## Checkout and payment routes
 
@@ -203,6 +227,7 @@ Redis. It does not require Mailpit or MinIO for current routes.
 
 ```bash
 pnpm --filter @event-ticketing/api test
+pnpm --filter @event-ticketing/api test:waiting-room-load
 ```
 
 See the [system architecture](../../docs/architecture/system.md) and

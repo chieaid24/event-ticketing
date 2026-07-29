@@ -36,3 +36,4 @@ issue.
 - [ADR 0004: General-admission inventory counters](0004-general-admission-inventory-counters.md)
 - [ADR 0005: Assigned-seat holds](0005-assigned-seat-holds.md)
 - [ADR 0006: Stripe payment finalization](0006-stripe-payment-finalization.md)
+- [ADR 0007: Redis waiting-room admission](0007-redis-waiting-room-admission.md)

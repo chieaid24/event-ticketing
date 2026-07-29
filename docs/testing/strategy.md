@@ -64,6 +64,10 @@ environment, dataset, duration, virtual users, request mix, results,
 bottlenecks, retest results, and limitations. Never present local results as
 production capacity.
 
+Run `pnpm --filter @event-ticketing/api test:waiting-room-load` against the
+pinned local Redis service to measure 500 concurrent joins and atomic admission
+under a 25-lease cap.
+
 ## Repository tests
 
 `pnpm test` validates documentation structure, naming, links, and workspace unit
