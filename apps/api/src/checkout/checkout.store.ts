@@ -82,7 +82,7 @@ export class PgCheckoutStore implements CheckoutStore, OnApplicationShutdown {
       if (!record.replayed && input.enqueue) {
         await enqueueOutboxEvent(transaction, {
           deduplicationKey: input.enqueue.deduplicationKey,
-          payload: input.enqueue.payload,
+          payload: { ...input.enqueue.payload, webhookEventId: record.id },
           topic: input.enqueue.topic,
         });
       }

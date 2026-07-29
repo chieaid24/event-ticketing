@@ -147,6 +147,9 @@ importers:
       "@event-ticketing/database":
         specifier: workspace:*
         version: link:../../packages/database
+      "@event-ticketing/payments":
+        specifier: workspace:*
+        version: link:../../packages/payments
       nodemailer:
         specifier: 9.0.3
         version: 9.0.3

@@ -869,10 +869,12 @@ export async function recordPaymentFailure(
 
 export interface CompensationTarget {
   amountMinor: number;
+  currency: string;
   orderId: string;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
   providerPaymentIntentId: string | null;
+  publicNumber: string;
   userId: string | null;
 }
 
@@ -884,10 +886,12 @@ export async function loadCompensationTarget(
   const result = await executor.query<CompensationTarget & QueryResultRow>(
     `SELECT
        o."id" AS "orderId",
+       o."public_number" AS "publicNumber",
        o."status" AS "orderStatus",
        o."user_id" AS "userId",
        p."status" AS "paymentStatus",
        p."amount_minor" AS "amountMinor",
+       p."currency",
        p."provider_payment_intent_id" AS "providerPaymentIntentId"
      FROM "orders" o
      JOIN "payments" p ON p."order_id" = o."id"

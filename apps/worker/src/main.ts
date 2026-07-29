@@ -15,8 +15,11 @@ import {
   HOLD_EXPIRATION_SWEEP_INTERVAL_SECONDS,
   HOLD_EXPIRATION_SWEEP_TOPIC,
 } from "./hold-expiration-handlers.js";
+import { createPaymentGateway } from "@event-ticketing/payments";
+
 import { createSmtpEmailer } from "./mailer.js";
 import { createOutboxProcessor } from "./outbox-processor.js";
+import { createPaymentHandlers } from "./payment-handlers.js";
 import { createWorkerRuntime } from "./runtime.js";
 
 async function startWorker(): Promise<void> {
@@ -44,6 +47,17 @@ async function startWorker(): Promise<void> {
         resetTokenTtlSeconds: config.resetTokenTtlSeconds,
         verificationTokenTtlSeconds: config.verificationTokenTtlSeconds,
         webBaseUrl: config.webBaseUrl,
+      }),
+      ...createPaymentHandlers({
+        emailer,
+        gateway: createPaymentGateway({
+          provider: config.paymentProvider,
+          ...(config.stripeSecretKey !== undefined && {
+            stripeSecretKey: config.stripeSecretKey,
+          }),
+        }),
+        opsAlertEmail: config.opsAlertEmail,
+        pool: database,
       }),
     },
     leaseMs: config.outboxLeaseMs,
