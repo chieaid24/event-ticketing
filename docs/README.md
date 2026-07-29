@@ -44,6 +44,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 
 - [ADR 0001: Monorepo and service boundaries](adr/0001-monorepo-and-service-boundaries.md)
 - [ADR 0002: PostgreSQL transactional outbox](adr/0002-postgresql-transactional-outbox.md)
+- [ADR 0006: Stripe payment finalization](adr/0006-stripe-payment-finalization.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
 
 ## Ownership map

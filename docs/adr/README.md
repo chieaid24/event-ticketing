@@ -35,3 +35,4 @@ issue.
 - [ADR 0003: Database-backed opaque sessions](0003-database-backed-opaque-sessions.md)
 - [ADR 0004: General-admission inventory counters](0004-general-admission-inventory-counters.md)
 - [ADR 0005: Assigned-seat holds](0005-assigned-seat-holds.md)
+- [ADR 0006: Stripe payment finalization](0006-stripe-payment-finalization.md)

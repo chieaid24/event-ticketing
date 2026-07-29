@@ -38,10 +38,11 @@ export async function requestJson(
   init: {
     body?: unknown;
     csrf?: boolean;
+    headers?: Record<string, string>;
     method: "PATCH" | "POST" | "PUT" | "DELETE";
   }
 ): Promise<unknown> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...init.headers };
   if (init.body !== undefined) {
     headers["content-type"] = "application/json";
   }

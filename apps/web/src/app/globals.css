@@ -646,6 +646,47 @@ h2 {
   font-weight: 650;
 }
 
+.checkout-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .checkout-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+}
+
+.checkout-lines__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkout-lines tfoot th,
+.checkout-lines tfoot td {
+  border-bottom: none;
+  font-weight: 700;
+}
+
+.checkout-countdown {
+  margin-top: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.checkout-countdown strong {
+  color: var(--text);
+}
+
+.payment-simulation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

@@ -104,8 +104,12 @@ function makeService(store: HoldsStore): HoldsService {
   );
 }
 
+const unusedGeneralAdmission: HoldsStore["createGeneralAdmissionHold"] = () =>
+  Promise.reject(new Error("not under test"));
+
 const anyHold: HoldsStore = {
   createAssignedSeatHold: () => Promise.resolve(makeHold()),
+  createGeneralAdmissionHold: unusedGeneralAdmission,
 };
 
 describe("HoldsService.createAssignedSeatHold", () => {
@@ -132,6 +136,7 @@ describe("HoldsService.createAssignedSeatHold", () => {
     const hold = makeHold();
     const service = makeService({
       createAssignedSeatHold: () => Promise.resolve(hold),
+      createGeneralAdmissionHold: unusedGeneralAdmission,
     });
 
     await expect(
@@ -163,6 +168,7 @@ describe("HoldsService.createAssignedSeatHold", () => {
     const service = makeService({
       createAssignedSeatHold: () =>
         Promise.reject(new SeatsUnavailableError([seatId])),
+      createGeneralAdmissionHold: unusedGeneralAdmission,
     });
 
     const error = await service
@@ -182,6 +188,7 @@ describe("HoldsService.createAssignedSeatHold", () => {
     const service = makeService({
       createAssignedSeatHold: () =>
         Promise.reject(new HoldEventNotFoundError()),
+      createGeneralAdmissionHold: unusedGeneralAdmission,
     });
 
     const error = await service

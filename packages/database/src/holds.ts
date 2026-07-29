@@ -10,6 +10,12 @@ export type HoldStatus =
 export const MAX_HOLD_ITEMS = 20;
 export const MAX_HOLD_ITEM_QUANTITY = 50;
 export const MAX_SEATS_PER_HOLD = 10;
+/**
+ * How long a checkout-started hold outlives its expiry before the sweep frees
+ * its inventory. Covers payment processing and webhook delivery time; a
+ * payment that succeeds later still finalizes when every unit is reattachable.
+ */
+export const CHECKOUT_GRACE_SECONDS = 900;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const MAX_GUEST_SESSION_LENGTH = 64;
 
@@ -480,8 +486,10 @@ export async function createGeneralAdmissionHold(
 }
 
 /**
- * Expires one active hold and returns its reserved quantity exactly once.
- * A no-op for a hold that is not active, so retries are safe.
+ * Expires one reserving hold and returns its inventory exactly once. A no-op
+ * for a hold that is not active or checkout-started, so retries are safe. The
+ * sweep decides when a checkout-started hold is due (expiry plus grace); this
+ * function only applies the mechanics.
  */
 export async function expireHold(
   executor: DatabaseExecutor,
@@ -496,7 +504,7 @@ export async function expireHold(
     throw new HoldNotFoundError();
   }
 
-  if (current.status !== "active") {
+  if (current.status !== "active" && current.status !== "checkout_started") {
     return { changed: false, status: current.status };
   }
 
@@ -527,12 +535,18 @@ export async function expireDueHolds(
     const didExpire = await withDatabaseTransaction(
       pool,
       async (transaction) => {
+        // A checkout-started hold keeps its inventory for a payment grace
+        // window past expiry; abandoning checkout still frees it eventually.
         const due = await transaction.query<{ id: string }>(
           `SELECT "id" FROM "holds"
-         WHERE "status" = 'active' AND "expires_at" <= CURRENT_TIMESTAMP
+         WHERE ("status" = 'active' AND "expires_at" <= CURRENT_TIMESTAMP)
+            OR ("status" = 'checkout_started'
+                AND "expires_at" + make_interval(secs => $1)
+                      <= CURRENT_TIMESTAMP)
          ORDER BY "expires_at", "id"
          FOR UPDATE SKIP LOCKED
-         LIMIT 1`
+         LIMIT 1`,
+          [CHECKOUT_GRACE_SECONDS]
         );
         const holdId = due.rows[0]?.id;
         if (!holdId) {

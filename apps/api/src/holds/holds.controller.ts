@@ -10,7 +10,10 @@ import {
 } from "@nestjs/common";
 import type { Request } from "express";
 
-import type { CreateAssignedSeatHoldResponse } from "@event-ticketing/contracts";
+import type {
+  CreateAssignedSeatHoldResponse,
+  CreateGeneralAdmissionHoldResponse,
+} from "@event-ticketing/contracts";
 
 import type { RateLimiter } from "../auth/rate-limiter.js";
 import { contextFrom } from "../request-context.js";
@@ -24,6 +27,7 @@ interface RouteLimit {
 
 const routeLimits = {
   createAssigned: { max: 60, windowMs: 15 * 60 * 1000 },
+  createGeneralAdmission: { max: 60, windowMs: 15 * 60 * 1000 },
 } satisfies Record<string, RouteLimit>;
 
 @Controller("holds")
@@ -46,6 +50,25 @@ export class HoldsController {
       routeLimits.createAssigned
     );
     return this.service.createAssignedSeatHold(
+      contextFrom(request),
+      idempotencyKey,
+      body
+    );
+  }
+
+  @Post("general-admission")
+  @HttpCode(201)
+  async createGeneralAdmission(
+    @Req() request: Request,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown
+  ): Promise<CreateGeneralAdmissionHoldResponse> {
+    await this.enforceLimit(
+      request,
+      "createGeneralAdmission",
+      routeLimits.createGeneralAdmission
+    );
+    return this.service.createGeneralAdmissionHold(
       contextFrom(request),
       idempotencyKey,
       body

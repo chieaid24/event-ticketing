@@ -55,6 +55,11 @@ and a reconciliation sweep. New hold transactions may reclaim expired assigned
 seats. Checkout always checks database expiry. A missed job cannot extend
 purchase rights.
 
+A hold that starts checkout keeps its inventory for a payment grace window
+beyond expiry before the sweep frees it, covering provider processing and
+webhook delivery. A payment that succeeds later still finalizes when every unit
+is reattachable; otherwise the conflict path compensates.
+
 ## Checkout
 
 Lock the actor-owned hold and inventory, validate expiry, recalculate pricing,

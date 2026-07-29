@@ -13,6 +13,21 @@ export const organizationCreatedHandler: OutboxHandler = async (event) => {
   }
 };
 
+// Validation-only until publication side effects (search, notifications)
+// arrive; without a registered handler every published event dead-letters.
+export const eventPublishedHandler: OutboxHandler = async (event) => {
+  if (
+    typeof event.payload !== "object" ||
+    event.payload === null ||
+    !("eventId" in event.payload) ||
+    typeof event.payload.eventId !== "string" ||
+    event.payload.eventId !== event.aggregateId
+  ) {
+    throw new OutboxHandlerError("invalid_event_payload");
+  }
+};
+
 export const workerHandlers: Readonly<Record<string, OutboxHandler>> = {
+  "event.published": eventPublishedHandler,
   "organization.created": organizationCreatedHandler,
 };

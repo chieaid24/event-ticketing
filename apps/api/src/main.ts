@@ -17,10 +17,17 @@ async function bootstrap(): Promise<void> {
   });
   const app = await NestFactory.create(AppModule.register(config, logger), {
     logger: false,
+    // Webhook signatures verify against the exact bytes the provider sent.
+    rawBody: true,
   });
 
   app.enableCors({
-    allowedHeaders: ["content-type", "x-csrf-token", "x-request-id"],
+    allowedHeaders: [
+      "content-type",
+      "idempotency-key",
+      "x-csrf-token",
+      "x-request-id",
+    ],
     credentials: true,
     exposedHeaders: ["x-request-id"],
     maxAge: 600,
