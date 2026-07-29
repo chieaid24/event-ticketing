@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -15,6 +16,11 @@ import type {
   PublicSeatSection,
 } from "@event-ticketing/contracts";
 
+import { AuthApiError } from "../../../lib/auth-api";
+import {
+  createAssignedSeatHold,
+  createGeneralAdmissionHold,
+} from "../../../lib/checkout-api";
 import { fetchEventAvailability } from "../../../lib/discovery-api";
 import { formatMoney } from "../../../lib/format";
 
@@ -71,13 +77,18 @@ export function AvailabilityPanels({
   currency,
   eventId,
   salesOpen,
+  signedIn,
 }: Readonly<{
   apiBaseUrl: string;
   currency: string;
   eventId: string;
   salesOpen: boolean;
+  signedIn: boolean;
 }>): ReactNode {
+  const router = useRouter();
   const [state, setState] = useState<AvailabilityState>({ kind: "loading" });
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<
     ReadonlyMap<string, SelectedSeat>
   >(new Map());
@@ -189,6 +200,54 @@ export function AvailabilityPanels({
     },
     [salesOpen]
   );
+
+  const startCheckoutFlow = useCallback(async () => {
+    const seatIds = [...selectedSeats.keys()];
+    const items = [...gaQuantities.entries()].map(
+      ([ticketTypeId, quantity]) => ({ quantity, ticketTypeId })
+    );
+    setCheckoutBusy(true);
+    setCheckoutError(null);
+    try {
+      // The random key scopes retries of this click; the server dedupes per
+      // actor, so a double submit converges on one hold.
+      const idempotencyKey = crypto.randomUUID();
+      const hold =
+        seatIds.length > 0
+          ? await createAssignedSeatHold(
+              apiBaseUrl,
+              { eventId, seatIds },
+              idempotencyKey
+            )
+          : await createGeneralAdmissionHold(
+              apiBaseUrl,
+              { eventId, items },
+              idempotencyKey
+            );
+      router.push(`/checkout/${hold.holdId}`);
+    } catch (error) {
+      setCheckoutBusy(false);
+      if (error instanceof AuthApiError) {
+        if (error.code === "unauthenticated") {
+          router.push("/login");
+          return;
+        }
+        if (
+          error.code === "seats_unavailable" ||
+          error.code === "capacity_unavailable"
+        ) {
+          setCheckoutError(
+            "Part of your selection was just taken. Availability has been refreshed; adjust your selection and try again."
+          );
+          void load();
+          return;
+        }
+        setCheckoutError(error.message);
+        return;
+      }
+      setCheckoutError("Starting checkout failed. Try again.");
+    }
+  }, [apiBaseUrl, eventId, gaQuantities, load, router, selectedSeats]);
 
   const setGaQuantity = useCallback((ticketTypeId: string, value: number) => {
     setNotice(null);
@@ -356,10 +415,15 @@ export function AvailabilityPanels({
           )}
 
           <SelectionSummary
+            busy={checkoutBusy}
+            checkoutError={checkoutError}
             currency={currency}
             gaQuantities={gaQuantities}
             generalAdmission={state.data.generalAdmission}
+            onCheckout={() => void startCheckoutFlow()}
+            salesOpen={salesOpen}
             selectedSeats={selectedSeats}
+            signedIn={signedIn}
           />
         </>
       )}
@@ -689,15 +753,25 @@ function SeatMap({
 }
 
 function SelectionSummary({
+  busy,
+  checkoutError,
   currency,
   gaQuantities,
   generalAdmission,
+  onCheckout,
+  salesOpen,
   selectedSeats,
+  signedIn,
 }: Readonly<{
+  busy: boolean;
+  checkoutError: string | null;
   currency: string;
   gaQuantities: ReadonlyMap<string, number>;
   generalAdmission: EventAvailabilityResponse["generalAdmission"];
+  onCheckout: () => void;
+  salesOpen: boolean;
   selectedSeats: ReadonlyMap<string, SelectedSeat>;
+  signedIn: boolean;
 }>): ReactNode {
   const seatLines = [...selectedSeats.values()];
   const gaLines = generalAdmission
@@ -715,6 +789,7 @@ function SelectionSummary({
     );
   const unitCount =
     seatLines.length + gaLines.reduce((sum, line) => sum + line.quantity, 0);
+  const mixed = seatLines.length > 0 && gaLines.length > 0;
 
   return (
     <aside aria-labelledby="selection-heading" className="selection-summary">
@@ -754,10 +829,36 @@ function SelectionSummary({
         A selection is not a reservation. Nothing is held for you until checkout
         confirms it with the server, and availability can change at any moment.
       </p>
-      <button className="button-primary" disabled type="button">
-        Continue to checkout
-      </button>
-      <p className="field-hint">Checkout is not available yet.</p>
+      {checkoutError && (
+        <p className="form-status form-status--error" role="alert">
+          {checkoutError}
+        </p>
+      )}
+      {mixed && (
+        <p className="form-status" role="status">
+          Seats and general admission check out separately. Keep one kind in
+          this selection and buy the other in a second order.
+        </p>
+      )}
+      {signedIn ? (
+        <button
+          className="button-primary"
+          disabled={unitCount === 0 || mixed || busy || !salesOpen}
+          onClick={onCheckout}
+          type="button"
+        >
+          {busy ? "Starting checkout\u2026" : "Continue to checkout"}
+        </button>
+      ) : (
+        <>
+          <a className="button-primary" href="/login">
+            Sign in to check out
+          </a>
+          <p className="field-hint">
+            Checkout needs an account so your order and tickets stay with you.
+          </p>
+        </>
+      )}
     </aside>
   );
 }

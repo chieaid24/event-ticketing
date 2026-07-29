@@ -80,6 +80,7 @@ describe("orderSummarySchema", () => {
     eventTitle: "Autumn Gala",
     feeMinor: 200,
     holdExpiresAt: "2026-07-29T12:10:00.000Z",
+    holdId: uuid,
     items: [
       {
         eventSeatId: null,

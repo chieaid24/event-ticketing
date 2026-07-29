@@ -84,7 +84,11 @@ export default async function PublicEventPage({ params }: PageProps) {
             </p>
           </>
         ) : (
-          <EventDetail detail={result.data} apiBaseUrl={config.apiBaseUrl} />
+          <EventDetail
+            apiBaseUrl={config.apiBaseUrl}
+            detail={result.data}
+            signedIn={Boolean(me)}
+          />
         )}
       </main>
     </>
@@ -94,8 +98,10 @@ export default async function PublicEventPage({ params }: PageProps) {
 function EventDetail({
   apiBaseUrl,
   detail,
+  signedIn,
 }: Readonly<{
   apiBaseUrl: string;
+  signedIn: boolean;
   detail: {
     event: {
       currency: string;
@@ -191,6 +197,7 @@ function EventDetail({
         currency={event.currency}
         eventId={event.id}
         salesOpen={sales.onSale}
+        signedIn={signedIn}
       />
     </>
   );

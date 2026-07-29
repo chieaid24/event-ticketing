@@ -124,6 +124,7 @@ export class CheckoutService {
       eventTitle: order.eventTitle,
       feeMinor: order.feeMinor,
       holdExpiresAt: order.holdExpiresAt.toISOString(),
+      holdId: order.holdId,
       items: order.items.map((item) => ({
         eventSeatId: item.eventSeatId,
         quantity: item.quantity,

@@ -122,6 +122,12 @@ importers:
       "@fontsource-variable/source-serif-4":
         specifier: 5.3.0
         version: 5.3.0
+      "@stripe/react-stripe-js":
+        specifier: 6.8.0
+        version: 6.8.0(@stripe/stripe-js@9.12.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      "@stripe/stripe-js":
+        specifier: 9.12.1
+        version: 9.12.1
       next:
         specifier: 16.2.11
         version: 16.2.11(@babel/core@7.29.7)(@types/node@26.1.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1549,6 +1555,23 @@ packages:
       {
         integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==,
       }
+
+  "@stripe/react-stripe-js@6.8.0":
+    resolution:
+      {
+        integrity: sha512-nRrPkos00CmUeqXHxtJkXmSbl9/6ybGI4jVebzsiA6QaE5A4iw9dn1C4hUx2tBmQQV2e6pm2aLkPYov4hdta2w==,
+      }
+    peerDependencies:
+      "@stripe/stripe-js": ">=9.5.0 <10.0.0"
+      react: ">=16.8.0 <20.0.0"
+      react-dom: ">=16.8.0 <20.0.0"
+
+  "@stripe/stripe-js@9.12.1":
+    resolution:
+      {
+        integrity: sha512-KLXPvjA0BfS4dQnW+ddHjwtIXMnIfKYxqmeNMmQCfKjvYog0cSG+Z7ZvK4RH1+bV90GC07nUztWDRWmJLi5HZQ==,
+      }
+    engines: { node: ">=12.16" }
 
   "@swc/helpers@0.5.15":
     resolution:
@@ -3252,6 +3275,13 @@ packages:
         integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==,
       }
 
+  loose-envify@1.4.0:
+    resolution:
+      {
+        integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==,
+      }
+    hasBin: true
+
   lru-cache@5.1.1:
     resolution:
       {
@@ -3723,6 +3753,12 @@ packages:
         integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==,
       }
 
+  prop-types@15.8.1:
+    resolution:
+      {
+        integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==,
+      }
+
   proper-lockfile@4.1.2:
     resolution:
       {
@@ -3789,6 +3825,12 @@ packages:
       }
     peerDependencies:
       react: ^19.2.8
+
+  react-is@16.13.1:
+    resolution:
+      {
+        integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==,
+      }
 
   react@19.2.8:
     resolution:
@@ -5203,6 +5245,15 @@ snapshots:
 
   "@standard-schema/spec@1.1.0": {}
 
+  "@stripe/react-stripe-js@6.8.0(@stripe/stripe-js@9.12.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)":
+    dependencies:
+      "@stripe/stripe-js": 9.12.1
+      prop-types: 15.8.1
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+
+  "@stripe/stripe-js@9.12.1": {}
+
   "@swc/helpers@0.5.15":
     dependencies:
       tslib: 2.8.1
@@ -6252,6 +6303,10 @@ snapshots:
 
   long@5.3.2: {}
 
+  loose-envify@1.4.0:
+    dependencies:
+      js-tokens: 4.0.0
+
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
@@ -6505,6 +6560,12 @@ snapshots:
 
   process-warning@5.0.0: {}
 
+  prop-types@15.8.1:
+    dependencies:
+      loose-envify: 1.4.0
+      object-assign: 4.1.1
+      react-is: 16.13.1
+
   proper-lockfile@4.1.2:
     dependencies:
       graceful-fs: 4.2.11
@@ -6545,6 +6606,8 @@ snapshots:
     dependencies:
       react: 19.2.8
       scheduler: 0.27.0
+
+  react-is@16.13.1: {}
 
   react@19.2.8: {}
 

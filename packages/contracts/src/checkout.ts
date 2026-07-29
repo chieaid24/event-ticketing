@@ -137,6 +137,7 @@ export const orderSummarySchema = z
     eventTitle: z.string(),
     feeMinor: moneyMinorSchema,
     holdExpiresAt: z.iso.datetime(),
+    holdId: z.uuid(),
     items: z.array(orderItemSchema).min(1),
     orderId: z.uuid(),
     paidAt: z.iso.datetime().nullable(),
