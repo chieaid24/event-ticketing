@@ -7,6 +7,7 @@ export * from "./discovery.js";
 export * from "./events.js";
 export * from "./hold-availability-mirror.js";
 export * from "./holds.js";
+export * from "./orders.js";
 export * from "./organizations.js";
 export * from "./outbox.js";
 export * from "./venues.js";
