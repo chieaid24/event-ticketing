@@ -644,17 +644,19 @@ export async function finalizeOrderPayment(
       soldQuantity: number;
     } & QueryResultRow
   >(
-    `SELECT DISTINCT
+    `SELECT
        t."id",
        t."kind",
        t."capacity",
        t."reserved_quantity" AS "reservedQuantity",
        t."sold_quantity" AS "soldQuantity"
      FROM "ticket_types" t
-     JOIN "order_items" oi ON oi."ticket_type_id" = t."id"
-     WHERE oi."order_id" = $1
+     WHERE t."id" IN (
+       SELECT oi."ticket_type_id" FROM "order_items" oi
+       WHERE oi."order_id" = $1
+     )
      ORDER BY t."id"
-     FOR UPDATE OF t`,
+     FOR UPDATE`,
     [target.orderId]
   );
   const typesById = new Map(lockedTypes.rows.map((row) => [row.id, row]));
