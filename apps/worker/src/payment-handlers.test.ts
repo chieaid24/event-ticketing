@@ -19,16 +19,9 @@ function makeEvent(topic: string, payload: unknown): OutboxEvent {
     aggregateType: null,
     attemptCount: 1,
     availableAt: new Date(),
-    createdAt: new Date(),
-    deduplicationKey: null,
     id: "11111111-1111-4111-8111-111111111111",
-    lockedBy: "test",
-    lockedUntil: new Date(Date.now() + 30_000),
     maxAttempts: 8,
-    payload: payload as OutboxEvent["payload"],
-    scheduleId: null,
-    scheduledFor: null,
-    status: "processing",
+    payload,
     topic,
   };
 }
