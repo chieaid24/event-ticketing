@@ -141,6 +141,7 @@ export class CheckoutService {
       payment: {
         // The secret only serves an open payment; final orders never echo it.
         clientSecret: paymentOpen ? order.payment.clientSecret : null,
+        lastFailureAt: order.payment.lastFailureAt?.toISOString() ?? null,
         lastFailureCode: order.payment.lastFailureCode,
         provider: order.payment.provider as PaymentProvider,
         publishableKey:

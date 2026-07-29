@@ -31,6 +31,9 @@ export function ProcessingClient({
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const startedAt = Date.now();
+    // Failures recorded before this page loaded belong to earlier attempts;
+    // only a failure newer than the first observation ends this wait.
+    let baselineFailureAt: string | null | undefined;
 
     const poll = async (): Promise<void> => {
       try {
@@ -42,7 +45,14 @@ export function ProcessingClient({
           router.replace(`/orders/${orderId}`);
           return;
         }
-        if (order.payment.lastFailureCode !== null) {
+        if (baselineFailureAt === undefined) {
+          baselineFailureAt = order.payment.lastFailureAt;
+        }
+        if (
+          order.payment.lastFailureCode !== null &&
+          order.payment.lastFailureAt !== null &&
+          order.payment.lastFailureAt !== baselineFailureAt
+        ) {
           setState({
             holdId: order.holdId,
             kind: "failed",

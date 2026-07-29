@@ -120,6 +120,7 @@ export const orderPaymentSchema = z
   .object({
     /** Present only for the order's owner while payment can still proceed. */
     clientSecret: z.string().nullable(),
+    lastFailureAt: z.iso.datetime().nullable(),
     lastFailureCode: z.string().nullable(),
     provider: paymentProviderSchema,
     /** Stripe publishable key; null for the fake provider. */

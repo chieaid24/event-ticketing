@@ -22,7 +22,12 @@ async function bootstrap(): Promise<void> {
   });
 
   app.enableCors({
-    allowedHeaders: ["content-type", "x-csrf-token", "x-request-id"],
+    allowedHeaders: [
+      "content-type",
+      "idempotency-key",
+      "x-csrf-token",
+      "x-request-id",
+    ],
     credentials: true,
     exposedHeaders: ["x-request-id"],
     maxAge: 600,

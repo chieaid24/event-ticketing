@@ -98,6 +98,7 @@ describe("orderSummarySchema", () => {
     paidAt: null,
     payment: {
       clientSecret: "pi_fake_abc_secret_def",
+      lastFailureAt: null,
       lastFailureCode: null,
       provider: "fake",
       publishableKey: null,
