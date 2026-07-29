@@ -2,11 +2,14 @@ import { HttpException } from "@nestjs/common";
 
 import {
   createAssignedSeatHoldRequestSchema,
+  createGeneralAdmissionHoldRequestSchema,
   idempotencyKeySchema,
   type CreateAssignedSeatHoldResponse,
+  type CreateGeneralAdmissionHoldResponse,
   type SupportedCurrency,
 } from "@event-ticketing/contracts";
 import {
+  HoldCapacityError,
   HoldEventNotFoundError,
   HoldInputError,
   SeatsUnavailableError,
@@ -15,7 +18,7 @@ import {
 
 import type { AuthService, RequestAuthContext } from "../auth/auth.service.js";
 import { apiError, parseRequest } from "../request-validation.js";
-import type { HoldsStore } from "./holds.store.js";
+import type { GeneralAdmissionHoldRecord, HoldsStore } from "./holds.store.js";
 
 /** Route identifier for rate limiting and telemetry. */
 export const HOLD_ROUTE = "holds.assigned.create";
@@ -48,6 +51,58 @@ export class HoldsService {
     } catch (error) {
       this.translate(error);
     }
+  }
+
+  async createGeneralAdmissionHold(
+    context: RequestAuthContext,
+    idempotencyKey: string | undefined,
+    input: unknown
+  ): Promise<CreateGeneralAdmissionHoldResponse> {
+    const { user } = await this.auth.requireMutationSession(context);
+    const key = this.requireIdempotencyKey(idempotencyKey);
+    const request = parseRequest(
+      createGeneralAdmissionHoldRequestSchema,
+      input
+    );
+
+    try {
+      const hold = await this.store.createGeneralAdmissionHold({
+        actor: { userId: user.id },
+        eventId: request.eventId,
+        idempotencyKey: key,
+        items: request.items,
+      });
+      return this.toGeneralAdmissionResponse(hold);
+    } catch (error) {
+      this.translate(error);
+    }
+  }
+
+  private toGeneralAdmissionResponse(
+    hold: GeneralAdmissionHoldRecord
+  ): CreateGeneralAdmissionHoldResponse {
+    let subtotalMinor = 0;
+    let feeMinor = 0;
+    for (const item of hold.items) {
+      subtotalMinor += item.quantity * item.unitPriceMinor;
+      feeMinor += item.quantity * item.unitFeeMinor;
+    }
+    return {
+      currency: hold.currency as SupportedCurrency,
+      eventId: hold.eventId,
+      expiresAt: hold.expiresAt.toISOString(),
+      feeMinor,
+      holdId: hold.id,
+      items: hold.items.map((item) => ({
+        quantity: item.quantity,
+        ticketTypeId: item.ticketTypeId,
+        unitFeeMinor: item.unitFeeMinor,
+        unitPriceMinor: item.unitPriceMinor,
+      })),
+      status: hold.status,
+      subtotalMinor,
+      totalMinor: subtotalMinor + feeMinor,
+    };
   }
 
   private requireIdempotencyKey(value: string | undefined): string {
@@ -94,6 +149,17 @@ export class HoldsService {
           code: "seats_unavailable",
           message: "One or more requested seats are no longer available.",
           seatIds: error.seatIds,
+        },
+        409
+      );
+    }
+    if (error instanceof HoldCapacityError) {
+      // Disclose only the oversubscribed ticket types, never another hold.
+      throw new HttpException(
+        {
+          code: "capacity_unavailable",
+          message: "The requested quantity is no longer available.",
+          ticketTypeIds: error.unavailableTicketTypeIds,
         },
         409
       );

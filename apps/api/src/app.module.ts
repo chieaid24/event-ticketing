@@ -7,11 +7,19 @@ import {
 import type { Logger } from "pino";
 
 import type { ApiConfig } from "@event-ticketing/config";
+import { createPaymentGateway } from "@event-ticketing/payments";
 
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import { PgAuthStore } from "./auth/auth.store.js";
 import { RedisRateLimiter } from "./auth/rate-limiter.js";
+import { CheckoutController } from "./checkout/checkout.controller.js";
+import { CheckoutService } from "./checkout/checkout.service.js";
+import { PgCheckoutStore } from "./checkout/checkout.store.js";
+import { PaymentWebhooksController } from "./checkout/payment-webhooks.controller.js";
+import { PaymentWebhooksService } from "./checkout/payment-webhooks.service.js";
+import { PaymentsSimulationController } from "./checkout/payments-simulation.controller.js";
+import { PaymentsSimulationService } from "./checkout/payments-simulation.service.js";
 import {
   DatabaseHealthDependency,
   RedisHealthDependency,
@@ -37,7 +45,12 @@ import {
   AUTH_RATE_LIMITER,
   AUTH_SERVICE,
   AUTH_STORE,
+  CHECKOUT_SERVICE,
+  CHECKOUT_STORE,
   DATABASE_HEALTH,
+  PAYMENT_GATEWAY,
+  PAYMENT_WEBHOOKS_SERVICE,
+  PAYMENTS_SIMULATION_SERVICE,
   DISCOVERY_SERVICE,
   DISCOVERY_STORE,
   EVENTS_SERVICE,
@@ -71,6 +84,12 @@ export class AppModule implements NestModule {
         VenuesController,
         EventsController,
         HoldsController,
+        CheckoutController,
+        PaymentWebhooksController,
+        // The simulated payment surface exists only for the fake provider.
+        ...(config.paymentProvider === "fake"
+          ? [PaymentsSimulationController]
+          : []),
       ],
       providers: [
         {
@@ -162,6 +181,60 @@ export class AppModule implements NestModule {
           provide: HOLDS_SERVICE,
           useFactory: (auth: AuthService, store: PgHoldsStore) =>
             new HoldsService(auth, store),
+        },
+        {
+          provide: CHECKOUT_STORE,
+          useFactory: () => new PgCheckoutStore(config.databaseUrl),
+        },
+        {
+          provide: PAYMENT_GATEWAY,
+          useFactory: () =>
+            createPaymentGateway({
+              provider: config.paymentProvider,
+              ...(config.stripeSecretKey !== undefined && {
+                stripeSecretKey: config.stripeSecretKey,
+              }),
+            }),
+        },
+        {
+          inject: [AUTH_SERVICE, CHECKOUT_STORE, PAYMENT_GATEWAY],
+          provide: CHECKOUT_SERVICE,
+          useFactory: (
+            auth: AuthService,
+            store: PgCheckoutStore,
+            gateway: ReturnType<typeof createPaymentGateway>
+          ) =>
+            new CheckoutService(
+              auth,
+              store,
+              gateway,
+              config.stripePublishableKey ?? null
+            ),
+        },
+        {
+          inject: [CHECKOUT_STORE],
+          provide: PAYMENT_WEBHOOKS_SERVICE,
+          useFactory: (store: PgCheckoutStore) =>
+            new PaymentWebhooksService(
+              store,
+              config.paymentProvider,
+              config.paymentWebhookSecret
+            ),
+        },
+        {
+          inject: [AUTH_SERVICE, CHECKOUT_STORE, PAYMENT_WEBHOOKS_SERVICE],
+          provide: PAYMENTS_SIMULATION_SERVICE,
+          useFactory: (
+            auth: AuthService,
+            store: PgCheckoutStore,
+            webhooks: PaymentWebhooksService
+          ) =>
+            new PaymentsSimulationService(
+              auth,
+              store,
+              webhooks,
+              config.paymentWebhookSecret
+            ),
         },
         {
           provide: DATABASE_HEALTH,
