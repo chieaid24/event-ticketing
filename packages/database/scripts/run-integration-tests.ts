@@ -43,6 +43,7 @@ import {
 } from "../src/hold-availability-mirror.js";
 import {
   cancelHold,
+  CHECKOUT_GRACE_SECONDS,
   createAssignedSeatHold,
   createGeneralAdmissionHold,
   expireDueHolds,
@@ -51,6 +52,18 @@ import {
   finalizeGeneralAdmissionHold,
   SeatsUnavailableError,
 } from "../src/holds.js";
+import {
+  applyRefundResult,
+  attachPaymentIntent,
+  createOrderForHold,
+  finalizeOrderPayment,
+  HoldNotCheckoutableError,
+  loadCompensationTarget,
+  OrderStateError,
+  PaymentVerificationError,
+  recordPaymentFailure,
+  recordWebhookEvent,
+} from "../src/orders.js";
 import { insertAuditLog } from "../src/organizations.js";
 import {
   createDatabasePool,
@@ -1794,6 +1807,489 @@ try {
     );
     assert.equal(duplicateHeld.rows[0]?.count, 1);
 
+    // Checkout and payment finalization: one order per hold, provider intents
+    // attach idempotently, verified success secures inventory and issues one
+    // ticket set exactly once, a lost race compensates instead of substituting,
+    // and webhook receipts deduplicate under concurrency.
+    async function createCheckoutOrder(input: {
+      actorKey: string;
+      seatCount: number;
+    }): Promise<{
+      eventId: string;
+      holdId: string;
+      orderId: string;
+      seatIds: string[];
+      totalMinor: number;
+    }> {
+      const fixture = await createAssignedSeats(input.seatCount);
+      const hold = await withDatabaseTransaction(pool, (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: input.actorKey },
+          eventId: fixture.eventId,
+          idempotencyKey: input.actorKey,
+          seatIds: fixture.seatIds,
+        })
+      );
+      const order = await withDatabaseTransaction(pool, (transaction) =>
+        createOrderForHold(transaction, {
+          actor: { guestSessionId: input.actorKey },
+          holdId: hold.id,
+          provider: "fake",
+        })
+      );
+      return {
+        eventId: fixture.eventId,
+        holdId: hold.id,
+        orderId: order.id,
+        seatIds: fixture.seatIds,
+        totalMinor: order.totalMinor,
+      };
+    }
+
+    // Duplicate checkout, raced five ways, returns the one order for the hold.
+    const raceFixture = await createAssignedSeats(1);
+    const raceHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { userId: seededUserId },
+        eventId: raceFixture.eventId,
+        idempotencyKey: "checkout-race",
+        seatIds: raceFixture.seatIds,
+      })
+    );
+    const racedOrders = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createOrderForHold(transaction, {
+            actor: { userId: seededUserId },
+            holdId: raceHold.id,
+            provider: "fake",
+          })
+        )
+      )
+    );
+    assert.equal(
+      new Set(racedOrders.map((order) => order.id)).size,
+      1,
+      "Concurrent duplicate checkouts converge on one order."
+    );
+    assert.equal(
+      racedOrders.filter((order) => !order.replayed).length,
+      1,
+      "Exactly one duplicate checkout created the order; the rest replayed."
+    );
+    const racedOrderId = racedOrders[0]!.id;
+    assert.equal(racedOrders[0]!.totalMinor, 4_200);
+    const racedHoldState = await pool.query<{ status: string }>(
+      `SELECT "status" FROM "holds" WHERE "id" = $1`,
+      [raceHold.id]
+    );
+    assert.equal(racedHoldState.rows[0]?.status, "checkout_started");
+
+    // One logical intent: repeat attachment is a no-op, replacement rejected.
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_int_1_secret",
+        orderId: racedOrderId,
+        providerPaymentIntentId: "pi_int_1",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_int_1_secret",
+        orderId: racedOrderId,
+        providerPaymentIntentId: "pi_int_1",
+      })
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        attachPaymentIntent(transaction, {
+          clientSecret: "pi_int_2_secret",
+          orderId: racedOrderId,
+          providerPaymentIntentId: "pi_int_2",
+        })
+      ),
+      (error: unknown) => error instanceof OrderStateError,
+      "An order never silently swaps to a different payment intent."
+    );
+
+    // An expired hold cannot check out (invariant #3).
+    const expiredCheckout = await createAssignedSeats(1);
+    const expiredCheckoutHold = await withDatabaseTransaction(
+      pool,
+      (transaction) =>
+        createAssignedSeatHold(transaction, {
+          actor: { guestSessionId: "expired-checkout" },
+          eventId: expiredCheckout.eventId,
+          idempotencyKey: "expired-checkout",
+          seatIds: expiredCheckout.seatIds,
+        })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 second'
+       WHERE "id" = $1`,
+      [expiredCheckoutHold.id]
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        createOrderForHold(transaction, {
+          actor: { guestSessionId: "expired-checkout" },
+          holdId: expiredCheckoutHold.id,
+          provider: "fake",
+        })
+      ),
+      (error: unknown) =>
+        error instanceof HoldNotCheckoutableError && error.status === "expired",
+      "An expired hold cannot start checkout."
+    );
+
+    // Verified success finalizes exactly once: seats sell, the hold consumes,
+    // one ticket per unit appears, and a concurrent duplicate applies nothing.
+    const paidFixture = await createCheckoutOrder({
+      actorKey: "finalize-paid",
+      seatCount: 2,
+    });
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_paid_secret",
+        orderId: paidFixture.orderId,
+        providerPaymentIntentId: "pi_paid",
+      })
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeOrderPayment(transaction, {
+          amountMinor: paidFixture.totalMinor + 1,
+          currency: "USD",
+          providerPaymentIntentId: "pi_paid",
+        })
+      ),
+      (error: unknown) => error instanceof PaymentVerificationError,
+      "A provider amount mismatch never finalizes an order."
+    );
+    const finalizeRace = await Promise.all([
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeOrderPayment(transaction, {
+          amountMinor: paidFixture.totalMinor,
+          currency: "USD",
+          providerPaymentIntentId: "pi_paid",
+        })
+      ),
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeOrderPayment(transaction, {
+          amountMinor: paidFixture.totalMinor,
+          currency: "USD",
+          providerPaymentIntentId: "pi_paid",
+        })
+      ),
+    ]);
+    assert.deepEqual(
+      finalizeRace.map((result) => result.outcome).sort(),
+      ["already_final", "paid"],
+      "Concurrent duplicate finalizations apply the transition exactly once."
+    );
+    const paidState = await pool.query<{
+      hold_status: string;
+      order_status: string;
+      payment_status: string;
+      sold_seats: number;
+      tickets: number;
+    }>(
+      `SELECT
+         (SELECT o."status"::text FROM "orders" o WHERE o."id" = $1)
+           AS "order_status",
+         (SELECT p."status"::text FROM "payments" p WHERE p."order_id" = $1)
+           AS "payment_status",
+         (SELECT h."status"::text FROM "holds" h WHERE h."id" = $2)
+           AS "hold_status",
+         (SELECT count(*)::int FROM "tickets" t
+          WHERE t."order_id" = $1 AND t."status" = 'active') AS "tickets",
+         (SELECT count(*)::int FROM "event_seats" s
+          WHERE s."event_id" = $3 AND s."status" = 'sold') AS "sold_seats"`,
+      [paidFixture.orderId, paidFixture.holdId, paidFixture.eventId]
+    );
+    assert.deepEqual(paidState.rows[0], {
+      hold_status: "consumed",
+      order_status: "paid",
+      payment_status: "succeeded",
+      sold_seats: 2,
+      tickets: 2,
+    });
+
+    // General admission finalizes by moving reserved quantity to sold.
+    const gaCheckoutEvent = randomUUID();
+    const gaCheckoutType = randomUUID();
+    await pool.query(
+      `INSERT INTO "events" ("id", "organization_id", "venue_id", "title")
+       VALUES ($1, $2, $3, 'GA Checkout')`,
+      [gaCheckoutEvent, seededOrganizationId, seededVenueId]
+    );
+    await pool.query(
+      `INSERT INTO "ticket_types"
+         ("id", "event_id", "name", "kind", "section_name",
+          "price_minor", "fee_minor", "capacity", "position")
+       VALUES ($1, $2, 'Floor', 'general_admission', 'Floor', 1500, 100, 10, 0)`,
+      [gaCheckoutType, gaCheckoutEvent]
+    );
+    const gaCheckoutHold = await withDatabaseTransaction(pool, (transaction) =>
+      createGeneralAdmissionHold(transaction, {
+        actor: { guestSessionId: "ga-checkout" },
+        eventId: gaCheckoutEvent,
+        idempotencyKey: "ga-checkout",
+        items: [{ quantity: 3, ticketTypeId: gaCheckoutType }],
+      })
+    );
+    const gaCheckoutOrder = await withDatabaseTransaction(pool, (transaction) =>
+      createOrderForHold(transaction, {
+        actor: { guestSessionId: "ga-checkout" },
+        holdId: gaCheckoutHold.id,
+        provider: "fake",
+      })
+    );
+    assert.equal(gaCheckoutOrder.totalMinor, 4_800);
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_ga_secret",
+        orderId: gaCheckoutOrder.id,
+        providerPaymentIntentId: "pi_ga",
+      })
+    );
+    const gaOutcome = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: 4_800,
+        currency: "USD",
+        providerPaymentIntentId: "pi_ga",
+      })
+    );
+    assert.equal(gaOutcome.outcome, "paid");
+    const gaCounters = await pool.query<{
+      reserved: number;
+      sold: number;
+      tickets: number;
+    }>(
+      `SELECT "reserved_quantity" AS "reserved", "sold_quantity" AS "sold",
+         (SELECT count(*)::int FROM "tickets" t
+          WHERE t."order_id" = $2 AND t."status" = 'active') AS "tickets"
+       FROM "ticket_types" WHERE "id" = $1`,
+      [gaCheckoutType, gaCheckoutOrder.id]
+    );
+    assert.deepEqual(gaCounters.rows[0], { reserved: 0, sold: 3, tickets: 3 });
+
+    // Grace: a hold released after expiry still delivers when every unit is
+    // reattachable at finalization time.
+    const graceFixture = await createCheckoutOrder({
+      actorKey: "grace-late",
+      seatCount: 1,
+    });
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_grace_secret",
+        orderId: graceFixture.orderId,
+        providerPaymentIntentId: "pi_grace",
+      })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 hour'
+       WHERE "id" = $1`,
+      [graceFixture.holdId]
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      expireHold(transaction, graceFixture.holdId)
+    );
+    const graceSeat = await pool.query<{ status: string }>(
+      `SELECT "status" FROM "event_seats" WHERE "id" = $1`,
+      [graceFixture.seatIds[0]!]
+    );
+    assert.equal(graceSeat.rows[0]?.status, "available");
+    const graceOutcome = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: graceFixture.totalMinor,
+        currency: "USD",
+        providerPaymentIntentId: "pi_grace",
+      })
+    );
+    assert.equal(
+      graceOutcome.outcome,
+      "paid",
+      "A late success re-secures released inventory when it is still free."
+    );
+
+    // Conflict: inventory lost to a rival compensates with a full refund and
+    // never substitutes seats or touches the rival's hold.
+    const conflictFixture = await createCheckoutOrder({
+      actorKey: "conflict-loser",
+      seatCount: 1,
+    });
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_conflict_secret",
+        orderId: conflictFixture.orderId,
+        providerPaymentIntentId: "pi_conflict",
+      })
+    );
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 hour'
+       WHERE "id" = $1`,
+      [conflictFixture.holdId]
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      expireHold(transaction, conflictFixture.holdId)
+    );
+    const rivalHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { guestSessionId: "conflict-rival" },
+        eventId: conflictFixture.eventId,
+        idempotencyKey: "conflict-rival",
+        seatIds: conflictFixture.seatIds,
+      })
+    );
+    const conflictOutcome = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: conflictFixture.totalMinor,
+        currency: "USD",
+        providerPaymentIntentId: "pi_conflict",
+      })
+    );
+    assert.equal(conflictOutcome.outcome, "conflict");
+    const conflictState = await pool.query<{
+      order_status: string;
+      rival_holds_seat: boolean;
+      tickets: number;
+    }>(
+      `SELECT
+         (SELECT o."status"::text FROM "orders" o WHERE o."id" = $1)
+           AS "order_status",
+         (SELECT count(*)::int FROM "tickets" t WHERE t."order_id" = $1)
+           AS "tickets",
+         (SELECT s."hold_id" = $3 FROM "event_seats" s WHERE s."id" = $2)
+           AS "rival_holds_seat"`,
+      [conflictFixture.orderId, conflictFixture.seatIds[0]!, rivalHold.id]
+    );
+    assert.deepEqual(conflictState.rows[0], {
+      order_status: "payment_conflict",
+      rival_holds_seat: true,
+      tickets: 0,
+    });
+    const compensation = await loadCompensationTarget(
+      pool,
+      conflictFixture.orderId
+    );
+    assert.equal(compensation.providerPaymentIntentId, "pi_conflict");
+    await withDatabaseTransaction(pool, (transaction) =>
+      applyRefundResult(transaction, {
+        orderId: conflictFixture.orderId,
+        providerRefundId: "re_conflict",
+        settled: true,
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      applyRefundResult(transaction, {
+        orderId: conflictFixture.orderId,
+        providerRefundId: "re_conflict",
+        settled: true,
+      })
+    );
+    const refundedState = await pool.query<{
+      order_status: string;
+      payment_status: string;
+    }>(
+      `SELECT o."status"::text AS "order_status",
+              p."status"::text AS "payment_status"
+       FROM "orders" o JOIN "payments" p ON p."order_id" = o."id"
+       WHERE o."id" = $1`,
+      [conflictFixture.orderId]
+    );
+    assert.deepEqual(refundedState.rows[0], {
+      order_status: "refunded",
+      payment_status: "refunded",
+    });
+
+    // A failed attempt records its code and leaves the order open; once the
+    // order is final the late failure changes nothing.
+    const failureRecord = await withDatabaseTransaction(pool, (transaction) =>
+      recordPaymentFailure(transaction, {
+        failureCode: "card_declined",
+        providerPaymentIntentId: "pi_int_1",
+      })
+    );
+    assert.deepEqual(failureRecord, {
+      orderId: racedOrderId,
+      recorded: true,
+    });
+    const lateFailure = await withDatabaseTransaction(pool, (transaction) =>
+      recordPaymentFailure(transaction, {
+        failureCode: "card_declined",
+        providerPaymentIntentId: "pi_paid",
+      })
+    );
+    assert.equal(lateFailure.recorded, false);
+
+    // Concurrent duplicate webhook deliveries record one durable receipt.
+    const webhookDeliveries = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        withDatabaseTransaction(pool, (transaction) =>
+          recordWebhookEvent(transaction, {
+            payload: { id: "evt_race" },
+            provider: "fake",
+            providerEventId: "evt_race",
+            type: "payment_intent.succeeded",
+          })
+        )
+      )
+    );
+    assert.equal(
+      new Set(webhookDeliveries.map((delivery) => delivery.id)).size,
+      1,
+      "Duplicate deliveries resolve to one webhook receipt."
+    );
+    assert.equal(
+      webhookDeliveries.filter((delivery) => !delivery.replayed).length,
+      1
+    );
+
+    // The sweep leaves a checkout-started hold alone until the payment grace
+    // window passes, then frees its inventory.
+    const graceSweep = await createCheckoutOrder({
+      actorKey: "grace-sweep",
+      seatCount: 1,
+    });
+    await pool.query(
+      `UPDATE "holds" SET "expires_at" = clock_timestamp() - interval '1 minute'
+       WHERE "id" = $1`,
+      [graceSweep.holdId]
+    );
+    await expireDueHolds(pool, { limit: 100 });
+    const withinGrace = await pool.query<{ status: string }>(
+      `SELECT "status" FROM "holds" WHERE "id" = $1`,
+      [graceSweep.holdId]
+    );
+    assert.equal(
+      withinGrace.rows[0]?.status,
+      "checkout_started",
+      "A checkout-started hold survives the sweep inside the grace window."
+    );
+    await pool.query(
+      `UPDATE "holds"
+       SET "expires_at" = clock_timestamp()
+         - make_interval(secs => $2::int + 60)
+       WHERE "id" = $1`,
+      [graceSweep.holdId, CHECKOUT_GRACE_SECONDS]
+    );
+    await expireDueHolds(pool, { limit: 100 });
+    const pastGrace = await pool.query<{
+      seat_status: string;
+      status: string;
+    }>(
+      `SELECT h."status"::text AS "status",
+              (SELECT s."status"::text FROM "event_seats" s
+               WHERE s."id" = $2) AS "seat_status"
+       FROM "holds" h WHERE h."id" = $1`,
+      [graceSweep.holdId, graceSweep.seatIds[0]!]
+    );
+    assert.deepEqual(pastGrace.rows[0], {
+      seat_status: "available",
+      status: "expired",
+    });
+
     process.stdout.write(
       `${JSON.stringify({
         assignedSeatHolds: "verified",
@@ -1805,12 +2301,15 @@ try {
         event: "integration.completed",
         eventPublishing: "verified",
         generalAdmissionHolds: "verified",
+        idempotentCheckout: "verified",
         migrations: "applied",
+        paymentFinalization: "verified",
         redis: "isolated",
         schedules: "verified",
         seedDomainRecords: 27,
         seedOutboxEvents: 1,
         venueLayouts: "verified",
+        webhookDeduplication: "verified",
       })}\n`
     );
   } finally {
