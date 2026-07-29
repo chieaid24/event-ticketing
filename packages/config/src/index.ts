@@ -46,6 +46,26 @@ const originListSchema = z
   .pipe(z.array(z.string().url()).min(1))
   .transform((origins) => origins.map((origin) => new URL(origin).origin));
 
+const paymentProviderSchema = z.enum(["stripe", "fake"]).default("fake");
+
+// The default only signs local fake-provider deliveries; a real Stripe
+// endpoint secret always arrives via PAYMENT_WEBHOOK_SECRET.
+const paymentWebhookSecretSchema = z
+  .string()
+  .min(8)
+  .max(200)
+  .default("whsec_local_development_only");
+
+function requireStripeCredentials(config: {
+  paymentProvider: "stripe" | "fake";
+  stripeSecretKey?: string | undefined;
+}): boolean {
+  return (
+    config.paymentProvider !== "stripe" ||
+    (config.stripeSecretKey ?? "").length > 0
+  );
+}
+
 const apiConfigSchema = z
   .object({
     cookieSecure: booleanFlagSchema.default(false),
@@ -58,6 +78,8 @@ const apiConfigSchema = z
       .default(2_000),
     host: z.string().min(1).default("127.0.0.1"),
     logLevel: logLevelSchema,
+    paymentProvider: paymentProviderSchema,
+    paymentWebhookSecret: paymentWebhookSecretSchema,
     port: z.coerce.number().int().min(1).max(65_535).default(4000),
     redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
     sessionAbsoluteTtlSeconds: z.coerce
@@ -72,6 +94,8 @@ const apiConfigSchema = z
       .min(300)
       .max(604_800)
       .default(86_400),
+    stripePublishableKey: z.string().min(1).max(200).optional(),
+    stripeSecretKey: z.string().min(1).max(200).optional(),
     trustedOrigins: originListSchema.prefault(
       "http://127.0.0.1:3000,http://localhost:3000"
     ),
@@ -82,6 +106,19 @@ const apiConfigSchema = z
     {
       message: "must be greater than or equal to the idle session TTL",
       path: ["sessionAbsoluteTtlSeconds"],
+    }
+  )
+  .refine(requireStripeCredentials, {
+    message: "is required when PAYMENT_PROVIDER is stripe",
+    path: ["stripeSecretKey"],
+  })
+  .refine(
+    (config) =>
+      config.paymentProvider !== "stripe" ||
+      (config.stripePublishableKey ?? "").length > 0,
+    {
+      message: "is required when PAYMENT_PROVIDER is stripe",
+      path: ["stripePublishableKey"],
     }
   );
 
@@ -102,6 +139,7 @@ const workerConfigSchema = z
       .min(3)
       .max(320)
       .default("Event Ticketing <no-reply@example.test>"),
+    opsAlertEmail: z.string().min(3).max(320).default("ops@example.test"),
     outboxBatchSize: z.coerce.number().int().min(1).max(100).default(10),
     outboxLeaseMs: z.coerce
       .number()
@@ -127,6 +165,7 @@ const workerConfigSchema = z
       .min(100)
       .max(86_400_000)
       .default(300_000),
+    paymentProvider: paymentProviderSchema,
     redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
     resetTokenTtlSeconds: z.coerce
       .number()
@@ -141,6 +180,7 @@ const workerConfigSchema = z
       .max(60_000)
       .default(10_000),
     smtpUrl: smtpUrlSchema.default("smtp://127.0.0.1:1025"),
+    stripeSecretKey: z.string().min(1).max(200).optional(),
     verificationTokenTtlSeconds: z.coerce
       .number()
       .int()
@@ -156,6 +196,10 @@ const workerConfigSchema = z
   .refine((config) => config.outboxRetryMaximumMs >= config.outboxRetryBaseMs, {
     message: "must be greater than or equal to the retry base",
     path: ["outboxRetryMaximumMs"],
+  })
+  .refine(requireStripeCredentials, {
+    message: "is required when PAYMENT_PROVIDER is stripe",
+    path: ["stripeSecretKey"],
   });
 
 export type ApiConfig = z.infer<typeof apiConfigSchema>;
@@ -214,10 +258,14 @@ export function loadApiConfig(
       dependencyTimeoutMs: environment["API_DEPENDENCY_TIMEOUT_MS"],
       host: environment["API_HOST"],
       logLevel: environment["LOG_LEVEL"],
+      paymentProvider: environment["PAYMENT_PROVIDER"],
+      paymentWebhookSecret: environment["PAYMENT_WEBHOOK_SECRET"],
       port: environment["API_PORT"],
       redisUrl: environment["REDIS_URL"],
       sessionAbsoluteTtlSeconds: environment["SESSION_ABSOLUTE_TTL_SECONDS"],
       sessionIdleTtlSeconds: environment["SESSION_IDLE_TTL_SECONDS"],
+      stripePublishableKey: environment["STRIPE_PUBLISHABLE_KEY"],
+      stripeSecretKey: environment["STRIPE_SECRET_KEY"],
       trustedOrigins: environment["API_TRUSTED_ORIGINS"],
     },
     {
@@ -226,10 +274,14 @@ export function loadApiConfig(
       dependencyTimeoutMs: "API_DEPENDENCY_TIMEOUT_MS",
       host: "API_HOST",
       logLevel: "LOG_LEVEL",
+      paymentProvider: "PAYMENT_PROVIDER",
+      paymentWebhookSecret: "PAYMENT_WEBHOOK_SECRET",
       port: "API_PORT",
       redisUrl: "REDIS_URL",
       sessionAbsoluteTtlSeconds: "SESSION_ABSOLUTE_TTL_SECONDS",
       sessionIdleTtlSeconds: "SESSION_IDLE_TTL_SECONDS",
+      stripePublishableKey: "STRIPE_PUBLISHABLE_KEY",
+      stripeSecretKey: "STRIPE_SECRET_KEY",
       trustedOrigins: "API_TRUSTED_ORIGINS",
     }
   );
@@ -260,15 +312,18 @@ export function loadWorkerConfig(
       databaseUrl: environment["DATABASE_URL"],
       logLevel: environment["LOG_LEVEL"],
       mailFrom: environment["MAIL_FROM"],
+      opsAlertEmail: environment["OPS_ALERT_EMAIL"],
       outboxBatchSize: environment["WORKER_OUTBOX_BATCH_SIZE"],
       outboxLeaseMs: environment["WORKER_OUTBOX_LEASE_MS"],
       outboxPollIntervalMs: environment["WORKER_OUTBOX_POLL_INTERVAL_MS"],
       outboxRetryBaseMs: environment["WORKER_OUTBOX_RETRY_BASE_MS"],
       outboxRetryMaximumMs: environment["WORKER_OUTBOX_RETRY_MAXIMUM_MS"],
+      paymentProvider: environment["PAYMENT_PROVIDER"],
       redisUrl: environment["REDIS_URL"],
       resetTokenTtlSeconds: environment["RESET_TOKEN_TTL_SECONDS"],
       shutdownTimeoutMs: environment["WORKER_SHUTDOWN_TIMEOUT_MS"],
       smtpUrl: environment["SMTP_URL"],
+      stripeSecretKey: environment["STRIPE_SECRET_KEY"],
       verificationTokenTtlSeconds:
         environment["VERIFICATION_TOKEN_TTL_SECONDS"],
       webBaseUrl: environment["WEB_BASE_URL"],
@@ -277,15 +332,18 @@ export function loadWorkerConfig(
       databaseUrl: "DATABASE_URL",
       logLevel: "LOG_LEVEL",
       mailFrom: "MAIL_FROM",
+      opsAlertEmail: "OPS_ALERT_EMAIL",
       outboxBatchSize: "WORKER_OUTBOX_BATCH_SIZE",
       outboxLeaseMs: "WORKER_OUTBOX_LEASE_MS",
       outboxPollIntervalMs: "WORKER_OUTBOX_POLL_INTERVAL_MS",
       outboxRetryBaseMs: "WORKER_OUTBOX_RETRY_BASE_MS",
       outboxRetryMaximumMs: "WORKER_OUTBOX_RETRY_MAXIMUM_MS",
+      paymentProvider: "PAYMENT_PROVIDER",
       redisUrl: "REDIS_URL",
       resetTokenTtlSeconds: "RESET_TOKEN_TTL_SECONDS",
       shutdownTimeoutMs: "WORKER_SHUTDOWN_TIMEOUT_MS",
       smtpUrl: "SMTP_URL",
+      stripeSecretKey: "STRIPE_SECRET_KEY",
       verificationTokenTtlSeconds: "VERIFICATION_TOKEN_TTL_SECONDS",
       webBaseUrl: "WEB_BASE_URL",
     }

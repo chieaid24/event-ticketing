@@ -16,6 +16,8 @@ describe("application configuration", () => {
       dependencyTimeoutMs: 2_000,
       host: "127.0.0.1",
       logLevel: "info",
+      paymentProvider: "fake",
+      paymentWebhookSecret: "whsec_local_development_only",
       port: 4000,
       redisUrl: "redis://127.0.0.1:6379",
       sessionAbsoluteTtlSeconds: 2_592_000,
@@ -30,11 +32,13 @@ describe("application configuration", () => {
         "postgresql://event_ticketing:example-local-only-password@127.0.0.1:5432/event_ticketing?schema=public",
       logLevel: "info",
       mailFrom: "Event Ticketing <no-reply@example.test>",
+      opsAlertEmail: "ops@example.test",
       outboxBatchSize: 10,
       outboxLeaseMs: 30_000,
       outboxPollIntervalMs: 1_000,
       outboxRetryBaseMs: 1_000,
       outboxRetryMaximumMs: 300_000,
+      paymentProvider: "fake",
       redisUrl: "redis://127.0.0.1:6379",
       resetTokenTtlSeconds: 1_800,
       shutdownTimeoutMs: 10_000,
@@ -117,5 +121,44 @@ describe("application configuration", () => {
     ).toEqual({
       apiBaseUrl: "https://api.example.test",
     });
+  });
+});
+
+describe("payment provider configuration", () => {
+  it("requires stripe credentials when the provider is stripe", () => {
+    expect(() => loadApiConfig({ PAYMENT_PROVIDER: "stripe" })).toThrowError(
+      ConfigurationError
+    );
+    try {
+      loadApiConfig({ PAYMENT_PROVIDER: "stripe" });
+    } catch (error) {
+      expect((error as ConfigurationError).variables).toEqual([
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+      ]);
+    }
+    expect(() => loadWorkerConfig({ PAYMENT_PROVIDER: "stripe" })).toThrowError(
+      ConfigurationError
+    );
+  });
+
+  it("accepts stripe once its keys are present", () => {
+    const config = loadApiConfig({
+      PAYMENT_PROVIDER: "stripe",
+      PAYMENT_WEBHOOK_SECRET: "whsec_example_value",
+      STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+      STRIPE_SECRET_KEY: "sk_test_example",
+    });
+    expect(config.paymentProvider).toBe("stripe");
+    expect(config.stripePublishableKey).toBe("pk_test_example");
+  });
+
+  it("rejects an unknown provider and a short webhook secret", () => {
+    expect(() => loadApiConfig({ PAYMENT_PROVIDER: "paypal" })).toThrowError(
+      ConfigurationError
+    );
+    expect(() =>
+      loadApiConfig({ PAYMENT_WEBHOOK_SECRET: "short" })
+    ).toThrowError(ConfigurationError);
   });
 });
