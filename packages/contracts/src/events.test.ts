@@ -55,6 +55,7 @@ describe("updateEventDraftRequestSchema", () => {
     timezone: "America/Toronto",
     title: "Autumn Gala",
     version: 1,
+    waitingRoomEnabled: false,
   };
 
   it("accepts a minimal draft with null schedule fields", () => {

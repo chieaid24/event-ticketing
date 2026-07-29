@@ -6,3 +6,4 @@ export * from "./events.js";
 export * from "./holds.js";
 export * from "./organizations.js";
 export * from "./venues.js";
+export * from "./waiting-room.js";

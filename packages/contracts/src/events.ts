@@ -102,6 +102,7 @@ export const updateEventDraftRequestSchema = z
     description: eventDescriptionSchema.nullish(),
     endsAt: z.iso.datetime().nullish(),
     holdDurationSeconds: holdDurationSchema,
+    waitingRoomEnabled: z.boolean(),
     mediaUrl: mediaUrlSchema.nullish(),
     refundPolicy: refundPolicySchema.nullish(),
     salesEndAt: z.iso.datetime().nullish(),
@@ -159,6 +160,7 @@ export const eventSchema = z
     updatedAt: z.iso.datetime(),
     venueId: z.uuid(),
     version: z.number().int(),
+    waitingRoomEnabled: z.boolean(),
   })
   .strict();
 

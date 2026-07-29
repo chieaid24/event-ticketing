@@ -63,6 +63,7 @@ function toEvent(row: EventRow): EventRecord {
     updatedAt: row.updatedAt.toISOString(),
     venueId: row.venueId,
     version: row.version,
+    waitingRoomEnabled: row.waitingRoomEnabled,
   };
 }
 
@@ -222,6 +223,7 @@ export class EventsService {
       startsAt: toDate(request.startsAt),
       timezone: request.timezone,
       title: request.title,
+      waitingRoomEnabled: request.waitingRoomEnabled,
     });
     if (result === "version_conflict") {
       this.versionConflict();

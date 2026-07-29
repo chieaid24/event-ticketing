@@ -19,6 +19,7 @@ import {
 import type { AuthService, RequestAuthContext } from "../auth/auth.service.js";
 import { apiError, parseRequest } from "../request-validation.js";
 import type { GeneralAdmissionHoldRecord, HoldsStore } from "./holds.store.js";
+import type { WaitingRoomAdmission } from "../waiting-room/waiting-room.service.js";
 
 /** Route identifier for rate limiting and telemetry. */
 export const HOLD_ROUTE = "holds.assigned.create";
@@ -26,17 +27,25 @@ export const HOLD_ROUTE = "holds.assigned.create";
 export class HoldsService {
   constructor(
     private readonly auth: AuthService,
-    private readonly store: HoldsStore
+    private readonly store: HoldsStore,
+    private readonly waitingRoom: WaitingRoomAdmission
   ) {}
 
   async createAssignedSeatHold(
     context: RequestAuthContext,
     idempotencyKey: string | undefined,
-    input: unknown
+    input: unknown,
+    admissionToken?: string
   ): Promise<CreateAssignedSeatHoldResponse> {
-    const { user } = await this.auth.requireMutationSession(context);
+    const { session, user } = await this.auth.requireMutationSession(context);
     const key = this.requireIdempotencyKey(idempotencyKey);
     const request = parseRequest(createAssignedSeatHoldRequestSchema, input);
+    await this.waitingRoom.requireAdmission({
+      eventId: request.eventId,
+      idempotencyKey: key,
+      sessionId: session.id,
+      token: admissionToken,
+    });
 
     try {
       // Idempotency is already actor-scoped by the unique (actor, key) index, so
@@ -56,14 +65,21 @@ export class HoldsService {
   async createGeneralAdmissionHold(
     context: RequestAuthContext,
     idempotencyKey: string | undefined,
-    input: unknown
+    input: unknown,
+    admissionToken?: string
   ): Promise<CreateGeneralAdmissionHoldResponse> {
-    const { user } = await this.auth.requireMutationSession(context);
+    const { session, user } = await this.auth.requireMutationSession(context);
     const key = this.requireIdempotencyKey(idempotencyKey);
     const request = parseRequest(
       createGeneralAdmissionHoldRequestSchema,
       input
     );
+    await this.waitingRoom.requireAdmission({
+      eventId: request.eventId,
+      idempotencyKey: key,
+      sessionId: session.id,
+      token: admissionToken,
+    });
 
     try {
       const hold = await this.store.createGeneralAdmissionHold({

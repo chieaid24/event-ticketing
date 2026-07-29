@@ -23,3 +23,5 @@ export const REDIS_HEALTH = Symbol("REDIS_HEALTH");
 export const STRUCTURED_LOGGER = Symbol("STRUCTURED_LOGGER");
 export const VENUES_SERVICE = Symbol("VENUES_SERVICE");
 export const VENUES_STORE = Symbol("VENUES_STORE");
+export const WAITING_ROOM_SERVICE = Symbol("WAITING_ROOM_SERVICE");
+export const WAITING_ROOM_STORE = Symbol("WAITING_ROOM_STORE");

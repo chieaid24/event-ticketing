@@ -35,6 +35,7 @@ export interface EventRow extends QueryResultRow {
   updatedAt: Date;
   venueId: string;
   version: number;
+  waitingRoomEnabled: boolean;
 }
 
 export interface EventSummaryRow extends QueryResultRow {
@@ -102,6 +103,7 @@ export interface UpdateEventDraftInput {
   startsAt: Date | null;
   timezone: string;
   title: string;
+  waitingRoomEnabled: boolean;
 }
 
 const eventColumns = `
@@ -118,6 +120,7 @@ const eventColumns = `
   "sales_start_at" AS "salesStartAt",
   "sales_end_at" AS "salesEndAt",
   "hold_duration_seconds" AS "holdDurationSeconds",
+  "waiting_room_enabled" AS "waitingRoomEnabled",
   "refund_policy" AS "refundPolicy",
   "media_url" AS "mediaUrl",
   "published_at" AS "publishedAt",
@@ -223,11 +226,12 @@ export async function updateEventDraft(
          "sales_start_at" = $9,
          "sales_end_at" = $10,
          "hold_duration_seconds" = $11,
-         "refund_policy" = $12,
-         "media_url" = $13,
+         "waiting_room_enabled" = $12,
+         "refund_policy" = $13,
+         "media_url" = $14,
          "version" = "version" + 1,
          "updated_at" = CURRENT_TIMESTAMP
-     WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $14
+     WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $15
        AND "status" = 'draft'
      RETURNING ${eventColumns}`,
     [
@@ -242,6 +246,7 @@ export async function updateEventDraft(
       input.salesStartAt,
       input.salesEndAt,
       input.holdDurationSeconds,
+      input.waitingRoomEnabled,
       input.refundPolicy,
       input.mediaUrl,
       input.expectedVersion,
