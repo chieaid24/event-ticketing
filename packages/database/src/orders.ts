@@ -126,7 +126,7 @@ export class OrderStateError extends Error {
   }
 }
 
-function resolveActorKey(actor: OrderActor): string {
+export function resolveActorKey(actor: OrderActor): string {
   const hasUser = typeof actor.userId === "string" && actor.userId.length > 0;
   const hasGuest =
     typeof actor.guestSessionId === "string" && actor.guestSessionId.length > 0;
@@ -798,12 +798,22 @@ export async function finalizeOrderPayment(
 
   // One admission credential per purchased unit. The order was still
   // pending_payment under lock, so tickets cannot already exist.
+  //
+  // Each ticket gets a nonsecret public number plus a placeholder QR hash whose
+  // preimage is discarded random data: no presented value can match until the
+  // authenticated owner's first QR view rotates the credential (see ADR 0008).
+  // This keeps every raw bearer inside authenticated HTTPS responses, never in
+  // this asynchronous issuance path, notifications, or logs.
   const insertedTickets = await executor.query(
     `INSERT INTO "tickets"
        ("order_id", "order_item_id", "event_id", "ticket_type_id",
-        "event_seat_id")
+        "event_seat_id", "public_number", "qr_token_hash")
      SELECT oi."order_id", oi."id", $2, oi."ticket_type_id",
-            oi."event_seat_id"
+            oi."event_seat_id",
+            'TK-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)),
+            encode(sha256(convert_to(
+              gen_random_uuid()::text || gen_random_uuid()::text, 'UTF8'
+            )), 'hex')
      FROM "order_items" oi
      CROSS JOIN generate_series(1, oi."quantity")
      WHERE oi."order_id" = $1`,

@@ -166,8 +166,9 @@ export function OrderStatusClient({
         </table>
         {order.status === "paid" && (
           <p className="field-hint">
-            Ticket QR codes arrive with ticket delivery; they will appear in
-            your account once issued for scanning.
+            Your tickets are ready.{" "}
+            <a href="/account/tickets">View your tickets</a> to see each one and
+            reveal a scannable code at the gate.
           </p>
         )}
       </section>

@@ -541,6 +541,11 @@ model Ticket {
   ticketTypeId String       @map("ticket_type_id") @db.Uuid
   eventSeatId  String?      @map("event_seat_id") @db.Uuid
   status       TicketStatus @default(ACTIVE)
+  // Nonsecret identifier safe to show to a customer.
+  publicNumber String       @unique @map("public_number") @db.VarChar(20)
+  // SHA-256 hex of the current QR bearer; the raw value is never stored.
+  qrTokenHash  String       @unique @map("qr_token_hash") @db.Char(64)
+  qrRotatedAt  DateTime?    @map("qr_rotated_at") @db.Timestamptz(6)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   order        Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
   orderItem    OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Restrict)

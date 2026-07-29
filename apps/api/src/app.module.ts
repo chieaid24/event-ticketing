@@ -40,6 +40,9 @@ import { OrganizationsController } from "./organizations/organizations.controlle
 import { OrganizationsService } from "./organizations/organizations.service.js";
 import { PgOrganizationsStore } from "./organizations/organizations.store.js";
 import { RequestLoggingMiddleware } from "./request-logging.middleware.js";
+import { TicketsController } from "./tickets/tickets.controller.js";
+import { TicketsService } from "./tickets/tickets.service.js";
+import { PgTicketsStore } from "./tickets/tickets.store.js";
 import {
   AUTH_COOKIE_SETTINGS,
   AUTH_RATE_LIMITER,
@@ -62,6 +65,8 @@ import {
   ORGANIZATIONS_STORE,
   REDIS_HEALTH,
   STRUCTURED_LOGGER,
+  TICKETS_SERVICE,
+  TICKETS_STORE,
   VENUES_SERVICE,
   VENUES_STORE,
   WAITING_ROOM_SERVICE,
@@ -92,6 +97,7 @@ export class AppModule implements NestModule {
         HoldsController,
         WaitingRoomController,
         CheckoutController,
+        TicketsController,
         PaymentWebhooksController,
         // The simulated payment surface exists only for the fake provider.
         ...(config.paymentProvider === "fake"
@@ -221,6 +227,16 @@ export class AppModule implements NestModule {
         {
           provide: CHECKOUT_STORE,
           useFactory: () => new PgCheckoutStore(config.databaseUrl),
+        },
+        {
+          provide: TICKETS_STORE,
+          useFactory: () => new PgTicketsStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, TICKETS_STORE],
+          provide: TICKETS_SERVICE,
+          useFactory: (auth: AuthService, store: PgTicketsStore) =>
+            new TicketsService(auth, store),
         },
         {
           provide: PAYMENT_GATEWAY,

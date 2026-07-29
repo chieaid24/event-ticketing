@@ -15,6 +15,7 @@ export function SiteHeader({
         <a href="/events">Events</a>
         {signedIn ? (
           <>
+            <a href="/account/tickets">Tickets</a>
             <a href="/organizations">Organizations</a>
             <a className="site-nav__cta" href="/account">
               Account
