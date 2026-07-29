@@ -16,6 +16,7 @@ import type {
 } from "../auth/auth.service.js";
 import { HoldsService } from "./holds.service.js";
 import type { HoldsStore } from "./holds.store.js";
+import type { WaitingRoomAdmission } from "../waiting-room/waiting-room.service.js";
 
 const context: RequestAuthContext = {
   csrfToken: "a-valid-csrf-token-value",
@@ -97,10 +98,16 @@ function makeHold(
   };
 }
 
-function makeService(store: HoldsStore): HoldsService {
+function makeService(
+  store: HoldsStore,
+  waitingRoom: WaitingRoomAdmission = {
+    requireAdmission: () => Promise.resolve(),
+  }
+): HoldsService {
   return new HoldsService(
     new FakeAuth(makeSession(randomUUID())) as unknown as AuthService,
-    store
+    store,
+    waitingRoom
   );
 }
 
@@ -119,6 +126,32 @@ describe("HoldsService.createAssignedSeatHold", () => {
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(HttpException);
     expect((error as HttpException).getStatus()).toBe(400);
+  });
+
+  it("does not reach inventory without waiting-room admission", async () => {
+    let inventoryCalled = false;
+    const service = makeService(
+      {
+        createAssignedSeatHold: () => {
+          inventoryCalled = true;
+          return Promise.resolve(makeHold());
+        },
+        createGeneralAdmissionHold: unusedGeneralAdmission,
+      },
+      {
+        requireAdmission: () =>
+          Promise.reject(
+            new HttpException({ code: "waiting_room_token_invalid" }, 403)
+          ),
+      }
+    );
+
+    const error = await service
+      .createAssignedSeatHold(context, "key-1", validBody)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(403);
+    expect(inventoryCalled).toBe(false);
   });
 
   it("rejects an invalid request body", async () => {

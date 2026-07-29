@@ -70,6 +70,11 @@ Every externally retried high-impact mutation uses an actor-scoped idempotency
 key and normalized request hash. Reusing one key with different input returns a
 stable conflict.
 
+The waiting room uses Redis sorted sets and atomic Lua scripts for queue
+ordering, heartbeats, and admission leases. PostgreSQL stores whether an event
+requires admission and remains authoritative for every hold. See
+[ADR 0007](../adr/0007-redis-waiting-room-admission.md).
+
 ## Environment
 
 Web, API, and worker applications have separate Zod schemas. Only intentionally

@@ -99,6 +99,35 @@ const apiConfigSchema = z
     trustedOrigins: originListSchema.prefault(
       "http://127.0.0.1:3000,http://localhost:3000"
     ),
+    waitingRoomAdmissionCapacity: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100_000)
+      .default(100),
+    waitingRoomHeartbeatTtlSeconds: z.coerce
+      .number()
+      .int()
+      .min(10)
+      .max(600)
+      .default(60),
+    waitingRoomLeaseTtlSeconds: z.coerce
+      .number()
+      .int()
+      .min(30)
+      .max(3_600)
+      .default(300),
+    waitingRoomTokenSecret: z
+      .string()
+      .min(32)
+      .max(200)
+      .default("local-waiting-room-secret-only-32-bytes"),
+    waitingRoomTokenTtlSeconds: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(86_400)
+      .default(1_800),
   })
   .refine(
     (config) =>
@@ -267,6 +296,13 @@ export function loadApiConfig(
       stripePublishableKey: environment["STRIPE_PUBLISHABLE_KEY"],
       stripeSecretKey: environment["STRIPE_SECRET_KEY"],
       trustedOrigins: environment["API_TRUSTED_ORIGINS"],
+      waitingRoomAdmissionCapacity:
+        environment["WAITING_ROOM_ADMISSION_CAPACITY"],
+      waitingRoomHeartbeatTtlSeconds:
+        environment["WAITING_ROOM_HEARTBEAT_TTL_SECONDS"],
+      waitingRoomLeaseTtlSeconds: environment["WAITING_ROOM_LEASE_TTL_SECONDS"],
+      waitingRoomTokenSecret: environment["WAITING_ROOM_TOKEN_SECRET"],
+      waitingRoomTokenTtlSeconds: environment["WAITING_ROOM_TOKEN_TTL_SECONDS"],
     },
     {
       cookieSecure: "API_COOKIE_SECURE",
@@ -283,6 +319,11 @@ export function loadApiConfig(
       stripePublishableKey: "STRIPE_PUBLISHABLE_KEY",
       stripeSecretKey: "STRIPE_SECRET_KEY",
       trustedOrigins: "API_TRUSTED_ORIGINS",
+      waitingRoomAdmissionCapacity: "WAITING_ROOM_ADMISSION_CAPACITY",
+      waitingRoomHeartbeatTtlSeconds: "WAITING_ROOM_HEARTBEAT_TTL_SECONDS",
+      waitingRoomLeaseTtlSeconds: "WAITING_ROOM_LEASE_TTL_SECONDS",
+      waitingRoomTokenSecret: "WAITING_ROOM_TOKEN_SECRET",
+      waitingRoomTokenTtlSeconds: "WAITING_ROOM_TOKEN_TTL_SECONDS",
     }
   );
 }

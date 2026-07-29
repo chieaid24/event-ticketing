@@ -42,6 +42,7 @@ export class HoldsController {
   async createAssigned(
     @Req() request: Request,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Headers("x-waiting-room-token") admissionToken: string | undefined,
     @Body() body: unknown
   ): Promise<CreateAssignedSeatHoldResponse> {
     await this.enforceLimit(
@@ -52,7 +53,8 @@ export class HoldsController {
     return this.service.createAssignedSeatHold(
       contextFrom(request),
       idempotencyKey,
-      body
+      body,
+      admissionToken
     );
   }
 
@@ -61,6 +63,7 @@ export class HoldsController {
   async createGeneralAdmission(
     @Req() request: Request,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Headers("x-waiting-room-token") admissionToken: string | undefined,
     @Body() body: unknown
   ): Promise<CreateGeneralAdmissionHoldResponse> {
     await this.enforceLimit(
@@ -71,7 +74,8 @@ export class HoldsController {
     return this.service.createGeneralAdmissionHold(
       contextFrom(request),
       idempotencyKey,
-      body
+      body,
+      admissionToken
     );
   }
 

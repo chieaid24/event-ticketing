@@ -91,6 +91,7 @@ function makeEvent(overrides: Partial<EventRow> = {}): EventRow {
     updatedAt: new Date(),
     venueId: randomUUID(),
     version: 1,
+    waitingRoomEnabled: false,
     ...overrides,
   };
 }
@@ -371,6 +372,7 @@ describe("updateDraft", () => {
   const draftBody = {
     currency: "USD",
     holdDurationSeconds: 600,
+    waitingRoomEnabled: false,
     timezone: "America/Toronto",
     title: "Renamed Event",
     version: 1,

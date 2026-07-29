@@ -806,6 +806,7 @@ try {
       startsAt: new Date("2026-09-01T01:00:00.000Z"),
       timezone: "America/Toronto",
       title: "Integration Concert",
+      waitingRoomEnabled: false,
     });
     assert.equal(updatedDraft?.version, 2);
     assert.equal(
@@ -824,6 +825,7 @@ try {
         startsAt: null,
         timezone: "UTC",
         title: "Stale Update",
+        waitingRoomEnabled: false,
       }),
       null,
       "A stale draft update must not overwrite a newer version."
@@ -1003,6 +1005,7 @@ try {
       startsAt: new Date(Date.now() - 8 * dayMs),
       timezone: "UTC",
       title: "Discovery Past Probe",
+      waitingRoomEnabled: false,
     });
     assert.ok(
       await markEventPublished(pool, {

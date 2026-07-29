@@ -23,6 +23,11 @@ describe("application configuration", () => {
       sessionAbsoluteTtlSeconds: 2_592_000,
       sessionIdleTtlSeconds: 86_400,
       trustedOrigins: ["http://127.0.0.1:3000", "http://localhost:3000"],
+      waitingRoomAdmissionCapacity: 100,
+      waitingRoomHeartbeatTtlSeconds: 60,
+      waitingRoomLeaseTtlSeconds: 300,
+      waitingRoomTokenSecret: "local-waiting-room-secret-only-32-bytes",
+      waitingRoomTokenTtlSeconds: 1_800,
     });
     expect(loadWebConfig({})).toEqual({
       apiBaseUrl: "http://127.0.0.1:4000",

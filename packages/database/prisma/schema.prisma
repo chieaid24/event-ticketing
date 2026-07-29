@@ -362,6 +362,7 @@ model Event {
   salesStartAt        DateTime?    @map("sales_start_at") @db.Timestamptz(6)
   salesEndAt          DateTime?    @map("sales_end_at") @db.Timestamptz(6)
   holdDurationSeconds Int          @default(600) @map("hold_duration_seconds")
+  waitingRoomEnabled  Boolean      @default(false) @map("waiting_room_enabled")
   refundPolicy        String?      @map("refund_policy") @db.VarChar(2000)
   mediaUrl            String?      @map("media_url") @db.VarChar(2048)
   publishedAt         DateTime?    @map("published_at") @db.Timestamptz(6)

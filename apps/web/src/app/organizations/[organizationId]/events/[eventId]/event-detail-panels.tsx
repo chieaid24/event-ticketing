@@ -172,6 +172,7 @@ export function EventDetailPanels({
       timezone: String(form.get("timezone") ?? "UTC"),
       title: String(form.get("title") ?? ""),
       version: event.version,
+      waitingRoomEnabled: form.get("waitingRoomEnabled") === "on",
     };
     setBasicsState({ kind: "busy" });
     try {
@@ -277,6 +278,10 @@ export function EventDetailPanels({
             <tr>
               <th scope="row">Hold duration</th>
               <td>{numberFormat.format(event.holdDurationSeconds)} seconds</td>
+            </tr>
+            <tr>
+              <th scope="row">Waiting room</th>
+              <td>{event.waitingRoomEnabled ? "Enabled" : "Disabled"}</td>
             </tr>
           </tbody>
         </table>
@@ -447,6 +452,17 @@ export function EventDetailPanels({
                   name="refundPolicy"
                   rows={2}
                 />
+              </div>
+              <div className="form-field">
+                <label htmlFor="event-waiting-room">
+                  <input
+                    defaultChecked={event.waitingRoomEnabled}
+                    id="event-waiting-room"
+                    name="waitingRoomEnabled"
+                    type="checkbox"
+                  />{" "}
+                  Require waiting-room admission before inventory holds
+                </label>
               </div>
               <div className="form-field">
                 <label htmlFor="event-media">Media URL (optional)</label>

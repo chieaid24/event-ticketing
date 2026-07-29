@@ -27,6 +27,7 @@ async function bootstrap(): Promise<void> {
       "idempotency-key",
       "x-csrf-token",
       "x-request-id",
+      "x-waiting-room-token",
     ],
     credentials: true,
     exposedHeaders: ["x-request-id"],

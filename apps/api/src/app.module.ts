@@ -64,11 +64,17 @@ import {
   STRUCTURED_LOGGER,
   VENUES_SERVICE,
   VENUES_STORE,
+  WAITING_ROOM_SERVICE,
+  WAITING_ROOM_STORE,
 } from "./runtime.tokens.js";
 import { StatusController } from "./status.controller.js";
 import { VenuesController } from "./venues/venues.controller.js";
 import { VenuesService } from "./venues/venues.service.js";
 import { PgVenuesStore } from "./venues/venues.store.js";
+import { WaitingRoomController } from "./waiting-room/waiting-room.controller.js";
+import { WaitingRoomService } from "./waiting-room/waiting-room.service.js";
+import { RedisWaitingRoomStore } from "./waiting-room/waiting-room.store.js";
+import { WaitingRoomTokens } from "./waiting-room/waiting-room-tokens.js";
 
 @Module({})
 export class AppModule implements NestModule {
@@ -84,6 +90,7 @@ export class AppModule implements NestModule {
         VenuesController,
         EventsController,
         HoldsController,
+        WaitingRoomController,
         CheckoutController,
         PaymentWebhooksController,
         // The simulated payment surface exists only for the fake provider.
@@ -162,6 +169,32 @@ export class AppModule implements NestModule {
             new EventsService(auth, store),
         },
         {
+          provide: WAITING_ROOM_STORE,
+          useFactory: () =>
+            new RedisWaitingRoomStore(
+              config.databaseUrl,
+              config.redisUrl,
+              config.dependencyTimeoutMs
+            ),
+        },
+        {
+          inject: [AUTH_SERVICE, WAITING_ROOM_STORE],
+          provide: WAITING_ROOM_SERVICE,
+          useFactory: (auth: AuthService, store: RedisWaitingRoomStore) =>
+            new WaitingRoomService(
+              auth,
+              store,
+              new WaitingRoomTokens(config.waitingRoomTokenSecret),
+              {
+                admissionCapacity: config.waitingRoomAdmissionCapacity,
+                heartbeatTtlSeconds: config.waitingRoomHeartbeatTtlSeconds,
+                leaseTtlSeconds: config.waitingRoomLeaseTtlSeconds,
+                tokenTtlSeconds: config.waitingRoomTokenTtlSeconds,
+              },
+              logger
+            ),
+        },
+        {
           provide: HOLD_EXPIRY_MIRROR,
           useFactory: () =>
             new RedisHoldExpiryMirror(
@@ -177,10 +210,13 @@ export class AppModule implements NestModule {
             new PgHoldsStore(config.databaseUrl, mirror),
         },
         {
-          inject: [AUTH_SERVICE, HOLDS_STORE],
+          inject: [AUTH_SERVICE, HOLDS_STORE, WAITING_ROOM_SERVICE],
           provide: HOLDS_SERVICE,
-          useFactory: (auth: AuthService, store: PgHoldsStore) =>
-            new HoldsService(auth, store),
+          useFactory: (
+            auth: AuthService,
+            store: PgHoldsStore,
+            waitingRoom: WaitingRoomService
+          ) => new HoldsService(auth, store, waitingRoom),
         },
         {
           provide: CHECKOUT_STORE,
