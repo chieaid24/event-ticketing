@@ -4,6 +4,7 @@ import type { WebhookAck } from "@event-ticketing/contracts";
 import {
   isHandledPaymentEventType,
   parsePaymentProviderEvent,
+  parseRefundProviderEvent,
   verifyWebhookSignatureHeader,
   type PaymentProviderKind,
 } from "@event-ticketing/payments";
@@ -13,6 +14,8 @@ import type { CheckoutStore } from "./checkout.store.js";
 
 export const PAYMENT_SUCCEEDED_TOPIC = "payment.intent.succeeded";
 export const PAYMENT_FAILED_TOPIC = "payment.intent.failed";
+export const REFUND_SUCCEEDED_TOPIC = "refund.succeeded";
+export const REFUND_FAILED_TOPIC = "refund.failed";
 
 /** Minimal identity every recorded provider event must carry. */
 const eventIdentitySchema = z
@@ -84,6 +87,34 @@ export class PaymentWebhooksService {
     payload: Record<string, unknown>;
     topic: string;
   } | null {
+    if (type === "refund.updated") {
+      const event = parseRefundProviderEvent(body);
+      if (!event) {
+        return null;
+      }
+      const refund = event.data.object;
+      const refundId = refund.metadata?.["refundId"];
+      if (!refundId) {
+        return null;
+      }
+      const succeeded = refund.status === "succeeded";
+      const failed = refund.status === "failed" || refund.status === "canceled";
+      if (!succeeded && !failed) {
+        return null;
+      }
+      return {
+        deduplicationKey: `refund-webhook:${this.provider}:${providerEventId}`,
+        payload: {
+          amountMinor: refund.amount,
+          currency: refund.currency.toUpperCase(),
+          failureCode: refund.failure_reason ?? refund.status,
+          providerPaymentIntentId: refund.payment_intent,
+          providerRefundId: refund.id,
+          refundId,
+        },
+        topic: succeeded ? REFUND_SUCCEEDED_TOPIC : REFUND_FAILED_TOPIC,
+      };
+    }
     if (!isHandledPaymentEventType(type)) {
       return null;
     }

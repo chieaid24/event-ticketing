@@ -104,6 +104,7 @@ export type CreateCheckoutRequest = z.infer<typeof createCheckoutRequestSchema>;
 export const orderItemSchema = z
   .object({
     eventSeatId: z.uuid().nullable(),
+    orderItemId: z.uuid(),
     quantity: z.number().int().min(1),
     rowLabel: z.string().nullable(),
     seatLabel: z.string().nullable(),

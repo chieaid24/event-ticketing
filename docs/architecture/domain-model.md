@@ -40,8 +40,9 @@ one winner. Template edits never rewrite sold inventory because events snapshot
 seats.
 
 An event references one venue, lifecycle state, IANA timezone, schedule, sale
-window, hold duration, refund policy, and version. Event seats snapshot relevant
-venue-seat fields so later layout edits cannot corrupt sold inventory.
+window, hold duration, customer refund switch, customer refund cutoff, inventory
+return cutoff, and version. Event seats snapshot relevant venue-seat fields so
+later layout edits cannot corrupt sold inventory.
 
 Ticket types represent assigned or general-admission inventory. Store price and
 fees as integer minor units with an ISO 4217 currency.
@@ -54,7 +55,9 @@ snapshots.
 
 An order belongs to a hold and stores immutable commercial totals and item
 snapshots. Payments and refunds store provider references, stable idempotency
-keys, amounts, currency, status, and safe failure codes.
+keys, amounts, currency, status, and safe failure codes. Refund items store the
+server-approved quantity and amount for each order item so partial refunds
+cannot exceed the remaining paid quantity.
 
 ## Tickets and scans
 
@@ -71,7 +74,8 @@ Check-in updates the locked ticket and adds a scan record in one transaction.
 - `outbox_events` durably request asynchronous effects.
 - `idempotency_records` store actor, route, key, request hash, and safe result.
 - `audit_logs` store privileged transitions without secrets.
-- `notifications` track queued, sent, failed, and suppressed delivery.
+- `notifications` deduplicate each delivery by recipient, kind, and domain
+  reference, and track queued, sent, failed, and suppressed outcomes.
 - `analytics_events` and daily aggregates support organization-isolated
   reporting.
 

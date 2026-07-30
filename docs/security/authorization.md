@@ -53,6 +53,11 @@ organization so probing cannot confirm one exists.
   incomplete or inconsistent event, and snapshots the venue seats so later
   layout edits never change sold inventory. The version compare-and-swap
   serializes concurrent draft writes and publication to one winner.
+- Customer refund routes scope every order to the authenticated actor and apply
+  the stored event policy. Organizer refund routes need `finance.manage`, scope
+  the order through the addressed organization, and require an operator reason.
+  Both routes ignore client prices and calculate the amount from paid order
+  items.
 - Deleting an organization is owner-only, requires retyping the organization
   slug, and requires a current CSRF-checked session.
 - Scanner check-in needs `scanner.checkin`; reversing a check-in needs
@@ -72,7 +77,7 @@ transaction: `organization.created`, `organization.settings.updated`,
 `left` flag when the member removed themselves), `venue.created`,
 `venue.updated`, `venue.layout.replaced`, `venue.deleted`, `event.created`,
 `event.updated`, `event.ticket_types.replaced`, `event.published`,
-`ticket.checked_in`, and `ticket.checkin_reversed`. Entries keep the actor,
-target, and a small detail object, and survive actor or organization deletion
-through `SET NULL` foreign keys. Owners and admins read them at
-`GET /organizations/:id/audit-logs`.
+`event.cancelled`, `refund.requested`, `ticket.checked_in`, and
+`ticket.checkin_reversed`. Entries keep the actor, target, and a small detail
+object, and survive actor or organization deletion through `SET NULL` foreign
+keys. Owners and admins read them at `GET /organizations/:id/audit-logs`.

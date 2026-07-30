@@ -54,6 +54,7 @@ export function createStripePaymentGateway(input: {
       try {
         const refund = await stripe.refunds.create(
           {
+            amount: request.amountMinor,
             metadata: request.metadata ?? {},
             payment_intent: request.providerPaymentIntentId,
           },

@@ -130,4 +130,66 @@ describe("PaymentWebhooksService.ingest", () => {
       failureCode: "card_declined",
     });
   });
+
+  it("records a verified successful refund for asynchronous finalization", async () => {
+    const store = makeStore();
+    const service = new PaymentWebhooksService(store, "fake", secret);
+    const { header, raw } = signedDelivery({
+      data: {
+        object: {
+          amount: 2100,
+          currency: "usd",
+          id: "re_1",
+          metadata: { refundId: "refund-1" },
+          payment_intent: "pi_1",
+          status: "succeeded",
+        },
+      },
+      id: "evt_refund_1",
+      type: "refund.updated",
+    });
+
+    await service.ingest(raw, header);
+    expect(store.ingested[0]!.enqueue).toMatchObject({
+      payload: {
+        amountMinor: 2100,
+        currency: "USD",
+        providerPaymentIntentId: "pi_1",
+        providerRefundId: "re_1",
+        refundId: "refund-1",
+      },
+      topic: "refund.succeeded",
+    });
+  });
+
+  it("records a terminal refund failure for asynchronous release", async () => {
+    const store = makeStore();
+    const service = new PaymentWebhooksService(store, "fake", secret);
+    const { header, raw } = signedDelivery({
+      data: {
+        object: {
+          amount: 2100,
+          currency: "usd",
+          failure_reason: "expired_or_canceled_card",
+          id: "re_2",
+          metadata: { refundId: "refund-2" },
+          payment_intent: "pi_2",
+          status: "failed",
+        },
+      },
+      id: "evt_refund_2",
+      type: "refund.updated",
+    });
+
+    await service.ingest(raw, header);
+    expect(store.ingested[0]!.enqueue).toMatchObject({
+      payload: {
+        failureCode: "expired_or_canceled_card",
+        providerPaymentIntentId: "pi_2",
+        providerRefundId: "re_2",
+        refundId: "refund-2",
+      },
+      topic: "refund.failed",
+    });
+  });
 });

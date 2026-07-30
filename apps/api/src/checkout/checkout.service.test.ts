@@ -81,6 +81,7 @@ function makeOrder(overrides: Partial<OrderRecord> = {}): OrderRecord {
     items: [
       {
         eventSeatId: null,
+        orderItemId: randomUUID(),
         quantity: 2,
         rowLabel: null,
         seatLabel: null,

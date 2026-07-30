@@ -1,7 +1,7 @@
 # API
 
 `@event-ticketing/api` is the HTTP boundary for trusted platform decisions. It
-owns authentication and will own authorization, inventory, orders, payments,
+owns authentication, authorization, inventory, orders, payments, refunds,
 tickets, and administration. It does not render pages or run asynchronous jobs.
 
 `GET /status` returns the shared `StatusResponse` contract. `GET /health/live`
@@ -99,8 +99,8 @@ missing event.
   sections available to sell, and the outstanding publication problems.
 - `PATCH .../events/:eventId` saves draft basics (title, description, timezone,
   currency, schedule, sale window, hold duration, waiting-room requirement,
-  refund policy, media) under optimistic `version` checking; a stale save
-  answers `version_conflict`.
+  customer refund switch and cutoff, inventory return cutoff, and media) under
+  optimistic `version` checking; a stale save answers `version_conflict`.
 - `PUT .../events/:eventId/ticket-types` replaces the ticket-type set under the
   same `version` check. Each type must match a venue section of its kind, or the
   request answers `ticket_types_invalid`.
@@ -109,6 +109,9 @@ missing event.
   On success it snapshots each assigned section's seats into `event_seats`,
   marks the event published, writes an audit entry, and enqueues an
   `event.published` outbox event, all in one transaction.
+- `POST .../events/:eventId/cancel` marks an active event cancelled under the
+  same `version` check, writes an audit entry, and queues one cancellation
+  notification per paid order.
 
 Money is stored as integer minor units with an ISO 4217 currency; times are UTC
 instants paired with the event's IANA timezone. Event mutations write
@@ -177,6 +180,22 @@ commercial state decided only by verified webhook processing.
   signatures answer `400`; duplicates acknowledge without recording twice.
 - `POST /payments/simulate` exists only under the fake provider and turns a
   simulated outcome into a signed delivery through the production webhook path.
+
+## Refund routes
+
+Refund routes accept order item IDs and quantities. They calculate the amount
+from stored order snapshots and use the request key as the logical retry
+boundary.
+
+- `POST /orders/:orderId/refunds` requests a policy-eligible refund for the
+  session user's order. It needs an `Idempotency-Key` header and answers `202`
+  with the server-calculated target.
+- `GET /orders/:orderId/refunds` lists the session user's refund requests.
+- `POST /organizations/:organizationId/orders/:orderId/refunds` needs
+  `finance.manage`, an `Idempotency-Key` header, and an operator reason.
+- `POST /webhooks/payments` also accepts signed Stripe refund updates. The
+  worker verifies the provider reference and target before finalizing the
+  refund, marking tickets refunded, and conditionally returning inventory.
 
 ## Ticket routes
 

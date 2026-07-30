@@ -20,6 +20,7 @@ import { createPaymentGateway } from "@event-ticketing/payments";
 import { createSmtpEmailer } from "./mailer.js";
 import { createOutboxProcessor } from "./outbox-processor.js";
 import { createPaymentHandlers } from "./payment-handlers.js";
+import { createRefundHandlers } from "./refund-handlers.js";
 import { createWorkerRuntime } from "./runtime.js";
 
 async function startWorker(): Promise<void> {
@@ -31,6 +32,12 @@ async function startWorker(): Promise<void> {
   const emailer = createSmtpEmailer({
     from: config.mailFrom,
     smtpUrl: config.smtpUrl,
+  });
+  const paymentGateway = createPaymentGateway({
+    provider: config.paymentProvider,
+    ...(config.stripeSecretKey !== undefined && {
+      stripeSecretKey: config.stripeSecretKey,
+    }),
   });
   const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
   const processor = createOutboxProcessor({
@@ -50,13 +57,13 @@ async function startWorker(): Promise<void> {
       }),
       ...createPaymentHandlers({
         emailer,
-        gateway: createPaymentGateway({
-          provider: config.paymentProvider,
-          ...(config.stripeSecretKey !== undefined && {
-            stripeSecretKey: config.stripeSecretKey,
-          }),
-        }),
+        gateway: paymentGateway,
         opsAlertEmail: config.opsAlertEmail,
+        pool: database,
+      }),
+      ...createRefundHandlers({
+        emailer,
+        gateway: paymentGateway,
         pool: database,
       }),
     },

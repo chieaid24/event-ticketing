@@ -71,6 +71,7 @@ verification, rollback, escalation, and evidence to retain.
 Available runbooks:
 
 - [Inspect and redeliver outbox dead letters](../runbooks/outbox-dead-letters.md)
+- [Recover a refund webhook backlog](../runbooks/refund-webhook-backlog.md)
 
 ## Recovery targets
 

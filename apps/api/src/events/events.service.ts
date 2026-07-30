@@ -1,5 +1,6 @@
 import {
   createEventRequestSchema,
+  cancelEventRequestSchema,
   publishEventRequestSchema,
   replaceTicketTypesRequestSchema,
   updateEventDraftRequestSchema,
@@ -47,10 +48,13 @@ function toEvent(row: EventRow): EventRecord {
   return {
     createdAt: row.createdAt.toISOString(),
     currency: row.currency as SupportedCurrency,
+    customerRefundCutoffMinutes: row.customerRefundCutoffMinutes,
+    customerRefundsEnabled: row.customerRefundsEnabled,
     description: row.description,
     endsAt: row.endsAt?.toISOString() ?? null,
     holdDurationSeconds: row.holdDurationSeconds,
     id: row.id,
+    inventoryReturnCutoffMinutes: row.inventoryReturnCutoffMinutes,
     mediaUrl: row.mediaUrl,
     publishedAt: row.publishedAt?.toISOString() ?? null,
     refundPolicy: row.refundPolicy,
@@ -210,11 +214,14 @@ export class EventsService {
     const result = await this.store.updateDraft({
       actorUserId: user.id,
       currency: request.currency,
+      customerRefundCutoffMinutes: request.customerRefundCutoffMinutes,
+      customerRefundsEnabled: request.customerRefundsEnabled,
       description: request.description ?? null,
       endsAt: toDate(request.endsAt),
       eventId,
       expectedVersion: request.version,
       holdDurationSeconds: request.holdDurationSeconds,
+      inventoryReturnCutoffMinutes: request.inventoryReturnCutoffMinutes,
       mediaUrl: request.mediaUrl ?? null,
       organizationId,
       refundPolicy: request.refundPolicy ?? null,
@@ -306,6 +313,44 @@ export class EventsService {
       expectedVersion: request.version,
       organizationId,
       venueId: event.venueId,
+    });
+    if (result === "version_conflict") {
+      this.versionConflict();
+    }
+    return this.buildDetail(organizationId, result);
+  }
+
+  async cancelEvent(
+    context: RequestAuthContext,
+    organizationId: string,
+    eventId: string,
+    input: unknown
+  ): Promise<EventDetailResponse> {
+    const { user } = await this.auth.requireMutationSession(context);
+    const { membership } = await this.requireActiveMembership(
+      organizationId,
+      user.id
+    );
+    this.requirePermission(membership.role, "events.manage");
+    const request = parseRequest(cancelEventRequestSchema, input);
+    const event = await this.requireEvent(organizationId, eventId);
+    if (
+      event.status !== "published" &&
+      event.status !== "sales_paused" &&
+      event.status !== "postponed"
+    ) {
+      apiError(
+        409,
+        "event_not_cancellable",
+        "Only a published, paused, or postponed event can be cancelled."
+      );
+    }
+    const result = await this.store.cancelEvent({
+      actorUserId: user.id,
+      eventId,
+      expectedVersion: request.version,
+      organizationId,
+      reason: request.reason,
     });
     if (result === "version_conflict") {
       this.versionConflict();

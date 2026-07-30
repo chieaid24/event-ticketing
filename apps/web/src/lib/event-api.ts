@@ -1,5 +1,6 @@
 import {
   eventDetailResponseSchema,
+  type CancelEventRequest,
   type CreateEventRequest,
   type EventDetailResponse,
   type PublishEventRequest,
@@ -63,6 +64,21 @@ export async function publishEvent(
     await requestJson(
       apiBaseUrl,
       `/organizations/${organizationId}/events/${eventId}/publish`,
+      { body: input, csrf: true, method: "POST" }
+    )
+  );
+}
+
+export async function cancelEvent(
+  apiBaseUrl: string,
+  organizationId: string,
+  eventId: string,
+  input: CancelEventRequest
+): Promise<EventDetailResponse> {
+  return eventDetailResponseSchema.parse(
+    await requestJson(
+      apiBaseUrl,
+      `/organizations/${organizationId}/events/${eventId}/cancel`,
       { body: input, csrf: true, method: "POST" }
     )
   );

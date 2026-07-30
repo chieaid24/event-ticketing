@@ -22,10 +22,12 @@ function percentile(values: number[], proportion: number): number {
 }
 
 describe.runIf(enabled)("RedisWaitingRoomStore load probe", () => {
-  const redis = new Redis(redisUrl);
-  const store = new RedisWaitingRoomStore(databaseUrl, redisUrl, 2_000);
+  let redis: Redis;
+  let store: RedisWaitingRoomStore;
 
   beforeAll(async () => {
+    redis = new Redis(redisUrl);
+    store = new RedisWaitingRoomStore(databaseUrl, redisUrl, 2_000);
     await redis.ping();
   });
 

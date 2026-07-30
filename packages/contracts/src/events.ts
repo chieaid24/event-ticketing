@@ -11,6 +11,7 @@ export const MAX_MONEY_MINOR = 100_000_000;
 export const MAX_GA_CAPACITY = 100_000;
 export const MIN_HOLD_SECONDS = 60;
 export const MAX_HOLD_SECONDS = 86_400;
+export const MAX_REFUND_CUTOFF_MINUTES = 525_600;
 
 /** Currencies the platform sells in. Multi-currency remains deferred scope. */
 export const supportedCurrencies = ["USD", "CAD", "EUR", "GBP", "AUD"] as const;
@@ -31,6 +32,11 @@ export const eventDescriptionSchema = z
   .trim()
   .max(MAX_EVENT_DESCRIPTION);
 export const refundPolicySchema = z.string().trim().max(MAX_REFUND_POLICY);
+export const refundCutoffMinutesSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(MAX_REFUND_CUTOFF_MINUTES);
 export const mediaUrlSchema = z.url().max(MAX_MEDIA_URL);
 export const currencySchema = z.enum(supportedCurrencies);
 export const moneyMinorSchema = z.number().int().min(0).max(MAX_MONEY_MINOR);
@@ -102,6 +108,9 @@ export const updateEventDraftRequestSchema = z
     description: eventDescriptionSchema.nullish(),
     endsAt: z.iso.datetime().nullish(),
     holdDurationSeconds: holdDurationSchema,
+    customerRefundCutoffMinutes: refundCutoffMinutesSchema,
+    customerRefundsEnabled: z.boolean(),
+    inventoryReturnCutoffMinutes: refundCutoffMinutesSchema,
     waitingRoomEnabled: z.boolean(),
     mediaUrl: mediaUrlSchema.nullish(),
     refundPolicy: refundPolicySchema.nullish(),
@@ -127,6 +136,13 @@ export const publishEventRequestSchema = z
   })
   .strict();
 
+export const cancelEventRequestSchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+    version: z.number().int().min(1),
+  })
+  .strict();
+
 export const ticketTypeSchema = z
   .object({
     capacity: z.number().int().nullable(),
@@ -147,7 +163,10 @@ export const eventSchema = z
     description: z.string().nullable(),
     endsAt: z.iso.datetime().nullable(),
     holdDurationSeconds: z.number().int(),
+    customerRefundCutoffMinutes: refundCutoffMinutesSchema,
+    customerRefundsEnabled: z.boolean(),
     id: z.uuid(),
+    inventoryReturnCutoffMinutes: refundCutoffMinutesSchema,
     mediaUrl: z.string().nullable(),
     publishedAt: z.iso.datetime().nullable(),
     refundPolicy: z.string().nullable(),
@@ -214,6 +233,7 @@ export type ReplaceTicketTypesRequest = z.infer<
   typeof replaceTicketTypesRequestSchema
 >;
 export type PublishEventRequest = z.infer<typeof publishEventRequestSchema>;
+export type CancelEventRequest = z.infer<typeof cancelEventRequestSchema>;
 export type EventStatus = z.infer<typeof eventStatusSchema>;
 export type SupportedCurrency = z.infer<typeof currencySchema>;
 export type TicketType = z.infer<typeof ticketTypeSchema>;

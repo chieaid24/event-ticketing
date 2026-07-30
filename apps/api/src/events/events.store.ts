@@ -17,7 +17,10 @@ import {
   insertEventSeats,
   listEventsForOrganization,
   markEventPublished,
+  markEventCancelled,
+  queueOrderNotification,
   replaceTicketTypes,
+  suppressOrderNotificationKind,
   updateEventDraft,
   withDatabaseTransaction,
   type EventRow,
@@ -37,6 +40,7 @@ export const EVENT_PUBLISHED_TOPIC = "event.published";
 export type UpdateDraftResult = EventRow | "version_conflict";
 export type ReplaceTicketTypesResult = EventRow | "version_conflict";
 export type PublishResult = EventRow | "version_conflict";
+export type CancelResult = EventRow | "version_conflict";
 
 export interface EventsStore {
   createEvent(input: {
@@ -45,6 +49,13 @@ export interface EventsStore {
     title: string;
     venueId: string;
   }): Promise<EventRow>;
+  cancelEvent(input: {
+    actorUserId: string;
+    eventId: string;
+    expectedVersion: number;
+    organizationId: string;
+    reason: string;
+  }): Promise<CancelResult>;
   fetchSectionSummaries(venueId: string): Promise<VenueSectionSummaryData[]>;
   fetchTicketTypes(eventId: string): Promise<TicketTypeRow[]>;
   findEvent(input: {
@@ -148,6 +159,60 @@ export class PgEventsStore implements EventsStore, OnApplicationShutdown {
         targetId: event.id,
         targetType: "event",
       });
+      return event;
+    });
+  }
+
+  async cancelEvent(input: {
+    actorUserId: string;
+    eventId: string;
+    expectedVersion: number;
+    organizationId: string;
+    reason: string;
+  }): Promise<CancelResult> {
+    return withDatabaseTransaction(this.pool, async (transaction) => {
+      const event = await markEventCancelled(transaction, input);
+      if (!event) {
+        return "version_conflict";
+      }
+      await insertAuditLog(transaction, {
+        action: "event.cancelled",
+        actorUserId: input.actorUserId,
+        detail: { reason: input.reason, version: event.version },
+        organizationId: input.organizationId,
+        targetId: input.eventId,
+        targetType: "event",
+      });
+      const orders = await transaction.query<{
+        id: string;
+        publicNumber: string;
+      }>(
+        `SELECT "id", "public_number" AS "publicNumber"
+         FROM "orders"
+         WHERE "event_id" = $1 AND "status" = 'paid'
+         ORDER BY "id"`,
+        [input.eventId]
+      );
+      for (const order of orders.rows) {
+        await suppressOrderNotificationKind(transaction, {
+          code: "event_cancelled",
+          kind: "event_reminder",
+          orderId: order.id,
+        });
+        await queueOrderNotification(transaction, {
+          deduplicationKey: `event.cancelled:${input.eventId}:${order.id}`,
+          kind: "event_cancelled",
+          orderId: order.id,
+          subject: `${event.title} was cancelled`,
+          text: [
+            `${event.title} was cancelled by the organizer.`,
+            `Order: ${order.publicNumber}`,
+            `Reason: ${input.reason}`,
+            "",
+            "Your tickets are no longer valid. Refund handling follows the event policy.",
+          ].join("\n"),
+        });
+      }
       return event;
     });
   }

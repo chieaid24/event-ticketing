@@ -14,6 +14,13 @@ export interface SmtpEmailer extends AuthEmailer {
   close(): void;
 }
 
+export class PermanentEmailError extends Error {
+  constructor() {
+    super("The email provider permanently rejected the recipient.");
+    this.name = "PermanentEmailError";
+  }
+}
+
 export function createSmtpEmailer(input: {
   from: string;
   smtpUrl: string;
@@ -24,12 +31,26 @@ export function createSmtpEmailer(input: {
       transport.close();
     },
     async send(message: AuthEmailMessage): Promise<void> {
-      await transport.sendMail({
-        from: input.from,
-        subject: message.subject,
-        text: message.text,
-        to: message.to,
-      });
+      try {
+        await transport.sendMail({
+          from: input.from,
+          subject: message.subject,
+          text: message.text,
+          to: message.to,
+        });
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "responseCode" in error &&
+          typeof error.responseCode === "number" &&
+          error.responseCode >= 500 &&
+          error.responseCode < 600
+        ) {
+          throw new PermanentEmailError();
+        }
+        throw error;
+      }
     },
   };
 }

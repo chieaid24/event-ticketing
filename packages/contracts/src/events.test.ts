@@ -51,7 +51,10 @@ describe("createEventRequestSchema", () => {
 describe("updateEventDraftRequestSchema", () => {
   const base = {
     currency: "USD",
+    customerRefundCutoffMinutes: 1440,
+    customerRefundsEnabled: false,
     holdDurationSeconds: 600,
+    inventoryReturnCutoffMinutes: 1440,
     timezone: "America/Toronto",
     title: "Autumn Gala",
     version: 1,

@@ -24,6 +24,7 @@ export interface CreateOrderForHoldInput {
 
 export interface OrderItemRecord {
   eventSeatId: string | null;
+  orderItemId: string;
   quantity: number;
   rowLabel: string | null;
   seatLabel: string | null;
@@ -190,6 +191,7 @@ async function loadOrderItems(
   const result = await executor.query<OrderItemRecord & QueryResultRow>(
     `SELECT
        oi."ticket_type_id" AS "ticketTypeId",
+       oi."id" AS "orderItemId",
        t."name" AS "ticketTypeName",
        oi."event_seat_id" AS "eventSeatId",
        oi."quantity",

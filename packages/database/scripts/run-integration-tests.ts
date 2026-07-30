@@ -53,6 +53,14 @@ import {
   SeatsUnavailableError,
 } from "../src/holds.js";
 import {
+  attachRefundProviderReference,
+  createRefund,
+  finalizeRefund,
+  markRefundProviderFailure,
+  queueOrderNotification,
+  RefundStateError,
+} from "../src/refunds.js";
+import {
   applyRefundResult,
   attachPaymentIntent,
   createOrderForHold,
@@ -806,11 +814,14 @@ try {
 
     const updatedDraft = await updateEventDraft(pool, {
       currency: "USD",
+      customerRefundCutoffMinutes: 1440,
+      customerRefundsEnabled: true,
       description: "An integration probe event.",
       endsAt: new Date("2026-09-01T04:00:00.000Z"),
       eventId: draftEvent.id,
       expectedVersion: 1,
       holdDurationSeconds: 600,
+      inventoryReturnCutoffMinutes: 1440,
       mediaUrl: null,
       organizationId: seededOrganizationId,
       refundPolicy: "Full refund up to 24 hours before.",
@@ -825,11 +836,14 @@ try {
     assert.equal(
       await updateEventDraft(pool, {
         currency: "USD",
+        customerRefundCutoffMinutes: 1440,
+        customerRefundsEnabled: false,
         description: null,
         endsAt: null,
         eventId: draftEvent.id,
         expectedVersion: 1,
         holdDurationSeconds: 600,
+        inventoryReturnCutoffMinutes: 1440,
         mediaUrl: null,
         organizationId: seededOrganizationId,
         refundPolicy: null,
@@ -1005,11 +1019,14 @@ try {
     });
     await updateEventDraft(pool, {
       currency: "USD",
+      customerRefundCutoffMinutes: 1440,
+      customerRefundsEnabled: false,
       description: null,
       endsAt: new Date(Date.now() - 7 * dayMs),
       eventId: pastProbe.id,
       expectedVersion: 1,
       holdDurationSeconds: 600,
+      inventoryReturnCutoffMinutes: 1440,
       mediaUrl: null,
       organizationId: seededOrganizationId,
       refundPolicy: null,
@@ -2031,6 +2048,312 @@ try {
       tickets: 2,
     });
 
+    // Refunds serialize on the order, price item quantities on the server,
+    // deduplicate requests and provider results, void tickets, and return
+    // inventory only before the configured cutoff.
+    const refundFixture = await createAssignedSeats(1);
+    const refundHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { userId: seededUserId },
+        eventId: refundFixture.eventId,
+        idempotencyKey: "customer-refund-hold",
+        seatIds: refundFixture.seatIds,
+      })
+    );
+    const refundOrder = await withDatabaseTransaction(pool, (transaction) =>
+      createOrderForHold(transaction, {
+        actor: { userId: seededUserId },
+        holdId: refundHold.id,
+        provider: "fake",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_refundable_secret",
+        orderId: refundOrder.id,
+        providerPaymentIntentId: "pi_refundable",
+      })
+    );
+    await pool.query(
+      `UPDATE "events"
+       SET "starts_at" = CURRENT_TIMESTAMP + interval '10 days',
+           "customer_refunds_enabled" = true,
+           "customer_refund_cutoff_minutes" = 60,
+           "inventory_return_cutoff_minutes" = 30
+       WHERE "id" = $1`,
+      [refundFixture.eventId]
+    );
+    const refundablePaid = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: refundOrder.totalMinor,
+        currency: "USD",
+        providerPaymentIntentId: "pi_refundable",
+      })
+    );
+    assert.equal(refundablePaid.outcome, "paid");
+    const refundableLine = await pool.query<{ id: string }>(
+      `SELECT "id" FROM "order_items" WHERE "order_id" = $1`,
+      [refundOrder.id]
+    );
+    const refundRequests = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        withDatabaseTransaction(pool, (transaction) =>
+          createRefund(transaction, {
+            actorUserId: seededUserId,
+            idempotencyKey: "customer-refund-race",
+            initiator: "customer",
+            items: [
+              {
+                orderItemId: refundableLine.rows[0]!.id,
+                quantity: 1,
+              },
+            ],
+            orderId: refundOrder.id,
+          })
+        )
+      )
+    );
+    assert.equal(
+      new Set(refundRequests.map((refund) => refund.id)).size,
+      1,
+      "Duplicate refund requests converge on one logical refund."
+    );
+    assert.equal(refundRequests[0]?.amountMinor, refundOrder.totalMinor);
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        createRefund(transaction, {
+          actorUserId: seededUserId,
+          idempotencyKey: "customer-refund-overage",
+          initiator: "customer",
+          items: [
+            {
+              orderItemId: refundableLine.rows[0]!.id,
+              quantity: 1,
+            },
+          ],
+          orderId: refundOrder.id,
+        })
+      ),
+      (error: unknown) =>
+        error instanceof RefundStateError &&
+        error.code === "refund_quantity_exceeded",
+      "Pending refunds reserve quantity against later requests."
+    );
+    const refundId = refundRequests[0]!.id;
+    await withDatabaseTransaction(pool, (transaction) =>
+      queueOrderNotification(transaction, {
+        deduplicationKey: `event.reminder:${refundOrder.id}:24h`,
+        kind: "event_reminder",
+        orderId: refundOrder.id,
+        subject: "Reminder",
+        text: "Starts soon",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachRefundProviderReference(transaction, {
+        providerRefundId: "re_integration_refund",
+        refundId,
+      })
+    );
+    await assert.rejects(
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeRefund(transaction, {
+          amountMinor: refundRequests[0]!.amountMinor + 1,
+          currency: "USD",
+          providerPaymentIntentId: "pi_refundable",
+          providerRefundId: "re_integration_refund",
+          refundId,
+        })
+      ),
+      (error: unknown) =>
+        error instanceof RefundStateError &&
+        error.code === "refund_verification_failed",
+      "A provider amount mismatch never finalizes a refund."
+    );
+    const finalizedRefunds = await Promise.all([
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeRefund(transaction, {
+          amountMinor: refundRequests[0]!.amountMinor,
+          currency: "USD",
+          providerPaymentIntentId: "pi_refundable",
+          providerRefundId: "re_integration_refund",
+          refundId,
+        })
+      ),
+      withDatabaseTransaction(pool, (transaction) =>
+        finalizeRefund(transaction, {
+          amountMinor: refundRequests[0]!.amountMinor,
+          currency: "USD",
+          providerPaymentIntentId: "pi_refundable",
+          providerRefundId: "re_integration_refund",
+          refundId,
+        })
+      ),
+    ]);
+    assert.deepEqual(
+      finalizedRefunds.map((refund) => refund.replayed).sort(),
+      [false, true],
+      "Duplicate refund finalization applies one ticket and inventory transition."
+    );
+    const customerRefundedState = await pool.query(
+      `SELECT
+         (SELECT "status"::text FROM "orders" WHERE "id" = $1)
+           AS "order_status",
+         (SELECT "status"::text FROM "payments" WHERE "order_id" = $1)
+           AS "payment_status",
+         (SELECT "status"::text FROM "tickets" WHERE "order_id" = $1)
+           AS "ticket_status",
+         (SELECT "status"::text FROM "event_seats" WHERE "id" = $2)
+           AS "seat_status",
+         (SELECT count(*)::int FROM "refunds" WHERE "order_id" = $1)
+           AS "refund_count",
+         (SELECT count(*)::int FROM "outbox_events"
+          WHERE "deduplication_key" = 'refund.requested:' || $3)
+           AS "refund_jobs",
+         (SELECT "status"::text FROM "notifications"
+          WHERE "deduplication_key" = 'event.reminder:' || $1 || ':24h')
+           AS "reminder_status"`,
+      [refundOrder.id, refundFixture.seatIds[0], refundId]
+    );
+    assert.deepEqual(customerRefundedState.rows[0], {
+      order_status: "refunded",
+      payment_status: "refunded",
+      refund_count: 1,
+      refund_jobs: 1,
+      reminder_status: "suppressed",
+      seat_status: "available",
+      ticket_status: "refunded",
+    });
+
+    const lateRefundFixture = await createAssignedSeats(1);
+    const lateRefundHold = await withDatabaseTransaction(pool, (transaction) =>
+      createAssignedSeatHold(transaction, {
+        actor: { userId: seededUserId },
+        eventId: lateRefundFixture.eventId,
+        idempotencyKey: "late-organizer-refund-hold",
+        seatIds: lateRefundFixture.seatIds,
+      })
+    );
+    const lateRefundOrder = await withDatabaseTransaction(pool, (transaction) =>
+      createOrderForHold(transaction, {
+        actor: { userId: seededUserId },
+        holdId: lateRefundHold.id,
+        provider: "fake",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_late_refund_secret",
+        orderId: lateRefundOrder.id,
+        providerPaymentIntentId: "pi_late_refund",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: lateRefundOrder.totalMinor,
+        currency: "USD",
+        providerPaymentIntentId: "pi_late_refund",
+      })
+    );
+    await pool.query(
+      `UPDATE "events"
+       SET "starts_at" = CURRENT_TIMESTAMP - interval '1 minute'
+       WHERE "id" = $1`,
+      [lateRefundFixture.eventId]
+    );
+    const lateRefundLine = await pool.query<{ id: string }>(
+      `SELECT "id" FROM "order_items" WHERE "order_id" = $1`,
+      [lateRefundOrder.id]
+    );
+    const lateRefund = await withDatabaseTransaction(pool, (transaction) =>
+      createRefund(transaction, {
+        actorUserId: seededUserId,
+        idempotencyKey: "late-organizer-refund",
+        initiator: "organizer",
+        items: [
+          {
+            orderItemId: lateRefundLine.rows[0]!.id,
+            quantity: 1,
+          },
+        ],
+        orderId: lateRefundOrder.id,
+        organizationId: seededOrganizationId,
+        reason: "Post-event customer service adjustment",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachRefundProviderReference(transaction, {
+        providerRefundId: "re_late_failed",
+        refundId: lateRefund.id,
+      })
+    );
+    const failedLateRefund = await withDatabaseTransaction(
+      pool,
+      (transaction) =>
+        markRefundProviderFailure(transaction, {
+          amountMinor: lateRefund.amountMinor,
+          code: "provider_declined",
+          currency: lateRefund.currency,
+          providerPaymentIntentId: "pi_late_refund",
+          providerRefundId: "re_late_failed",
+          refundId: lateRefund.id,
+        })
+    );
+    assert.equal(failedLateRefund.replayed, false);
+    const retriedLateRefund = await withDatabaseTransaction(
+      pool,
+      (transaction) =>
+        createRefund(transaction, {
+          actorUserId: seededUserId,
+          idempotencyKey: "late-organizer-refund-retry",
+          initiator: "organizer",
+          items: [
+            {
+              orderItemId: lateRefundLine.rows[0]!.id,
+              quantity: 1,
+            },
+          ],
+          orderId: lateRefundOrder.id,
+          organizationId: seededOrganizationId,
+          reason: "Retry after provider rejection",
+        })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachRefundProviderReference(transaction, {
+        providerRefundId: "re_late_integration_refund",
+        refundId: retriedLateRefund.id,
+      })
+    );
+    const lateFinalized = await withDatabaseTransaction(pool, (transaction) =>
+      finalizeRefund(transaction, {
+        amountMinor: retriedLateRefund.amountMinor,
+        currency: retriedLateRefund.currency,
+        providerPaymentIntentId: "pi_late_refund",
+        providerRefundId: "re_late_integration_refund",
+        refundId: retriedLateRefund.id,
+      })
+    );
+    assert.equal(
+      lateFinalized.inventoryReturned,
+      false,
+      "A refund after event start never returns inventory."
+    );
+    const lateInventory = await pool.query<{
+      seatStatus: string;
+      ticketStatus: string;
+    }>(
+      `SELECT
+         (SELECT "status"::text FROM "event_seats" WHERE "id" = $1)
+           AS "seatStatus",
+         (SELECT "status"::text FROM "tickets" WHERE "order_id" = $2)
+           AS "ticketStatus"`,
+      [lateRefundFixture.seatIds[0], lateRefundOrder.id]
+    );
+    assert.deepEqual(lateInventory.rows[0], {
+      seatStatus: "sold",
+      ticketStatus: "refunded",
+    });
+
     // QR credentials: issuance mints one nonsecret public number per ticket plus
     // an unmatchable placeholder hash (no raw bearer escapes issuance), and the
     // owner materializes and rotates a usable bearer through actor-scoped reads.
@@ -2748,6 +3071,7 @@ try {
         migrations: "applied",
         paymentFinalization: "verified",
         redis: "isolated",
+        refunds: "verified",
         scannerCheckIn: "verified",
         schedules: "verified",
         seedDomainRecords: 27,

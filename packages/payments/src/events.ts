@@ -29,10 +29,39 @@ export const paymentProviderEventSchema = z
 
 export type PaymentProviderEvent = z.infer<typeof paymentProviderEventSchema>;
 
+export const refundProviderEventSchema = z
+  .object({
+    data: z.object({
+      object: z
+        .object({
+          amount: z.number().int().positive(),
+          currency: z.string().length(3),
+          failure_reason: z.string().max(80).nullish(),
+          id: z.string().min(1).max(120),
+          metadata: z.record(z.string(), z.string()).optional(),
+          payment_intent: z.string().min(1).max(120),
+          status: z.string().max(40),
+        })
+        .loose(),
+    }),
+    id: z.string().min(1).max(120),
+    type: z.literal("refund.updated"),
+  })
+  .loose();
+
+export type RefundProviderEvent = z.infer<typeof refundProviderEventSchema>;
+
 export function parsePaymentProviderEvent(
   payload: unknown
 ): PaymentProviderEvent | null {
   const result = paymentProviderEventSchema.safeParse(payload);
+  return result.success ? result.data : null;
+}
+
+export function parseRefundProviderEvent(
+  payload: unknown
+): RefundProviderEvent | null {
+  const result = refundProviderEventSchema.safeParse(payload);
   return result.success ? result.data : null;
 }
 

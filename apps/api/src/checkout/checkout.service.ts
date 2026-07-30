@@ -127,6 +127,7 @@ export class CheckoutService {
       holdId: order.holdId,
       items: order.items.map((item) => ({
         eventSeatId: item.eventSeatId,
+        orderItemId: item.orderItemId,
         quantity: item.quantity,
         rowLabel: item.rowLabel,
         seatLabel: item.seatLabel,

@@ -22,6 +22,7 @@ import type {
 import { EventsService } from "./events.service.js";
 import type {
   EventsStore,
+  CancelResult,
   PublishResult,
   ReplaceTicketTypesResult,
   UpdateDraftResult,
@@ -74,10 +75,13 @@ function makeEvent(overrides: Partial<EventRow> = {}): EventRow {
   return {
     createdAt: new Date(),
     currency: "USD",
+    customerRefundCutoffMinutes: 1440,
+    customerRefundsEnabled: false,
     description: null,
     endsAt: new Date("2026-09-01T04:00:00.000Z"),
     holdDurationSeconds: 600,
     id: randomUUID(),
+    inventoryReturnCutoffMinutes: 1440,
     mediaUrl: null,
     organizationId: randomUUID(),
     publishedAt: null,
@@ -217,6 +221,10 @@ class FakeEventsStore implements EventsStore {
     });
     this.events.push(event);
     return event;
+  }
+
+  async cancelEvent(): Promise<CancelResult> {
+    return makeEvent({ status: "cancelled", version: 2 });
   }
 
   async updateDraft(): Promise<UpdateDraftResult> {
@@ -371,7 +379,10 @@ describe("createEvent", () => {
 describe("updateDraft", () => {
   const draftBody = {
     currency: "USD",
+    customerRefundCutoffMinutes: 1440,
+    customerRefundsEnabled: false,
     holdDurationSeconds: 600,
+    inventoryReturnCutoffMinutes: 1440,
     waitingRoomEnabled: false,
     timezone: "America/Toronto",
     title: "Renamed Event",

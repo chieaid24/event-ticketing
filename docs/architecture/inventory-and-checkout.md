@@ -102,11 +102,27 @@ token, lease, and failure decisions.
 
 ## Refunds
 
-Accept order items and quantities, not a client amount. Lock the order and
-items, apply the event policy, calculate the value, and create one pending
-refund. Stripe webhook processing finalizes state, voids tickets, and applies
-the explicit inventory-return policy.
+Accept order item IDs and quantities, not a client amount. Lock the order,
+subtract quantities in requested, provider-pending, and completed refunds, apply
+the event policy, and calculate the value from stored price and fee snapshots.
+The `(order_id, request_key)` constraint makes retries one logical refund.
 
-Do not return inventory after event start. Before the configured cutoff, an
-assigned seat may return to available and general-admission sold quantity may
-decrease.
+Customers may request refunds only when the event enables them and database time
+is before the configured customer cutoff. Organization members with
+`finance.manage` may request a refund later with an operator reason.
+
+The worker calls the provider outside the database transaction with
+`refund:<refund_id>` as the provider idempotency key. A signed provider webhook
+finalizes the refund only after its refund ID, provider reference, amount, and
+currency match the stored target. A verified terminal provider failure releases
+the requested quantities for a later retry. Successful finalization locks the
+affected records, marks tickets refunded, and applies inventory changes once.
+See [ADR 0009](../adr/0009-refund-finalization-and-inventory-return.md).
+
+Return inventory only before both event start and the configured inventory
+cutoff. A later refund still voids the ticket but leaves assigned inventory sold
+and general-admission sold quantity unchanged.
+
+Each confirmation, reminder, refund, or cancellation delivery has one
+notification record and one outbox event. Transient delivery failures retry;
+invalid addresses and permanent provider failures become suppressed.
