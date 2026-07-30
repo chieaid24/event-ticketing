@@ -12,3 +12,5 @@ evidence. They do not define component behavior or visual rules; use
 - [Payment processing at 1440 by 900](checkout-processing-desktop.png)
 - [Order confirmation at 1440 by 900](checkout-confirmation-desktop.png)
 - [Order confirmation at 390 by 844](checkout-confirmation-mobile.png)
+- [Scanner admitted result at 1440 by 900](scanner-admitted-desktop.png)
+- [Scanner admitted result at 390 by 844](scanner-admitted-mobile.png)

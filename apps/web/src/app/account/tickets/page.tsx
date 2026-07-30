@@ -6,6 +6,7 @@ import { loadWebConfig } from "@event-ticketing/config";
 import { SiteHeader } from "../../../components/site-header";
 import { fetchCurrentUser } from "../../../lib/auth-server";
 import { formatEventInstant } from "../../../lib/format";
+import { ticketStatusLabels } from "../../../lib/ticket-status";
 import { fetchTickets } from "../../../lib/tickets-server";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function TicketsPage() {
                   </p>
                 </div>
                 <span className="ticket-status" data-status={ticket.status}>
-                  {ticket.status === "active" ? "Active" : "Void"}
+                  {ticketStatusLabels[ticket.status]}
                 </span>
               </li>
             ))}
