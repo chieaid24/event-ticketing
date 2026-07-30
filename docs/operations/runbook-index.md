@@ -72,6 +72,10 @@ Available runbooks:
 
 - [Inspect and redeliver outbox dead letters](../runbooks/outbox-dead-letters.md)
 - [Recover a refund webhook backlog](../runbooks/refund-webhook-backlog.md)
+- [Retry a dead-letter job](../runbooks/dead-letter-jobs.md)
+
+See [observability](observability.md) for metric collection, trace correlation,
+alert rules, dashboards, analytics access, and operational ownership.
 
 ## Recovery targets
 

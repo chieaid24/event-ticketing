@@ -8,6 +8,7 @@ export * from "./events.js";
 export * from "./hold-availability-mirror.js";
 export * from "./holds.js";
 export * from "./orders.js";
+export * from "./operations.js";
 export * from "./organizations.js";
 export * from "./outbox.js";
 export * from "./refunds.js";

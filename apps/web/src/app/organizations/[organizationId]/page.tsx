@@ -59,6 +59,15 @@ export default async function OrganizationDetailPage({
           <a href={`/organizations/${organizationId}/venues`}>Manage venues</a>
           {" | "}
           <a href={`/organizations/${organizationId}/events`}>Manage events</a>
+          {permissions.includes("analytics.read") ||
+          permissions.includes("operations.read") ? (
+            <>
+              {" | "}
+              <a href={`/organizations/${organizationId}/operations`}>
+                View operations
+              </a>
+            </>
+          ) : null}
         </p>
         <OrganizationDetailPanels
           apiBaseUrl={config.apiBaseUrl}

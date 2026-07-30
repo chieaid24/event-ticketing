@@ -388,6 +388,7 @@ describe("OrganizationsService organization scoping", () => {
     expect(detail.membership.permissions).toEqual([
       "organization.read",
       "members.read",
+      "analytics.read",
       "venues.manage",
       "events.manage",
     ]);

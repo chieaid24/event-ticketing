@@ -6,6 +6,7 @@ import {
   RequestLoggingMiddleware,
   type RequestWithId,
 } from "./request-logging.middleware.js";
+import { HttpMetrics } from "./observability/http-metrics.js";
 
 function createResponse() {
   const response = new EventEmitter() as EventEmitter & {
@@ -18,15 +19,20 @@ function createResponse() {
 }
 
 describe("RequestLoggingMiddleware", () => {
-  it("propagates a safe request ID and logs the path without its query", () => {
+  it("propagates a safe request ID and bounds metric paths by route", () => {
     const logger = {
       info: vi.fn(),
     };
-    const middleware = new RequestLoggingMiddleware(logger as never);
+    const metrics = new HttpMetrics();
+    const middleware = new RequestLoggingMiddleware(logger as never, metrics);
     const request = {
-      header: vi.fn().mockReturnValue("client-request-42"),
+      baseUrl: "",
+      header: vi.fn((name: string) =>
+        name === "x-request-id" ? "client-request-42" : undefined
+      ),
       method: "GET",
       path: "/status",
+      route: { path: "/status" },
     } as unknown as RequestWithId;
     const response = createResponse();
     const next = vi.fn();
@@ -44,17 +50,47 @@ describe("RequestLoggingMiddleware", () => {
         event: "http.request.completed",
         path: "/status",
         request_id: "client-request-42",
+        trace_id: expect.stringMatching(/^[0-9a-f]{32}$/),
       })
     );
+    expect(metrics.render()).toContain('path="/status"');
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("replaces unsafe request IDs", () => {
-    const middleware = new RequestLoggingMiddleware({
-      info: vi.fn(),
-    } as never);
+  it("uses one metric label for unmatched paths", () => {
+    const metrics = new HttpMetrics();
+    const middleware = new RequestLoggingMiddleware(
+      { info: vi.fn() } as never,
+      metrics
+    );
     const request = {
-      header: vi.fn().mockReturnValue("unsafe\nrequest-id"),
+      baseUrl: "",
+      header: vi.fn(),
+      method: "GET",
+      path: "/attacker-controlled-value",
+    } as unknown as RequestWithId;
+    const response = createResponse();
+
+    response.statusCode = 404;
+    middleware.use(request, response as never, vi.fn());
+    response.emit("finish");
+
+    expect(metrics.render()).toContain('path="/unmatched"');
+    expect(metrics.render()).not.toContain("attacker-controlled-value");
+  });
+
+  it("replaces unsafe request IDs", () => {
+    const middleware = new RequestLoggingMiddleware(
+      {
+        info: vi.fn(),
+      } as never,
+      new HttpMetrics()
+    );
+    const request = {
+      baseUrl: "",
+      header: vi.fn((name: string) =>
+        name === "x-request-id" ? "unsafe\nrequest-id" : undefined
+      ),
       method: "GET",
       path: "/status",
     } as unknown as RequestWithId;

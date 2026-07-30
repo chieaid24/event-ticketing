@@ -1,0 +1,54 @@
+groups:
+  - name: event-ticketing-api
+    rules:
+      - alert: EventTicketingApiUnavailable
+        expr: up{job="event-ticketing-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Event Ticketing API is unavailable
+          runbook: docs/operations/observability.md
+      - alert: EventTicketingApiHighErrorRate
+        expr: |
+          (
+            sum(rate(event_ticketing_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(event_ticketing_http_requests_total[5m])), 0.001)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Event Ticketing API 5xx rate exceeds 2 percent
+          runbook: docs/operations/observability.md
+      - alert: EventTicketingApiHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(event_ticketing_http_request_duration_seconds_bucket[5m])
+            )
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Event Ticketing API p95 latency exceeds one second
+          runbook: docs/operations/observability.md
+      - alert: EventTicketingOutboxDeadLetter
+        expr: event_ticketing_outbox_jobs{state="dead_letter"} > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Event Ticketing background job reached its attempt limit
+          runbook: docs/runbooks/dead-letter-jobs.md
+      - alert: EventTicketingOutboxBacklog
+        expr: event_ticketing_outbox_oldest_ready_age_seconds > 300
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Event Ticketing ready job has waited more than five minutes
+          runbook: docs/runbooks/dead-letter-jobs.md
