@@ -5,6 +5,8 @@ deployable web, API, and worker applications.
 [ADR 0001](../adr/0001-monorepo-and-service-boundaries.md) records the boundary
 and tooling decision. [ADR 0002](../adr/0002-postgresql-transactional-outbox.md)
 records durable asynchronous delivery and retry semantics.
+[ADR 0010](../adr/0010-aws-ecs-single-image-deployment.md) records the AWS
+network, compute, and immutable-image promotion decision.
 
 ```text
 Browser and scanner
@@ -85,6 +87,19 @@ configuration module.
 The local environment runs PostgreSQL, Redis, Mailpit, and MinIO from pinned
 container images. The API checks PostgreSQL and Redis readiness with finite
 driver and application timeouts. Liveness never depends on external services.
+
+AWS environments span at least two Availability Zones. The load balancer uses
+public subnets, ECS tasks use private application subnets without public
+addresses, and RDS and ElastiCache use isolated private data subnets. Interface
+endpoints keep image pulls, logs, and secret reads on the AWS network. One NAT
+gateway per Availability Zone avoids a shared application-egress failure.
+
+Separate web and API CloudFront distributions share one AWS WAF. The API
+distribution adds an origin-routing header so paths such as `/organizations` can
+exist in both applications without collision. The load balancer accepts only
+CloudFront origin traffic and routes that header to the API target group. ECS
+services use separate task roles, secrets, logs, health checks, and scaling
+policies while running the same digest-addressed image.
 
 Every API response carries a request ID. Structured request logs include the
 method, path without query parameters, response status, duration, and request

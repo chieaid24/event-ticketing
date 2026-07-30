@@ -38,3 +38,5 @@ issue.
 - [ADR 0006: Stripe payment finalization](0006-stripe-payment-finalization.md)
 - [ADR 0007: Redis waiting-room admission](0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](0008-qr-ticket-tokens.md)
+- [ADR 0009: Refund finalization and inventory return](0009-refund-finalization-and-inventory-return.md)
+- [ADR 0010: AWS ECS single-image deployment](0010-aws-ecs-single-image-deployment.md)

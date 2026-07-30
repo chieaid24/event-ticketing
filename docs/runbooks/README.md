@@ -12,3 +12,6 @@ details in this public repository.
 - [Inspect and redeliver outbox dead letters](outbox-dead-letters.md)
 - [Recover a refund webhook backlog](refund-webhook-backlog.md)
 - [Retry a dead-letter job](dead-letter-jobs.md)
+- [Roll back an AWS release](aws-rollback.md)
+- [Restore an AWS backup](aws-backup-restoration.md)
+- [Rotate AWS runtime secrets](aws-secret-rotation.md)

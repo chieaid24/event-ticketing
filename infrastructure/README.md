@@ -1,9 +1,9 @@
-# Local Infrastructure
+# Infrastructure
 
-`compose.yaml` runs PostgreSQL, Redis, Mailpit, and MinIO for local development
-and integration tests. It does not define production infrastructure.
+Use Docker Compose for local dependencies and Terraform for AWS staging and
+production environments.
 
-## Start and stop
+## Local services
 
 ```bash
 pnpm services:up
@@ -34,5 +34,24 @@ Grafana dashboard for API traffic, failures, latency, dead letters, and outbox
 backlog. Import them into the deployment monitoring stack; they are not loaded
 by local Compose.
 
-See the [runbook index](../docs/operations/runbook-index.md) and
-[security policy](../SECURITY.md).
+## AWS
+
+The [Terraform configuration](terraform/) creates:
+
+- public load-balancer subnets and private application and data subnets in at
+  least two Availability Zones;
+- separate web and API CloudFront distributions, AWS WAF, an Application Load
+  Balancer, and private ECS Fargate services for the web, API, and worker roles;
+- private Multi-AZ RDS PostgreSQL and ElastiCache Valkey services;
+- encrypted S3, Secrets Manager, Elastic Container Registry, CloudWatch, Simple
+  Email Service, and AWS Backup resources; and
+- GitHub OpenID Connect roles for image publication and environment deployment.
+
+The [container definition](container/Dockerfile) builds one image that runs any
+application role or a database migration. The deployment workflow identifies
+that image by digest, migrates and verifies staging, then gives the production
+GitHub environment the same digest.
+
+Start with the [AWS deployment guide](../docs/operations/aws-deployment.md). Use
+the [runbook index](../docs/operations/runbook-index.md) for recovery and the
+[security policy](../SECURITY.md) for public-repository constraints.
