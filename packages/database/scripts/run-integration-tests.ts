@@ -2351,7 +2351,7 @@ try {
     );
     assert.deepEqual(lateInventory.rows[0], {
       seatStatus: "sold",
-      ticketStatus: "void",
+      ticketStatus: "refunded",
     });
 
     // QR credentials: issuance mints one nonsecret public number per ticket plus
