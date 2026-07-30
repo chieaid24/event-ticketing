@@ -1,0 +1,6 @@
+api_origin               = "https://api.tickets.example.test"
+aws_region               = "us-east-1"
+github_oidc_provider_arn = "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+image_uri                = "REPOSITORY_URL@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+public_origin             = "https://tickets.example.test"
+vpc_cidr                  = "10.20.0.0/16"

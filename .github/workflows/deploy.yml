@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-platform
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build immutable image
+    runs-on: ubuntu-latest
+    outputs:
+      image-uri: ${{ steps.image.outputs.uri }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+      - id: login
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: lookup
+        env:
+          COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          digest="$(aws ecr describe-images \
+            --repository-name "$REPOSITORY" \
+            --image-ids "imageTag=$COMMIT" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text 2>/dev/null || true)"
+          if [ -n "$digest" ] && [ "$digest" != "None" ]; then
+            printf 'exists=true\n' >> "$GITHUB_OUTPUT"
+            printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          else
+            printf 'exists=false\n' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.lookup.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v3
+      - id: build
+        if: steps.lookup.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/container/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags:
+            ${{ steps.login.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{
+            github.sha }}
+      - id: image
+        env:
+          DIGEST:
+            ${{ steps.lookup.outputs.digest || steps.build.outputs.digest }}
+          REGISTRY: ${{ steps.login.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run:
+          printf 'uri=%s/%s@%s\n' "$REGISTRY" "$REPOSITORY" "$DIGEST" >>
+          "$GITHUB_OUTPUT"
+
+  staging:
+    name: deploy staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      - env:
+          API_SERVICE: ${{ vars.ECS_API_SERVICE }}
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          IMAGE_URI: ${{ needs.build.outputs.image-uri }}
+          SMOKE_URL: ${{ vars.SMOKE_URL }}
+          WEB_SERVICE: ${{ vars.ECS_WEB_SERVICE }}
+          WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+        run:
+          ./scripts/deploy-ecs.sh "$CLUSTER" "$WEB_SERVICE" "$API_SERVICE"
+          "$WORKER_SERVICE" "$IMAGE_URI" "$SMOKE_URL"
+
+  production:
+    name: promote production
+    needs: [build, staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      - env:
+          API_SERVICE: ${{ vars.ECS_API_SERVICE }}
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          IMAGE_URI: ${{ needs.build.outputs.image-uri }}
+          SMOKE_URL: ${{ vars.SMOKE_URL }}
+          WEB_SERVICE: ${{ vars.ECS_WEB_SERVICE }}
+          WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+        run:
+          ./scripts/deploy-ecs.sh "$CLUSTER" "$WEB_SERVICE" "$API_SERVICE"
+          "$WORKER_SERVICE" "$IMAGE_URI" "$SMOKE_URL"

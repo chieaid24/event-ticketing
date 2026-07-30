@@ -22,8 +22,13 @@ const requiredFiles = [
   "docs/security/security-model.md",
   "docs/testing/strategy.md",
   "docs/operations/runbook-index.md",
+  "docs/operations/aws-deployment.md",
   "docs/adr/README.md",
   "docs/adr/0001-monorepo-and-service-boundaries.md",
+  "docs/adr/0010-aws-ecs-single-image-deployment.md",
+  "docs/runbooks/aws-backup-restoration.md",
+  "docs/runbooks/aws-rollback.md",
+  "docs/runbooks/aws-secret-rotation.md",
   "apps/web/README.md",
   "apps/api/README.md",
   "apps/worker/README.md",
@@ -33,6 +38,17 @@ const requiredFiles = [
   "packages/ui/README.md",
   "packages/test-utils/README.md",
   "infrastructure/README.md",
+  "infrastructure/container/Dockerfile",
+  "infrastructure/terraform/README.md",
+  "infrastructure/terraform/foundation/main.tf",
+  "infrastructure/terraform/environments/staging/main.tf",
+  "infrastructure/terraform/environments/production/main.tf",
+  "infrastructure/terraform/modules/network/main.tf",
+  "infrastructure/terraform/modules/data/main.tf",
+  "infrastructure/terraform/modules/platform/main.tf",
+  ".github/workflows/deploy.yml",
+  "scripts/container-entrypoint.sh",
+  "scripts/deploy-ecs.sh",
 ];
 
 async function markdownFiles(directory) {
@@ -100,6 +116,54 @@ test("local service images and health checks are pinned", async () => {
     compose.match(/^\s+healthcheck:\s*$/gm)?.length,
     services.length
   );
+});
+
+test("AWS infrastructure preserves isolation and immutable promotion", async () => {
+  const network = await readFile(
+    join(root, "infrastructure/terraform/modules/network/main.tf"),
+    "utf8"
+  );
+  const data = await readFile(
+    join(root, "infrastructure/terraform/modules/data/main.tf"),
+    "utf8"
+  );
+  const platform = await readFile(
+    join(root, "infrastructure/terraform/modules/platform/main.tf"),
+    "utf8"
+  );
+  const foundation = await readFile(
+    join(root, "infrastructure/terraform/foundation/main.tf"),
+    "utf8"
+  );
+  const deployment = await readFile(
+    join(root, ".github/workflows/deploy.yml"),
+    "utf8"
+  );
+  const dockerfile = await readFile(
+    join(root, "infrastructure/container/Dockerfile"),
+    "utf8"
+  );
+
+  for (const tier of ["public", "application", "data"]) {
+    assert.match(network, new RegExp(`resource "aws_subnet" "${tier}"`));
+  }
+  assert.match(network, /map_public_ip_on_launch = false/g);
+  assert.match(data, /publicly_accessible\s+= false/);
+  assert.match(data, /multi_az\s+= true/g);
+  assert.match(data, /resource "aws_backup_plan"/);
+  assert.match(platform, /assign_public_ip = false/);
+  assert.match(platform, /resource "aws_wafv2_web_acl"/);
+  assert.match(platform, /resource "aws_cloudfront_distribution" "api"/);
+  assert.match(platform, /http_header_name = "X-Event-Ticketing-Origin"/);
+  assert.match(platform, /API_BASE_URL = var\.api_origin/);
+  assert.match(platform, /resource "aws_appautoscaling_policy"/);
+  assert.match(platform, /AssumeRoleWithWebIdentity/);
+  assert.match(foundation, /image_tag_mutability = "IMMUTABLE"/);
+  assert.match(deployment, /id-token: write/);
+  assert.match(deployment, /needs: \[build, staging\]/);
+  assert.match(deployment, /needs\.build\.outputs\.image-uri/g);
+  assert.doesNotMatch(deployment, /AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY/);
+  assert.match(dockerfile, /^FROM .+@sha256:[0-9a-f]{64}/m);
 });
 
 test("project documents do not use discarded names", async () => {

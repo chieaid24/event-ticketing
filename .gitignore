@@ -12,6 +12,11 @@ packages/database/src/generated/
 .env.*
 !.env.example
 *.log
+**/.terraform/
+*.auto.tfvars
+*.tfplan
+*.tfstate
+*.tfstate.*
 
 # Agent workspaces
 CLAUDE.md
