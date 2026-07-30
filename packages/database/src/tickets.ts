@@ -5,7 +5,7 @@ import type { TicketTypeKind } from "./events.js";
 import { resolveActorKey, type OrderActor } from "./orders.js";
 import type { DatabaseExecutor } from "./outbox.js";
 
-export type TicketStatus = "active" | "void";
+export type TicketStatus = "active" | "checked_in" | "void" | "refunded";
 
 /**
  * One admission credential as its owner may see it. Carries the nonsecret
