@@ -39,6 +39,11 @@ import { HealthService } from "./health.service.js";
 import { OrganizationsController } from "./organizations/organizations.controller.js";
 import { OrganizationsService } from "./organizations/organizations.service.js";
 import { PgOrganizationsStore } from "./organizations/organizations.store.js";
+import { HttpMetrics } from "./observability/http-metrics.js";
+import { MetricsController } from "./observability/metrics.controller.js";
+import { OperationsController } from "./operations/operations.controller.js";
+import { OperationsService } from "./operations/operations.service.js";
+import { PgOperationsStore } from "./operations/operations.store.js";
 import { RefundsController } from "./refunds/refunds.controller.js";
 import { RefundsService } from "./refunds/refunds.service.js";
 import { PgRefundsStore } from "./refunds/refunds.store.js";
@@ -65,10 +70,13 @@ import {
   EVENTS_SERVICE,
   EVENTS_STORE,
   HOLD_EXPIRY_MIRROR,
+  HTTP_METRICS,
   HOLDS_SERVICE,
   HOLDS_STORE,
   ORGANIZATIONS_SERVICE,
   ORGANIZATIONS_STORE,
+  OPERATIONS_SERVICE,
+  OPERATIONS_STORE,
   REFUNDS_SERVICE,
   REFUNDS_STORE,
   REDIS_HEALTH,
@@ -100,7 +108,9 @@ export class AppModule implements NestModule {
         AuthController,
         DiscoveryController,
         HealthController,
+        MetricsController,
         OrganizationsController,
+        OperationsController,
         StatusController,
         VenuesController,
         EventsController,
@@ -156,6 +166,19 @@ export class AppModule implements NestModule {
           provide: ORGANIZATIONS_SERVICE,
           useFactory: (auth: AuthService, store: PgOrganizationsStore) =>
             new OrganizationsService(auth, store),
+        },
+        {
+          provide: OPERATIONS_STORE,
+          useFactory: () => new PgOperationsStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, OPERATIONS_STORE, STRUCTURED_LOGGER],
+          provide: OPERATIONS_SERVICE,
+          useFactory: (
+            auth: AuthService,
+            store: PgOperationsStore,
+            structuredLogger: Logger
+          ) => new OperationsService(auth, store, structuredLogger),
         },
         {
           provide: VENUES_STORE,
@@ -342,6 +365,10 @@ export class AppModule implements NestModule {
         {
           provide: STRUCTURED_LOGGER,
           useValue: logger,
+        },
+        {
+          provide: HTTP_METRICS,
+          useFactory: () => new HttpMetrics(),
         },
         {
           inject: [DATABASE_HEALTH, REDIS_HEALTH],

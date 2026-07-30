@@ -5,6 +5,7 @@ export * from "./discovery.js";
 export * from "./events.js";
 export * from "./holds.js";
 export * from "./organizations.js";
+export * from "./operations.js";
 export * from "./scanning.js";
 export * from "./refunds.js";
 export * from "./tickets.js";

@@ -646,6 +646,73 @@ h2 {
   font-weight: 650;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
+.operations-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 24px 0 0;
+  border-block: 1px solid var(--border);
+}
+
+.operations-summary--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.operations-summary div {
+  padding: 16px;
+  border-right: 1px solid var(--border);
+}
+
+.operations-summary div:last-child {
+  border-right: 0;
+}
+
+.operations-summary dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.operations-summary dd {
+  margin: 4px 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.563rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 560;
+}
+
+.operations-summary small {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.operations-jobs th,
+.operations-jobs td {
+  white-space: nowrap;
+}
+
+.operations-jobs th:first-child {
+  white-space: normal;
+}
+
+@media (max-width: 767px) {
+  .operations-summary,
+  .operations-summary--five {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .operations-summary div {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .operations-summary div:nth-child(2n) {
+    border-right: 0;
+  }
+}
+
 .checkout-layout {
   display: grid;
   grid-template-columns: 1fr;

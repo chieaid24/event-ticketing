@@ -19,6 +19,9 @@ organization so probing cannot confirm one exists.
 | `members.role.update`          | yes   | yes   | no            | no      | no      | no     |
 | `members.remove`               | yes   | yes   | no            | no      | no      | no     |
 | `audit.read`                   | yes   | yes   | no            | no      | no      | no     |
+| `analytics.read`               | yes   | yes   | yes           | yes     | no      | no     |
+| `operations.read`              | yes   | yes   | no            | no      | no      | no     |
+| `operations.manage`            | yes   | yes   | no            | no      | no      | no     |
 | `venues.manage`                | yes   | yes   | yes           | no      | no      | no     |
 | `events.manage`                | yes   | yes   | yes           | no      | no      | no     |
 | `finance.manage`               | yes   | yes   | no            | yes     | no      | no     |
@@ -64,6 +67,11 @@ organization so probing cannot confirm one exists.
   `scanner.reverse` and a stated reason, so the scanner role can admit but never
   undo. A ticket outside the addressed organization and event answers as an
   invalid scan or a missing ticket, never as another tenant's data.
+- Analytics routes need `analytics.read` and scope every aggregate to the
+  addressed organization. Job views need `operations.read`, hide payloads, and
+  resolve organization ownership through domain references. Retrying a dead
+  letter needs `operations.manage`, a current CSRF-checked session, and the last
+  observed job timestamp. Global job routes require a platform administrator.
 - Invitations answer `202` whether or not the email has an account, so the
   invite flow cannot enumerate users. Invitations become visible to the invited
   person after they sign in.
@@ -78,6 +86,7 @@ transaction: `organization.created`, `organization.settings.updated`,
 `venue.updated`, `venue.layout.replaced`, `venue.deleted`, `event.created`,
 `event.updated`, `event.ticket_types.replaced`, `event.published`,
 `event.cancelled`, `refund.requested`, `ticket.checked_in`, and
-`ticket.checkin_reversed`. Entries keep the actor, target, and a small detail
-object, and survive actor or organization deletion through `SET NULL` foreign
-keys. Owners and admins read them at `GET /organizations/:id/audit-logs`.
+`ticket.checkin_reversed`, and `job.retried`. Entries keep the actor, target,
+and a small detail object, and survive actor or organization deletion through
+`SET NULL` foreign keys. Owners and admins read them at
+`GET /organizations/:id/audit-logs`.

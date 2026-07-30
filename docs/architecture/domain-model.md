@@ -79,6 +79,13 @@ Check-in updates the locked ticket and adds a scan record in one transaction.
 - `analytics_events` and daily aggregates support organization-isolated
   reporting.
 
+Analytics events are append-only records captured in the same transaction as a
+hold, checkout, paid order, refund transition, or scan. A database projection
+updates UTC daily financial and activity rows once per source transition.
+Financial rows partition by ISO 4217 currency, so reports never add unlike
+currencies. The API reads these projections for time ranges and reads current
+inventory from authoritative counters and seat states.
+
 ## State machines
 
 Event states include draft, published, sales paused, postponed, cancelled,

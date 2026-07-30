@@ -72,6 +72,11 @@ import {
   recordPaymentFailure,
   recordWebhookEvent,
 } from "../src/orders.js";
+import {
+  getOrganizationAnalytics,
+  listOrganizationJobs,
+  retryOperationsJob,
+} from "../src/operations.js";
 import { insertAuditLog } from "../src/organizations.js";
 import {
   createDatabasePool,
@@ -3056,9 +3061,155 @@ try {
       );
     }
 
+    const analytics = await getOrganizationAnalytics(pool, {
+      from: "2020-01-01",
+      organizationId: seededOrganizationId,
+      to: "2030-12-31",
+    });
+    const expectedFinancials = await pool.query<{
+      grossMinor: string;
+      paidOrders: string;
+      ticketsSold: string;
+    }>(
+      `
+        WITH "paid" AS (
+          SELECT
+            "orders"."id",
+            "orders"."total_minor",
+            COALESCE(SUM("order_items"."quantity"), 0) AS "tickets_sold"
+          FROM "orders"
+          INNER JOIN "events" ON "events"."id" = "orders"."event_id"
+          LEFT JOIN "order_items" ON "order_items"."order_id" = "orders"."id"
+          WHERE "events"."organization_id" = $1
+            AND "orders"."paid_at" IS NOT NULL
+          GROUP BY "orders"."id"
+        )
+        SELECT
+          COALESCE(SUM("total_minor"), 0) AS "grossMinor",
+          COUNT(*) AS "paidOrders",
+          COALESCE(SUM("tickets_sold"), 0) AS "ticketsSold"
+        FROM "paid"
+      `,
+      [seededOrganizationId]
+    );
+    const paidOrderSources = await pool.query<{ id: string }>(
+      `
+        SELECT "orders"."id"
+        FROM "orders"
+        INNER JOIN "events" ON "events"."id" = "orders"."event_id"
+        WHERE "events"."organization_id" = $1
+          AND "orders"."paid_at" IS NOT NULL
+        ORDER BY "orders"."id"
+      `,
+      [seededOrganizationId]
+    );
+    const recordedPaidOrderSources = await pool.query<{ sourceId: string }>(
+      `
+        SELECT "source_id" AS "sourceId"
+        FROM "analytics_events"
+        WHERE "organization_id" = $1 AND "kind" = 'order.paid'
+        ORDER BY "source_id"
+      `,
+      [seededOrganizationId]
+    );
+    assert.deepEqual(
+      recordedPaidOrderSources.rows.map((row) => row.sourceId),
+      paidOrderSources.rows.map((row) => row.id)
+    );
+    assert.equal(
+      analytics.financials.reduce(
+        (total, row) => total + Number(row.grossMinor),
+        0
+      ),
+      Number(expectedFinancials.rows[0]!.grossMinor)
+    );
+    assert.equal(
+      analytics.financials.reduce(
+        (total, row) => total + Number(row.paidOrders),
+        0
+      ),
+      Number(expectedFinancials.rows[0]!.paidOrders)
+    );
+    assert.equal(
+      analytics.financials.reduce(
+        (total, row) => total + Number(row.ticketsSold),
+        0
+      ),
+      Number(expectedFinancials.rows[0]!.ticketsSold)
+    );
+    const acceptedScans = await pool.query<{ count: number }>(
+      `
+        SELECT count(*)::int AS "count"
+        FROM "scans"
+        WHERE "organization_id" = $1 AND "result" = 'accepted'
+      `,
+      [seededOrganizationId]
+    );
+    assert.equal(
+      analytics.activity.reduce(
+        (total, row) => total + Number(row.acceptedCheckins),
+        0
+      ),
+      acceptedScans.rows[0]!.count
+    );
+
+    const operationsRetryEvent = await enqueueOutboxEvent(pool, {
+      aggregateId: scanFixture.eventId,
+      aggregateType: "event",
+      payload: { eventId: scanFixture.eventId },
+      topic: "integration.retry",
+    });
+    const operationsDeadLetter = await pool.query<{ updatedAt: Date }>(
+      `
+        UPDATE "outbox_events"
+        SET
+          "status" = 'dead_letter',
+          "attempt_count" = "max_attempts",
+          "last_error_code" = 'integration_failure',
+          "dead_lettered_at" = clock_timestamp(),
+          "updated_at" = clock_timestamp()
+        WHERE "id" = $1
+        RETURNING "updated_at" AS "updatedAt"
+      `,
+      [operationsRetryEvent.id]
+    );
+    const organizationJobs = await listOrganizationJobs(pool, {
+      limit: 100,
+      organizationId: seededOrganizationId,
+    });
+    assert.equal(
+      organizationJobs.find((job) => job.id === operationsRetryEvent.id)
+        ?.status,
+      "dead_letter"
+    );
+    assert.equal(
+      await retryOperationsJob(pool, {
+        actorUserId: seededUserId,
+        expectedUpdatedAt: operationsDeadLetter.rows[0]!.updatedAt,
+        jobId: operationsRetryEvent.id,
+        organizationId: seededOrganizationId,
+      }),
+      "retried"
+    );
+    const retriedJob = await pool.query<{
+      attemptCount: number;
+      status: string;
+    }>(
+      `
+        SELECT
+          "attempt_count" AS "attemptCount",
+          "status"::text AS "status"
+        FROM "outbox_events"
+        WHERE "id" = $1
+      `,
+      [operationsRetryEvent.id]
+    );
+    assert.deepEqual(retriedJob.rows, [{ attemptCount: 0, status: "pending" }]);
+
     process.stdout.write(
       `${JSON.stringify({
         assignedSeatHolds: "verified",
+        analytics: "reconciled",
         atomicOutbox: "verified",
         authLifecycle: "verified",
         concurrentClaims: claimedIds.length,
@@ -3072,6 +3223,7 @@ try {
         paymentFinalization: "verified",
         redis: "isolated",
         refunds: "verified",
+        safeJobRetry: "verified",
         scannerCheckIn: "verified",
         schedules: "verified",
         seedDomainRecords: 27,

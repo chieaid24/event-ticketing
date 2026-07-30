@@ -29,5 +29,10 @@ release tag and digest, and waits for service health checks. The tracked
 passwords are local-only placeholders. Do not reuse them in a shared or deployed
 environment.
 
+The [observability assets](observability/) provide Prometheus alert rules and a
+Grafana dashboard for API traffic, failures, latency, dead letters, and outbox
+backlog. Import them into the deployment monitoring stack; they are not loaded
+by local Compose.
+
 See the [runbook index](../docs/operations/runbook-index.md) and
 [security policy](../SECURITY.md).
