@@ -18,10 +18,13 @@ export type TicketTypeKind = "assigned" | "general_admission";
 export interface EventRow extends QueryResultRow {
   createdAt: Date;
   currency: string;
+  customerRefundCutoffMinutes: number;
+  customerRefundsEnabled: boolean;
   description: string | null;
   endsAt: Date | null;
   holdDurationSeconds: number;
   id: string;
+  inventoryReturnCutoffMinutes: number;
   mediaUrl: string | null;
   organizationId: string;
   publishedAt: Date | null;
@@ -90,11 +93,14 @@ export interface TicketTypeInputData {
 
 export interface UpdateEventDraftInput {
   currency: string;
+  customerRefundCutoffMinutes: number;
+  customerRefundsEnabled: boolean;
   description: string | null;
   endsAt: Date | null;
   eventId: string;
   expectedVersion: number;
   holdDurationSeconds: number;
+  inventoryReturnCutoffMinutes: number;
   mediaUrl: string | null;
   organizationId: string;
   refundPolicy: string | null;
@@ -115,6 +121,9 @@ const eventColumns = `
   "status",
   "timezone",
   "currency",
+  "customer_refunds_enabled" AS "customerRefundsEnabled",
+  "customer_refund_cutoff_minutes" AS "customerRefundCutoffMinutes",
+  "inventory_return_cutoff_minutes" AS "inventoryReturnCutoffMinutes",
   "starts_at" AS "startsAt",
   "ends_at" AS "endsAt",
   "sales_start_at" AS "salesStartAt",
@@ -228,10 +237,13 @@ export async function updateEventDraft(
          "hold_duration_seconds" = $11,
          "waiting_room_enabled" = $12,
          "refund_policy" = $13,
-         "media_url" = $14,
+         "customer_refunds_enabled" = $14,
+         "customer_refund_cutoff_minutes" = $15,
+         "inventory_return_cutoff_minutes" = $16,
+         "media_url" = $17,
          "version" = "version" + 1,
          "updated_at" = CURRENT_TIMESTAMP
-     WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $15
+     WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $18
        AND "status" = 'draft'
      RETURNING ${eventColumns}`,
     [
@@ -248,6 +260,9 @@ export async function updateEventDraft(
       input.holdDurationSeconds,
       input.waitingRoomEnabled,
       input.refundPolicy,
+      input.customerRefundsEnabled,
+      input.customerRefundCutoffMinutes,
+      input.inventoryReturnCutoffMinutes,
       input.mediaUrl,
       input.expectedVersion,
     ]
@@ -265,6 +280,23 @@ export async function claimEventVersion(
      SET "version" = "version" + 1, "updated_at" = CURRENT_TIMESTAMP
      WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $3
        AND "status" = 'draft'
+     RETURNING ${eventColumns}`,
+    [input.eventId, input.organizationId, input.expectedVersion]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function markEventCancelled(
+  executor: DatabaseExecutor,
+  input: { eventId: string; expectedVersion: number; organizationId: string }
+): Promise<EventRow | null> {
+  const result = await executor.query<EventRow>(
+    `UPDATE "events"
+     SET "status" = 'cancelled',
+         "version" = "version" + 1,
+         "updated_at" = CURRENT_TIMESTAMP
+     WHERE "id" = $1 AND "organization_id" = $2 AND "version" = $3
+       AND "status" IN ('published', 'sales_paused', 'postponed')
      RETURNING ${eventColumns}`,
     [input.eventId, input.organizationId, input.expectedVersion]
   );

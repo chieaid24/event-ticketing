@@ -47,7 +47,9 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [ADR 0006: Stripe payment finalization](adr/0006-stripe-payment-finalization.md)
 - [ADR 0007: Redis waiting-room admission](adr/0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](adr/0008-qr-ticket-tokens.md)
+- [ADR 0009: Refund finalization and inventory return](adr/0009-refund-finalization-and-inventory-return.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
+- [Recover a refund webhook backlog](runbooks/refund-webhook-backlog.md)
 
 ## Ownership map
 

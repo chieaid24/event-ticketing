@@ -14,7 +14,8 @@ export interface PaymentIntentResult {
 }
 
 export interface CreateRefundInput {
-  /** Stable per-order key; a retried call returns the same logical refund. */
+  amountMinor: number;
+  /** Stable per-refund key; a retried call returns the same logical refund. */
   idempotencyKey: string;
   metadata?: Record<string, string>;
   providerPaymentIntentId: string;

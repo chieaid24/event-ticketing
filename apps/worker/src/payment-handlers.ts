@@ -6,10 +6,12 @@ import {
   finalizeOrderPayment,
   findUserById,
   loadCompensationTarget,
+  loadOrderNotificationContext,
   markWebhookEventProcessed,
   OrderNotFoundError,
   PaymentNotFoundError,
   PaymentVerificationError,
+  queueOrderNotification,
   recordPaymentFailure,
   withDatabaseTransaction,
   type OutboxEvent,
@@ -136,6 +138,49 @@ export function createPaymentHandlers(
           payload: { orderId: outcome.orderId },
           topic: PAYMENT_COMPENSATION_TOPIC,
         });
+      } else if (outcome.outcome === "paid") {
+        const context = await loadOrderNotificationContext(
+          transaction,
+          outcome.orderId
+        );
+        if (context) {
+          const amount = formatAmount(context.totalMinor, context.currency);
+          await queueOrderNotification(transaction, {
+            deduplicationKey: `order.confirmation:${outcome.orderId}`,
+            kind: "order_confirmation",
+            orderId: outcome.orderId,
+            subject: `Tickets ready for order ${context.publicNumber}`,
+            text: [
+              `Your ${amount} payment for ${context.eventTitle} is confirmed.`,
+              `Order: ${context.publicNumber}`,
+              "",
+              "Open your account to view and rotate each ticket's QR code.",
+            ].join("\n"),
+          });
+          if (
+            context.eventStartsAt &&
+            context.eventStartsAt.getTime() > Date.now()
+          ) {
+            await queueOrderNotification(transaction, {
+              availableAt: new Date(
+                Math.max(
+                  Date.now(),
+                  context.eventStartsAt.getTime() - 24 * 60 * 60 * 1000
+                )
+              ),
+              deduplicationKey: `event.reminder:${outcome.orderId}:24h`,
+              kind: "event_reminder",
+              orderId: outcome.orderId,
+              subject: `${context.eventTitle} starts soon`,
+              text: [
+                `${context.eventTitle} starts within 24 hours.`,
+                `Order: ${context.publicNumber}`,
+                "",
+                "Open your account before arrival and load each ticket's QR code.",
+              ].join("\n"),
+            });
+          }
+        }
       }
       await markWebhookEventProcessed(transaction, payload.webhookEventId);
     });
@@ -182,6 +227,7 @@ export function createPaymentHandlers(
       // Provider call outside any transaction; the stable key makes retries
       // converge on one logical refund.
       refund = await dependencies.gateway.createRefund({
+        amountMinor: target.amountMinor,
         idempotencyKey: `refund:order:${orderId}`,
         metadata: { orderId, reason: "inventory_lost" },
         providerPaymentIntentId: target.providerPaymentIntentId,

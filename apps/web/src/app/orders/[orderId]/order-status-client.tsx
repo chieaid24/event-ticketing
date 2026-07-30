@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import type { OrderSummary } from "@event-ticketing/contracts";
 
 import { AuthApiError } from "../../../lib/auth-api";
 import { fetchOrder } from "../../../lib/checkout-api";
 import { formatMoney } from "../../../lib/format";
+import { createCustomerRefund } from "../../../lib/refunds-api";
 
 type OrderState =
   | { kind: "loading" }
@@ -59,6 +60,12 @@ export function OrderStatusClient({
   orderId,
 }: Readonly<{ apiBaseUrl: string; orderId: string }>): ReactNode {
   const [state, setState] = useState<OrderState>({ kind: "loading" });
+  const [refundState, setRefundState] = useState<
+    | { kind: "idle" }
+    | { kind: "busy" }
+    | { kind: "success"; message: string }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
 
   useEffect(() => {
     let active = true;
@@ -83,6 +90,51 @@ export function OrderStatusClient({
       active = false;
     };
   }, [apiBaseUrl, orderId]);
+
+  async function handleRefund(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    if (state.kind !== "ready") {
+      return;
+    }
+    const form = new FormData(formEvent.currentTarget);
+    const items = state.order.items
+      .map((item) => ({
+        orderItemId: item.orderItemId,
+        quantity: Number(form.get(`quantity:${item.orderItemId}`) ?? 0),
+      }))
+      .filter((item) => Number.isInteger(item.quantity) && item.quantity > 0);
+    if (items.length === 0) {
+      setRefundState({
+        kind: "error",
+        message: "Select at least one ticket to refund.",
+      });
+      return;
+    }
+    setRefundState({ kind: "busy" });
+    try {
+      const refund = await createCustomerRefund(
+        apiBaseUrl,
+        orderId,
+        { items },
+        crypto.randomUUID()
+      );
+      setRefundState({
+        kind: "success",
+        message: `Refund ${refund.id} was queued for ${formatMoney(
+          refund.amountMinor,
+          refund.currency
+        )}.`,
+      });
+    } catch (error) {
+      setRefundState({
+        kind: "error",
+        message:
+          error instanceof AuthApiError
+            ? error.message
+            : "Requesting the refund failed. Try again.",
+      });
+    }
+  }
 
   if (state.kind === "loading") {
     return (
@@ -172,6 +224,51 @@ export function OrderStatusClient({
           </p>
         )}
       </section>
+      {order.status === "paid" ? (
+        <section aria-labelledby="refund-heading" className="account-section">
+          <h2 id="refund-heading">Request a refund</h2>
+          <p>
+            Select ticket quantities. The server applies the event policy and
+            calculates the refundable amount from the paid order.
+          </p>
+          <form className="auth-form" onSubmit={handleRefund}>
+            {order.items.map((item) => (
+              <div className="form-field" key={item.orderItemId}>
+                <label htmlFor={`refund-${item.orderItemId}`}>
+                  {describeItem(item)}
+                </label>
+                <input
+                  defaultValue={0}
+                  id={`refund-${item.orderItemId}`}
+                  max={item.quantity}
+                  min={0}
+                  name={`quantity:${item.orderItemId}`}
+                  type="number"
+                />
+              </div>
+            ))}
+            <button
+              className="button-primary"
+              disabled={refundState.kind === "busy"}
+              type="submit"
+            >
+              {refundState.kind === "busy" ? "Requesting..." : "Request refund"}
+            </button>
+            <p
+              aria-live="polite"
+              className={
+                refundState.kind === "error"
+                  ? "form-status form-status--error"
+                  : "form-status form-status--success"
+              }
+            >
+              {refundState.kind === "error" || refundState.kind === "success"
+                ? refundState.message
+                : ""}
+            </p>
+          </form>
+        </section>
+      ) : null}
     </>
   );
 }

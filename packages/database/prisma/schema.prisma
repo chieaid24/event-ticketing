@@ -146,6 +146,32 @@ enum ScanResult {
   @@map("scan_result")
 }
 
+enum RefundStatus {
+  REQUESTED        @map("requested")
+  PROVIDER_PENDING @map("provider_pending")
+  SUCCEEDED        @map("succeeded")
+  FAILED           @map("failed")
+
+  @@map("refund_status")
+}
+
+enum RefundInitiator {
+  CUSTOMER     @map("customer")
+  ORGANIZER    @map("organizer")
+  COMPENSATION @map("compensation")
+
+  @@map("refund_initiator")
+}
+
+enum NotificationStatus {
+  QUEUED     @map("queued")
+  FAILED     @map("failed")
+  SENT       @map("sent")
+  SUPPRESSED @map("suppressed")
+
+  @@map("notification_status")
+}
+
 model User {
   id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String                   @unique @db.VarChar(320)
@@ -163,6 +189,8 @@ model User {
   holds             Hold[]
   orders            Order[]
   scans             Scan[]                   @relation("ScanActor")
+  initiatedRefunds  Refund[]                 @relation("RefundActor")
+  notifications     Notification[]
 
   @@map("users")
 }
@@ -366,58 +394,61 @@ model OutboxHandlerReceipt {
 }
 
 model Event {
-  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId      String       @map("organization_id") @db.Uuid
-  venueId             String       @map("venue_id") @db.Uuid
-  title               String       @db.VarChar(140)
-  description         String?      @db.VarChar(2000)
-  status              EventStatus  @default(DRAFT)
-  timezone            String       @default("UTC") @db.VarChar(64)
-  currency            String       @default("USD") @db.Char(3)
-  startsAt            DateTime?    @map("starts_at") @db.Timestamptz(6)
-  endsAt              DateTime?    @map("ends_at") @db.Timestamptz(6)
-  salesStartAt        DateTime?    @map("sales_start_at") @db.Timestamptz(6)
-  salesEndAt          DateTime?    @map("sales_end_at") @db.Timestamptz(6)
-  holdDurationSeconds Int          @default(600) @map("hold_duration_seconds")
-  waitingRoomEnabled  Boolean      @default(false) @map("waiting_room_enabled")
-  refundPolicy        String?      @map("refund_policy") @db.VarChar(2000)
-  mediaUrl            String?      @map("media_url") @db.VarChar(2048)
-  publishedAt         DateTime?    @map("published_at") @db.Timestamptz(6)
-  version             Int          @default(1)
-  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  venue               Venue        @relation(fields: [venueId], references: [id], onDelete: Restrict)
-  ticketTypes         TicketType[]
-  seats               EventSeat[]
-  holds               Hold[]
-  orders              Order[]
-  tickets             Ticket[]
-  scans               Scan[]
+  id                           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId               String       @map("organization_id") @db.Uuid
+  venueId                      String       @map("venue_id") @db.Uuid
+  title                        String       @db.VarChar(140)
+  description                  String?      @db.VarChar(2000)
+  status                       EventStatus  @default(DRAFT)
+  timezone                     String       @default("UTC") @db.VarChar(64)
+  currency                     String       @default("USD") @db.Char(3)
+  startsAt                     DateTime?    @map("starts_at") @db.Timestamptz(6)
+  endsAt                       DateTime?    @map("ends_at") @db.Timestamptz(6)
+  salesStartAt                 DateTime?    @map("sales_start_at") @db.Timestamptz(6)
+  salesEndAt                   DateTime?    @map("sales_end_at") @db.Timestamptz(6)
+  holdDurationSeconds          Int          @default(600) @map("hold_duration_seconds")
+  waitingRoomEnabled           Boolean      @default(false) @map("waiting_room_enabled")
+  refundPolicy                 String?      @map("refund_policy") @db.VarChar(2000)
+  customerRefundsEnabled       Boolean      @default(false) @map("customer_refunds_enabled")
+  customerRefundCutoffMinutes  Int          @default(1440) @map("customer_refund_cutoff_minutes")
+  inventoryReturnCutoffMinutes Int          @default(1440) @map("inventory_return_cutoff_minutes")
+  mediaUrl                     String?      @map("media_url") @db.VarChar(2048)
+  publishedAt                  DateTime?    @map("published_at") @db.Timestamptz(6)
+  version                      Int          @default(1)
+  createdAt                    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization                 Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  venue                        Venue        @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  ticketTypes                  TicketType[]
+  seats                        EventSeat[]
+  holds                        Hold[]
+  orders                       Order[]
+  tickets                      Ticket[]
+  scans                        Scan[]
 
   @@index([organizationId, status])
   @@map("events")
 }
 
 model TicketType {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventId     String         @map("event_id") @db.Uuid
-  name        String         @db.VarChar(80)
-  kind        TicketTypeKind
-  sectionName String         @map("section_name") @db.VarChar(80)
-  priceMinor  Int            @map("price_minor")
-  feeMinor    Int            @default(0) @map("fee_minor")
-  capacity    Int?
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId          String         @map("event_id") @db.Uuid
+  name             String         @db.VarChar(80)
+  kind             TicketTypeKind
+  sectionName      String         @map("section_name") @db.VarChar(80)
+  priceMinor       Int            @map("price_minor")
+  feeMinor         Int            @default(0) @map("fee_minor")
+  capacity         Int?
   // General-admission inventory counters; assigned types track state per seat.
-  reservedQuantity Int       @default(0) @map("reserved_quantity")
-  soldQuantity     Int       @default(0) @map("sold_quantity")
-  position    Int
-  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  seats       EventSeat[]
-  holdItems   HoldItem[]
-  orderItems  OrderItem[]
-  tickets     Ticket[]
+  reservedQuantity Int            @default(0) @map("reserved_quantity")
+  soldQuantity     Int            @default(0) @map("sold_quantity")
+  position         Int
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  event            Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seats            EventSeat[]
+  holdItems        HoldItem[]
+  orderItems       OrderItem[]
+  tickets          Ticket[]
 
   @@unique([eventId, name])
   @@map("ticket_types")
@@ -453,17 +484,17 @@ model EventSeat {
 }
 
 model Hold {
-  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventId        String     @map("event_id") @db.Uuid
-  userId         String?    @map("user_id") @db.Uuid
-  guestSessionId String?    @map("guest_session_id") @db.VarChar(64)
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId        String      @map("event_id") @db.Uuid
+  userId         String?     @map("user_id") @db.Uuid
+  guestSessionId String?     @map("guest_session_id") @db.VarChar(64)
   // Actor identity, "user:<uuid>" or "guest:<token>", derived by the service.
-  actorKey       String     @map("actor_key") @db.VarChar(80)
-  idempotencyKey String     @map("idempotency_key") @db.VarChar(200)
-  status         HoldStatus @default(ACTIVE)
-  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(6)
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  actorKey       String      @map("actor_key") @db.VarChar(80)
+  idempotencyKey String      @map("idempotency_key") @db.VarChar(200)
+  status         HoldStatus  @default(ACTIVE)
+  expiresAt      DateTime    @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user           User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items          HoldItem[]
@@ -477,29 +508,31 @@ model Hold {
 }
 
 model Order {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nonsecret identifier safe to show to a customer.
-  publicNumber   String      @unique @map("public_number") @db.VarChar(20)
+  publicNumber   String         @unique @map("public_number") @db.VarChar(20)
   // One immutable commercial record per hold, enforced by this unique column.
-  holdId         String      @unique @map("hold_id") @db.Uuid
-  eventId        String      @map("event_id") @db.Uuid
-  userId         String?     @map("user_id") @db.Uuid
-  guestSessionId String?     @map("guest_session_id") @db.VarChar(64)
-  actorKey       String      @map("actor_key") @db.VarChar(80)
-  status         OrderStatus @default(PENDING_PAYMENT)
-  currency       String      @db.Char(3)
-  subtotalMinor  Int         @map("subtotal_minor")
-  feeMinor       Int         @map("fee_minor")
-  totalMinor     Int         @map("total_minor")
-  paidAt         DateTime?   @map("paid_at") @db.Timestamptz(6)
-  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  hold           Hold        @relation(fields: [holdId], references: [id], onDelete: Restrict)
-  event          Event       @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  user           User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  holdId         String         @unique @map("hold_id") @db.Uuid
+  eventId        String         @map("event_id") @db.Uuid
+  userId         String?        @map("user_id") @db.Uuid
+  guestSessionId String?        @map("guest_session_id") @db.VarChar(64)
+  actorKey       String         @map("actor_key") @db.VarChar(80)
+  status         OrderStatus    @default(PENDING_PAYMENT)
+  currency       String         @db.Char(3)
+  subtotalMinor  Int            @map("subtotal_minor")
+  feeMinor       Int            @map("fee_minor")
+  totalMinor     Int            @map("total_minor")
+  paidAt         DateTime?      @map("paid_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  hold           Hold           @relation(fields: [holdId], references: [id], onDelete: Restrict)
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   items          OrderItem[]
   payment        Payment?
   tickets        Ticket[]
+  refunds        Refund[]
+  notifications  Notification[]
 
   @@index([actorKey, createdAt(sort: Desc)])
   @@index([eventId])
@@ -507,20 +540,21 @@ model Order {
 }
 
 model OrderItem {
-  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId        String     @map("order_id") @db.Uuid
-  ticketTypeId   String     @map("ticket_type_id") @db.Uuid
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId        String       @map("order_id") @db.Uuid
+  ticketTypeId   String       @map("ticket_type_id") @db.Uuid
   // Set for an assigned-seat line (one seat, quantity one); null for a
   // general-admission line, whose quantity carries the count.
-  eventSeatId    String?    @map("event_seat_id") @db.Uuid
+  eventSeatId    String?      @map("event_seat_id") @db.Uuid
   quantity       Int
-  unitPriceMinor Int        @map("unit_price_minor")
-  unitFeeMinor   Int        @map("unit_fee_minor")
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  ticketType     TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
-  eventSeat      EventSeat? @relation(fields: [eventSeatId], references: [id], onDelete: Restrict)
+  unitPriceMinor Int          @map("unit_price_minor")
+  unitFeeMinor   Int          @map("unit_fee_minor")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType     TicketType   @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  eventSeat      EventSeat?   @relation(fields: [eventSeatId], references: [id], onDelete: Restrict)
   tickets        Ticket[]
+  refundItems    RefundItem[]
 
   // Kind-specific uniqueness lives in partial indexes (see the migration):
   // (order, ticket type) for general admission, (order, seat) for assigned.
@@ -618,6 +652,69 @@ model WebhookEvent {
 
   @@unique([provider, providerEventId])
   @@map("webhook_events")
+}
+
+model Refund {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId             String          @map("order_id") @db.Uuid
+  actorUserId         String?         @map("actor_user_id") @db.Uuid
+  requestKey          String          @map("request_key") @db.VarChar(200)
+  initiator           RefundInitiator
+  status              RefundStatus    @default(REQUESTED)
+  reason              String?         @db.VarChar(500)
+  amountMinor         Int             @map("amount_minor")
+  currency            String          @db.Char(3)
+  providerRefundId    String?         @unique @map("provider_refund_id") @db.VarChar(120)
+  providerFailureCode String?         @map("provider_failure_code") @db.VarChar(80)
+  inventoryReturnedAt DateTime?       @map("inventory_returned_at") @db.Timestamptz(6)
+  completedAt         DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  order               Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actor               User?           @relation("RefundActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  items               RefundItem[]
+
+  @@unique([orderId, requestKey])
+  @@index([orderId, createdAt(sort: Desc)])
+  @@map("refunds")
+}
+
+model RefundItem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  refundId    String    @map("refund_id") @db.Uuid
+  orderItemId String    @map("order_item_id") @db.Uuid
+  quantity    Int
+  amountMinor Int       @map("amount_minor")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  refund      Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@unique([refundId, orderItemId])
+  @@index([orderItemId])
+  @@map("refund_items")
+}
+
+model Notification {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId          String?            @map("order_id") @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  kind             String             @db.VarChar(80)
+  recipientEmail   String             @map("recipient_email") @db.VarChar(320)
+  deduplicationKey String             @unique @map("deduplication_key") @db.VarChar(200)
+  payload          Json
+  status           NotificationStatus @default(QUEUED)
+  attemptCount     Int                @default(0) @map("attempt_count")
+  lastErrorCode    String?            @map("last_error_code") @db.VarChar(80)
+  sentAt           DateTime?          @map("sent_at") @db.Timestamptz(6)
+  suppressedAt     DateTime?          @map("suppressed_at") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  order            Order?             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@map("notifications")
 }
 
 model HoldItem {

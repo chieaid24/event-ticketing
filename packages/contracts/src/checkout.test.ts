@@ -84,6 +84,7 @@ describe("orderSummarySchema", () => {
     items: [
       {
         eventSeatId: null,
+        orderItemId: uuid,
         quantity: 2,
         rowLabel: null,
         seatLabel: null,

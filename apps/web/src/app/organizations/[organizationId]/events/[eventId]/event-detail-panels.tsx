@@ -14,6 +14,7 @@ import {
 
 import { AuthApiError } from "../../../../../lib/auth-api";
 import {
+  cancelEvent,
   publishEvent,
   replaceTicketTypes,
   updateEventDraft,
@@ -149,6 +150,7 @@ export function EventDetailPanels({
   const [publishState, setPublishState] = useState<ActionState>({
     kind: "idle",
   });
+  const [cancelState, setCancelState] = useState<ActionState>({ kind: "idle" });
   const [ticketText, setTicketText] = useState(() =>
     JSON.stringify(toEditableTicketTypes(ticketTypes), null, 2)
   );
@@ -161,9 +163,16 @@ export function EventDetailPanels({
       currency: String(
         form.get("currency") ?? "USD"
       ) as UpdateEventDraftRequest["currency"],
+      customerRefundCutoffMinutes: Number(
+        form.get("customerRefundCutoffMinutes") ?? 1440
+      ),
+      customerRefundsEnabled: form.get("customerRefundsEnabled") === "on",
       description: trimmedOrNull(form.get("description")),
       endsAt: inputToIso(String(form.get("endsAt") ?? "")),
       holdDurationSeconds: Number(form.get("holdDurationSeconds") ?? 600),
+      inventoryReturnCutoffMinutes: Number(
+        form.get("inventoryReturnCutoffMinutes") ?? 1440
+      ),
       mediaUrl: trimmedOrNull(form.get("mediaUrl")),
       refundPolicy: trimmedOrNull(form.get("refundPolicy")),
       salesEndAt: inputToIso(String(form.get("salesEndAt") ?? "")),
@@ -236,6 +245,26 @@ export function EventDetailPanels({
     }
   }
 
+  async function handleCancel(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    const form = new FormData(formEvent.currentTarget);
+    setCancelState({ kind: "busy" });
+    try {
+      await cancelEvent(apiBaseUrl, organizationId, event.id, {
+        reason: String(form.get("reason") ?? ""),
+        version: event.version,
+      });
+      setCancelState({ kind: "success", message: "Event cancelled." });
+      router.refresh();
+    } catch (error) {
+      setCancelState({
+        kind: "error",
+        message: messageOf(error, "Cancelling failed. Try again."),
+      });
+      router.refresh();
+    }
+  }
+
   return (
     <>
       <section aria-labelledby="overview-heading" className="account-section">
@@ -282,6 +311,21 @@ export function EventDetailPanels({
             <tr>
               <th scope="row">Waiting room</th>
               <td>{event.waitingRoomEnabled ? "Enabled" : "Disabled"}</td>
+            </tr>
+            <tr>
+              <th scope="row">Customer refunds</th>
+              <td>
+                {event.customerRefundsEnabled
+                  ? `Enabled until ${numberFormat.format(event.customerRefundCutoffMinutes)} minutes before start`
+                  : "Disabled"}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Inventory return cutoff</th>
+              <td>
+                {numberFormat.format(event.inventoryReturnCutoffMinutes)}{" "}
+                minutes before start
+              </td>
             </tr>
           </tbody>
         </table>
@@ -452,6 +496,48 @@ export function EventDetailPanels({
                   name="refundPolicy"
                   rows={2}
                 />
+              </div>
+              <div className="form-field">
+                <label htmlFor="event-customer-refunds">
+                  <input
+                    defaultChecked={event.customerRefundsEnabled}
+                    id="event-customer-refunds"
+                    name="customerRefundsEnabled"
+                    type="checkbox"
+                  />{" "}
+                  Allow customer refund requests
+                </label>
+              </div>
+              <div className="form-field">
+                <label htmlFor="event-refund-cutoff">
+                  Customer refund cutoff (minutes before start)
+                </label>
+                <input
+                  defaultValue={event.customerRefundCutoffMinutes}
+                  id="event-refund-cutoff"
+                  max={525600}
+                  min={0}
+                  name="customerRefundCutoffMinutes"
+                  required
+                  type="number"
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="event-inventory-return-cutoff">
+                  Inventory return cutoff (minutes before start)
+                </label>
+                <input
+                  defaultValue={event.inventoryReturnCutoffMinutes}
+                  id="event-inventory-return-cutoff"
+                  max={525600}
+                  min={0}
+                  name="inventoryReturnCutoffMinutes"
+                  required
+                  type="number"
+                />
+                <p className="field-hint">
+                  A later refund can void tickets without returning inventory.
+                </p>
               </div>
               <div className="form-field">
                 <label htmlFor="event-waiting-room">
@@ -664,6 +750,40 @@ export function EventDetailPanels({
           </p>
         </section>
       )}
+      {canManage &&
+      ["published", "sales_paused", "postponed"].includes(event.status) ? (
+        <section
+          aria-labelledby="cancel-event-heading"
+          className="account-section"
+        >
+          <h2 id="cancel-event-heading">Cancel event</h2>
+          <p>
+            Cancelling stops the event and queues one deduplicated message for
+            each paid order.
+          </p>
+          <form className="auth-form" onSubmit={handleCancel}>
+            <div className="form-field">
+              <label htmlFor="cancel-event-reason">Reason</label>
+              <textarea
+                id="cancel-event-reason"
+                maxLength={500}
+                minLength={3}
+                name="reason"
+                required
+                rows={3}
+              />
+            </div>
+            <button
+              className="button-primary"
+              disabled={cancelState.kind === "busy"}
+              type="submit"
+            >
+              {cancelState.kind === "busy" ? "Cancelling..." : "Cancel event"}
+            </button>
+            {statusLine(cancelState)}
+          </form>
+        </section>
+      ) : null}
     </>
   );
 }

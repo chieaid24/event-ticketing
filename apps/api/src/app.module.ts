@@ -39,6 +39,9 @@ import { HealthService } from "./health.service.js";
 import { OrganizationsController } from "./organizations/organizations.controller.js";
 import { OrganizationsService } from "./organizations/organizations.service.js";
 import { PgOrganizationsStore } from "./organizations/organizations.store.js";
+import { RefundsController } from "./refunds/refunds.controller.js";
+import { RefundsService } from "./refunds/refunds.service.js";
+import { PgRefundsStore } from "./refunds/refunds.store.js";
 import { RequestLoggingMiddleware } from "./request-logging.middleware.js";
 import { ScanningController } from "./scanning/scanning.controller.js";
 import { ScanningService } from "./scanning/scanning.service.js";
@@ -66,6 +69,8 @@ import {
   HOLDS_STORE,
   ORGANIZATIONS_SERVICE,
   ORGANIZATIONS_STORE,
+  REFUNDS_SERVICE,
+  REFUNDS_STORE,
   REDIS_HEALTH,
   SCANNING_SERVICE,
   SCANNING_STORE,
@@ -102,6 +107,7 @@ export class AppModule implements NestModule {
         HoldsController,
         WaitingRoomController,
         CheckoutController,
+        RefundsController,
         TicketsController,
         ScanningController,
         PaymentWebhooksController,
@@ -233,6 +239,16 @@ export class AppModule implements NestModule {
         {
           provide: CHECKOUT_STORE,
           useFactory: () => new PgCheckoutStore(config.databaseUrl),
+        },
+        {
+          provide: REFUNDS_STORE,
+          useFactory: () => new PgRefundsStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, REFUNDS_STORE],
+          provide: REFUNDS_SERVICE,
+          useFactory: (auth: AuthService, store: PgRefundsStore) =>
+            new RefundsService(auth, store),
         },
         {
           provide: TICKETS_STORE,

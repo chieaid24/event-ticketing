@@ -119,6 +119,23 @@ export class EventsController {
     );
   }
 
+  @Post(":eventId/cancel")
+  @HttpCode(200)
+  async cancel(
+    @Req() request: Request,
+    @Param("organizationId") organizationId: string,
+    @Param("eventId") eventId: string,
+    @Body() body: unknown
+  ): Promise<EventDetailResponse> {
+    await this.enforceLimit(request, "cancel", routeLimits.publish);
+    return this.service.cancelEvent(
+      contextFrom(request),
+      organizationId,
+      eventId,
+      body
+    );
+  }
+
   private async enforceLimit(
     request: Request,
     route: string,

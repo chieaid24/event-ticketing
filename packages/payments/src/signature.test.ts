@@ -108,10 +108,12 @@ describe("fake payment gateway", () => {
   it("settles refunds immediately and idempotently", async () => {
     const gateway = createFakePaymentGateway();
     const first = await gateway.createRefund({
+      amountMinor: 100,
       idempotencyKey: "refund:order:abc",
       providerPaymentIntentId: "pi_fake_x",
     });
     const second = await gateway.createRefund({
+      amountMinor: 100,
       idempotencyKey: "refund:order:abc",
       providerPaymentIntentId: "pi_fake_x",
     });
