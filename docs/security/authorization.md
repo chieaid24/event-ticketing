@@ -23,6 +23,7 @@ organization so probing cannot confirm one exists.
 | `events.manage`                | yes   | yes   | yes           | no      | no      | no     |
 | `finance.manage`               | yes   | yes   | no            | yes     | no      | no     |
 | `scanner.checkin`              | yes   | yes   | no            | no      | yes     | no     |
+| `scanner.reverse`              | yes   | yes   | no            | no      | no      | no     |
 
 ## Role management rules
 
@@ -54,6 +55,10 @@ organization so probing cannot confirm one exists.
   serializes concurrent draft writes and publication to one winner.
 - Deleting an organization is owner-only, requires retyping the organization
   slug, and requires a current CSRF-checked session.
+- Scanner check-in needs `scanner.checkin`; reversing a check-in needs
+  `scanner.reverse` and a stated reason, so the scanner role can admit but never
+  undo. A ticket outside the addressed organization and event answers as an
+  invalid scan or a missing ticket, never as another tenant's data.
 - Invitations answer `202` whether or not the email has an account, so the
   invite flow cannot enumerate users. Invitations become visible to the invited
   person after they sign in.
@@ -66,7 +71,8 @@ transaction: `organization.created`, `organization.settings.updated`,
 `member.invitation.declined`, `member.role.changed`, `member.removed` (with a
 `left` flag when the member removed themselves), `venue.created`,
 `venue.updated`, `venue.layout.replaced`, `venue.deleted`, `event.created`,
-`event.updated`, `event.ticket_types.replaced`, and `event.published`. Entries
-keep the actor, target, and a small detail object, and survive actor or
-organization deletion through `SET NULL` foreign keys. Owners and admins read
-them at `GET /organizations/:id/audit-logs`.
+`event.updated`, `event.ticket_types.replaced`, `event.published`,
+`ticket.checked_in`, and `ticket.checkin_reversed`. Entries keep the actor,
+target, and a small detail object, and survive actor or organization deletion
+through `SET NULL` foreign keys. Owners and admins read them at
+`GET /organizations/:id/audit-logs`.

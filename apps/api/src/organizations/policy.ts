@@ -21,6 +21,7 @@ export const rolePermissions: Readonly<
     "events.manage",
     "finance.manage",
     "scanner.checkin",
+    "scanner.reverse",
   ],
   event_manager: [
     "organization.read",
@@ -42,6 +43,7 @@ export const rolePermissions: Readonly<
     "events.manage",
     "finance.manage",
     "scanner.checkin",
+    "scanner.reverse",
   ],
   scanner: ["organization.read", "scanner.checkin"],
   viewer: ["organization.read", "members.read"],

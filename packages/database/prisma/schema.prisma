@@ -125,10 +125,25 @@ enum PaymentStatus {
 }
 
 enum TicketStatus {
-  ACTIVE @map("active")
-  VOID   @map("void")
+  ACTIVE     @map("active")
+  CHECKED_IN @map("checked_in")
+  VOID       @map("void")
+  REFUNDED   @map("refunded")
 
   @@map("ticket_status")
+}
+
+enum ScanResult {
+  ACCEPTED    @map("accepted")
+  DUPLICATE   @map("duplicate")
+  WRONG_EVENT @map("wrong_event")
+  REFUNDED    @map("refunded")
+  VOID        @map("void")
+  EXPIRED     @map("expired")
+  INVALID     @map("invalid")
+  REVERSED    @map("reversed")
+
+  @@map("scan_result")
 }
 
 model User {
@@ -147,6 +162,7 @@ model User {
   auditLogs         AuditLog[]               @relation("AuditActor")
   holds             Hold[]
   orders            Order[]
+  scans             Scan[]                   @relation("ScanActor")
 
   @@map("users")
 }
@@ -192,6 +208,7 @@ model Organization {
   auditLogs   AuditLog[]
   venues      Venue[]
   events      Event[]
+  scans       Scan[]
 
   @@map("organizations")
 }
@@ -376,6 +393,7 @@ model Event {
   holds               Hold[]
   orders              Order[]
   tickets             Ticket[]
+  scans               Scan[]
 
   @@index([organizationId, status])
   @@map("events")
@@ -546,12 +564,15 @@ model Ticket {
   // SHA-256 hex of the current QR bearer; the raw value is never stored.
   qrTokenHash  String       @unique @map("qr_token_hash") @db.Char(64)
   qrRotatedAt  DateTime?    @map("qr_rotated_at") @db.Timestamptz(6)
+  // Current check-in state; the scans table keeps the full history.
+  checkedInAt  DateTime?    @map("checked_in_at") @db.Timestamptz(6)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   order        Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
   orderItem    OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
   event        Event        @relation(fields: [eventId], references: [id], onDelete: Restrict)
   ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
   eventSeat    EventSeat?   @relation(fields: [eventSeatId], references: [id], onDelete: Restrict)
+  scans        Scan[]
 
   // At most one active ticket per seat lives in a partial index (see migration).
   @@index([orderId])
@@ -560,6 +581,30 @@ model Ticket {
   @@index([ticketTypeId])
   @@index([eventSeatId])
   @@map("tickets")
+}
+
+// Append-only validation history: rows are inserted, never updated or deleted.
+// ticketId stays null when a credential matched no ticket the organization may
+// see; actorUserId survives user deletion like audit_logs.
+model Scan {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  eventId        String       @map("event_id") @db.Uuid
+  ticketId       String?      @map("ticket_id") @db.Uuid
+  actorUserId    String?      @map("actor_user_id") @db.Uuid
+  deviceId       String       @map("device_id") @db.VarChar(64)
+  result         ScanResult
+  // Present only on reversed rows: the supervisor's stated reason.
+  reason         String?      @db.VarChar(500)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticket         Ticket?      @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actor          User?        @relation("ScanActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, createdAt(sort: Desc)], map: "scans_event_created_idx")
+  @@index([ticketId, createdAt(sort: Desc)], map: "scans_ticket_created_idx")
+  @@map("scans")
 }
 
 model WebhookEvent {

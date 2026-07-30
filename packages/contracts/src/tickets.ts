@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const ticketStatusSchema = z.enum(["active", "void"]);
+export const ticketStatusSchema = z.enum([
+  "active",
+  "checked_in",
+  "void",
+  "refunded",
+]);
 export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 
 export const ticketKindSchema = z.enum(["assigned", "general_admission"]);

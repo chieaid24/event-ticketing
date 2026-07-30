@@ -24,6 +24,7 @@ export const organizationPermissionSchema = z.enum([
   "events.manage",
   "finance.manage",
   "scanner.checkin",
+  "scanner.reverse",
 ]);
 
 export const organizationNameSchema = z.string().trim().min(3).max(160);

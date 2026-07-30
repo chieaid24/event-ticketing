@@ -197,6 +197,34 @@ or indexed. All routes are actor-scoped; another actor's ticket answers the same
   non-active ticket answers `409 ticket_not_active`. The raw token is never
   logged or persisted.
 
+## Scanner routes
+
+Scanner routes live under
+`/organizations/:organizationId/events/:eventId/scanner` and follow the
+[authorization policy](../../docs/security/authorization.md): check-in and
+activity need `scanner.checkin`, reversal needs the supervisor-only
+`scanner.reverse`. Every response is sealed against caching and indexing. A
+ticket outside the addressed organization answers as an invalid scan with no
+ticket reference, so scan history never carries another tenant's data.
+
+- `POST .../scanner/checkins` validates one credential per attempt: the raw QR
+  bearer from the camera, or the nonsecret public number as the manual fallback.
+  The bearer is hashed immediately and never stored or logged. The ticket row is
+  locked with `FOR UPDATE`, so concurrent scans admit exactly once; the loser
+  answers `duplicate`. Wrong-event, refunded, void, expired, and unknown
+  credentials answer their explicit results, and every attempt appends an
+  immutable `scans` row. Requires a mutation session (CSRF and trusted origin)
+  plus per-device and per-actor Redis rate limits on top of the per-address
+  limit.
+- `POST .../scanner/reversals` returns a checked-in ticket to active with a
+  required reason. The accepted scan row survives; the reversal appends a
+  `reversed` row and both transitions write `ticket.checked_in` /
+  `ticket.checkin_reversed` audit entries in the same transaction. A ticket that
+  is not checked in answers `409 ticket_not_checked_in`.
+- `GET .../scanner/activity` lists the event's most recent scan attempts with
+  actor attribution and reversal reasons, plus a `canReverse` flag mirroring the
+  caller's permission for UI visibility.
+
 ## Public discovery routes
 
 Discovery routes under `/discovery` are public and unauthenticated. They never

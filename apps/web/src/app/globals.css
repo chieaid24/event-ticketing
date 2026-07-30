@@ -754,6 +754,14 @@ h2 {
   color: var(--danger);
 }
 
+.ticket-status[data-status="checked_in"] {
+  color: var(--warning);
+}
+
+.ticket-status[data-status="refunded"] {
+  color: var(--muted);
+}
+
 .ticket-accessible {
   display: inline-block;
   padding: 2px 8px;
@@ -1209,6 +1217,219 @@ h2 {
   }
 }
 
+/* Scanner: dense controls, one-hand reach, results readable at arm's length
+   in a dim venue. Color never stands alone; each result pairs an icon shape
+   and text with sound and vibration from the client. */
+.scan-shell {
+  display: grid;
+  max-width: 480px;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.scan-result {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scan-result[data-tone="success"] {
+  border-color: var(--success);
+}
+
+.scan-result[data-tone="warning"] {
+  border-color: var(--warning);
+}
+
+.scan-result[data-tone="danger"] {
+  border-color: var(--danger);
+}
+
+.scan-result__icon {
+  width: 48px;
+  height: 48px;
+}
+
+.scan-result[data-tone="success"] .scan-result__icon {
+  color: var(--success);
+}
+
+.scan-result[data-tone="warning"] .scan-result__icon {
+  color: var(--warning);
+}
+
+.scan-result[data-tone="danger"] .scan-result__icon {
+  color: var(--danger);
+}
+
+.scan-result__label {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.953rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.scan-result__message {
+  margin: 0;
+}
+
+.scan-result__ticket {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  margin: 4px 0 0;
+}
+
+.scan-result__ticket div {
+  display: flex;
+  gap: 8px;
+}
+
+.scan-result__ticket dt {
+  min-width: 64px;
+  color: var(--muted);
+}
+
+.scan-result__ticket dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.scan-result__meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-camera {
+  display: grid;
+  gap: 8px;
+}
+
+.scan-camera__video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: oklch(0.17 0.012 45);
+  object-fit: cover;
+}
+
+.scan-camera__note {
+  margin: 0;
+  color: var(--muted);
+}
+
+.scan-manual {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.scan-manual__field {
+  flex: 1;
+}
+
+.scan-manual input {
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.scan-manual input::placeholder {
+  text-transform: none;
+}
+
+.scan-reverse {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scan-reverse__title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.scan-reverse__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.scan-activity__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scan-activity__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.scan-activity__list {
+  display: grid;
+  margin: 12px 0 0;
+  padding: 0;
+  gap: 4px;
+  list-style: none;
+}
+
+.scan-activity__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.scan-activity__time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-activity__detail {
+  flex: 1;
+  min-width: 160px;
+}
+
+.scan-result-badge {
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scan-result-badge[data-result="accepted"] {
+  color: var(--success);
+}
+
+.scan-result-badge[data-result="duplicate"],
+.scan-result-badge[data-result="wrong_event"],
+.scan-result-badge[data-result="expired"],
+.scan-result-badge[data-result="reversed"] {
+  color: var(--warning);
+}
+
+.scan-result-badge[data-result="void"],
+.scan-result-badge[data-result="refunded"],
+.scan-result-badge[data-result="invalid"] {
+  color: var(--danger);
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: oklch(0.17 0.012 45);
@@ -1231,5 +1452,19 @@ h2 {
       stroke 120ms cubic-bezier(0.22, 1, 0.36, 1),
       background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
       color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .scan-result {
+    animation: scan-result-enter 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes scan-result-enter {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 }

@@ -72,6 +72,12 @@ import {
   withDatabaseTransaction,
 } from "../src/outbox.js";
 import {
+  checkInTicket,
+  listRecentScans,
+  reverseCheckIn,
+  type ScanCredential,
+} from "../src/scans.js";
+import {
   hashQrToken,
   listTicketsForActor,
   loadTicketForActor,
@@ -2446,6 +2452,287 @@ try {
       status: "expired",
     });
 
+    // Scanner check-in: an accepted admission is an atomic locked transition,
+    // every attempt appends to scan history, and reversal restores the ticket
+    // without rewriting that history.
+    const scanDevice = "itest-scan-device-0001";
+    const scanFixture = await createCheckoutOrder({
+      actorKey: "scan-buyer",
+      seatCount: 2,
+    });
+    await withDatabaseTransaction(pool, (transaction) =>
+      attachPaymentIntent(transaction, {
+        clientSecret: "pi_scan_secret",
+        orderId: scanFixture.orderId,
+        providerPaymentIntentId: "pi_scan",
+      })
+    );
+    await withDatabaseTransaction(pool, (transaction) =>
+      finalizeOrderPayment(transaction, {
+        amountMinor: scanFixture.totalMinor,
+        currency: "USD",
+        providerPaymentIntentId: "pi_scan",
+      })
+    );
+    const scanTickets = await withDatabaseTransaction(pool, (transaction) =>
+      listTicketsForActor(transaction, {
+        actor: { guestSessionId: "scan-buyer" },
+      })
+    );
+    assert.equal(scanTickets.length, 2);
+    const admissionTicket = scanTickets[0]!;
+    const spareTicket = scanTickets[1]!;
+    const scanBearer = `scan-bearer-${randomUUID()}`;
+    await withDatabaseTransaction(pool, (transaction) =>
+      rotateTicketQrToken(transaction, {
+        actor: { guestSessionId: "scan-buyer" },
+        ticketId: admissionTicket.id,
+        tokenHash: hashQrToken(scanBearer),
+      })
+    );
+    const scanAt = (eventId: string, credential: ScanCredential) =>
+      withDatabaseTransaction(pool, (transaction) =>
+        checkInTicket(transaction, {
+          actorUserId: seededUserId,
+          credential,
+          deviceId: scanDevice,
+          eventId,
+          organizationId: seededOrganizationId,
+        })
+      );
+    const qrCredential: ScanCredential = {
+      kind: "qr",
+      tokenHash: hashQrToken(scanBearer),
+    };
+
+    // An unknown bearer is invalid and never references a ticket.
+    const unknownScan = await scanAt(scanFixture.eventId, {
+      kind: "qr",
+      tokenHash: hashQrToken(`unknown-${randomUUID()}`),
+    });
+    assert.equal(unknownScan.result, "invalid");
+    assert.equal(unknownScan.ticket, null);
+
+    // Concurrent scans of one ticket admit exactly once.
+    const scanRace = await Promise.all([
+      scanAt(scanFixture.eventId, qrCredential),
+      scanAt(scanFixture.eventId, qrCredential),
+    ]);
+    assert.deepEqual(
+      scanRace.map((outcome) => outcome.result).sort(),
+      ["accepted", "duplicate"],
+      "Concurrent scans produce exactly one accepted check-in."
+    );
+    const acceptedScan = scanRace.find(
+      (outcome) => outcome.result === "accepted"
+    )!;
+    assert.equal(
+      acceptedScan.ticket?.publicNumber,
+      admissionTicket.publicNumber
+    );
+    assert.notEqual(acceptedScan.ticket?.checkedInAt, null);
+    const checkedInState = await pool.query<{
+      checked_in_at: Date | null;
+      status: string;
+    }>(
+      `SELECT "status"::text AS "status", "checked_in_at"
+       FROM "tickets" WHERE "id" = $1`,
+      [admissionTicket.id]
+    );
+    assert.equal(checkedInState.rows[0]?.status, "checked_in");
+    assert.notEqual(checkedInState.rows[0]?.checked_in_at, null);
+
+    // The manual public-number fallback resolves the same ticket.
+    const manualDuplicate = await scanAt(scanFixture.eventId, {
+      kind: "public_number",
+      publicNumber: admissionTicket.publicNumber,
+    });
+    assert.equal(manualDuplicate.result, "duplicate");
+
+    // Reversal restores the ticket and appends to history without rewriting.
+    const scansBeforeReversal = await pool.query<{ result: string }>(
+      `SELECT "result"::text AS "result" FROM "scans" WHERE "ticket_id" = $1`,
+      [admissionTicket.id]
+    );
+    const reversal = await withDatabaseTransaction(pool, (transaction) =>
+      reverseCheckIn(transaction, {
+        actorUserId: seededUserId,
+        deviceId: scanDevice,
+        eventId: scanFixture.eventId,
+        organizationId: seededOrganizationId,
+        reason: "Accidental double scan at the door.",
+        ticketId: admissionTicket.id,
+      })
+    );
+    assert.equal(reversal.outcome, "reversed");
+    const scansAfterReversal = await pool.query<{ result: string }>(
+      `SELECT "result"::text AS "result" FROM "scans"
+       WHERE "ticket_id" = $1 ORDER BY "created_at" ASC, "id" ASC`,
+      [admissionTicket.id]
+    );
+    assert.equal(
+      scansAfterReversal.rows.length,
+      scansBeforeReversal.rows.length + 1,
+      "Reversal appends one row and deletes nothing."
+    );
+    assert.equal(
+      scansAfterReversal.rows.filter((row) => row.result === "accepted").length,
+      1,
+      "The original accepted scan survives the reversal."
+    );
+    const restoredState = await pool.query<{
+      checked_in_at: Date | null;
+      status: string;
+    }>(
+      `SELECT "status"::text AS "status", "checked_in_at"
+       FROM "tickets" WHERE "id" = $1`,
+      [admissionTicket.id]
+    );
+    assert.deepEqual(restoredState.rows[0], {
+      checked_in_at: null,
+      status: "active",
+    });
+
+    // Reversing a ticket that is not checked in reports the state.
+    const reversalNoop = await withDatabaseTransaction(pool, (transaction) =>
+      reverseCheckIn(transaction, {
+        actorUserId: seededUserId,
+        deviceId: scanDevice,
+        eventId: scanFixture.eventId,
+        organizationId: seededOrganizationId,
+        reason: "Nothing to reverse here.",
+        ticketId: admissionTicket.id,
+      })
+    );
+    assert.deepEqual(reversalNoop, {
+      outcome: "not_checked_in",
+      status: "active",
+    });
+
+    // A reversed ticket admits again.
+    const readmission = await scanAt(scanFixture.eventId, {
+      kind: "public_number",
+      publicNumber: admissionTicket.publicNumber,
+    });
+    assert.equal(readmission.result, "accepted");
+
+    // A ticket for another event of the same organization fails explicitly
+    // and surfaces its own event title to staff.
+    const otherEventFixture = await createCheckoutOrder({
+      actorKey: "scan-other-event",
+      seatCount: 1,
+    });
+    const wrongEventScan = await scanAt(otherEventFixture.eventId, {
+      kind: "public_number",
+      publicNumber: spareTicket.publicNumber,
+    });
+    assert.equal(wrongEventScan.result, "wrong_event");
+    assert.equal(wrongEventScan.ticket?.eventTitle, spareTicket.eventTitle);
+
+    // Void, refunded, and expired tickets never admit.
+    await pool.query(`UPDATE "tickets" SET "status" = 'void' WHERE "id" = $1`, [
+      spareTicket.id,
+    ]);
+    const voidScan = await scanAt(scanFixture.eventId, {
+      kind: "public_number",
+      publicNumber: spareTicket.publicNumber,
+    });
+    assert.equal(voidScan.result, "void");
+    await pool.query(
+      `UPDATE "tickets" SET "status" = 'refunded' WHERE "id" = $1`,
+      [spareTicket.id]
+    );
+    const refundedScan = await scanAt(scanFixture.eventId, {
+      kind: "public_number",
+      publicNumber: spareTicket.publicNumber,
+    });
+    assert.equal(refundedScan.result, "refunded");
+    await pool.query(
+      `UPDATE "tickets" SET "status" = 'active' WHERE "id" = $1`,
+      [spareTicket.id]
+    );
+    await pool.query(
+      `UPDATE "events"
+       SET "ends_at" = clock_timestamp() - interval '1 hour'
+       WHERE "id" = $1`,
+      [scanFixture.eventId]
+    );
+    const expiredScan = await scanAt(scanFixture.eventId, {
+      kind: "public_number",
+      publicNumber: spareTicket.publicNumber,
+    });
+    assert.equal(expiredScan.result, "expired");
+
+    // Another organization scanning the same bearer learns nothing: the scan
+    // is invalid and its history row references no ticket.
+    const foreignOrgId = randomUUID();
+    const foreignEventId = randomUUID();
+    await pool.query(
+      `INSERT INTO "organizations" ("id", "name", "slug")
+       VALUES ($1, 'Foreign Scan Org', $2)`,
+      [foreignOrgId, `foreign-scan-org-${foreignOrgId.slice(0, 8)}`]
+    );
+    await pool.query(
+      `INSERT INTO "events" ("id", "organization_id", "venue_id", "title")
+       VALUES ($1, $2, $3, 'Foreign Event')`,
+      [foreignEventId, foreignOrgId, seededVenueId]
+    );
+    const crossTenantScan = await withDatabaseTransaction(pool, (transaction) =>
+      checkInTicket(transaction, {
+        actorUserId: seededUserId,
+        credential: qrCredential,
+        deviceId: scanDevice,
+        eventId: foreignEventId,
+        organizationId: foreignOrgId,
+      })
+    );
+    assert.equal(crossTenantScan.result, "invalid");
+    assert.equal(crossTenantScan.ticket, null);
+    const crossTenantRow = await pool.query<{ ticket_id: string | null }>(
+      `SELECT "ticket_id" FROM "scans" WHERE "organization_id" = $1`,
+      [foreignOrgId]
+    );
+    assert.deepEqual(crossTenantRow.rows, [{ ticket_id: null }]);
+
+    // Recent activity lists the event's attempts newest first with actor
+    // attribution, and the reversal keeps its reason.
+    const recentActivity = await withDatabaseTransaction(pool, (transaction) =>
+      listRecentScans(transaction, {
+        eventId: scanFixture.eventId,
+        limit: 20,
+        organizationId: seededOrganizationId,
+      })
+    );
+    assert.equal(recentActivity.length, 9);
+    assert.equal(recentActivity[0]?.result, "expired");
+    const reversedEntry = recentActivity.find(
+      (entry) => entry.result === "reversed"
+    )!;
+    assert.equal(reversedEntry.reason, "Accidental double scan at the door.");
+    assert.equal(reversedEntry.actorEmail, "owner@example.test");
+    assert.equal(
+      reversedEntry.ticketPublicNumber,
+      admissionTicket.publicNumber
+    );
+
+    // Check-in and reversal audit in the same transaction, and no raw bearer
+    // reaches the scan history or the audit trail.
+    const scanAudit = await pool.query<{ action: string; detail: string }>(
+      `SELECT "action", "detail"::text AS "detail" FROM "audit_logs"
+       WHERE "target_id" = $1 ORDER BY "created_at" ASC`,
+      [admissionTicket.id]
+    );
+    assert.deepEqual(
+      scanAudit.rows.map((row) => row.action),
+      ["ticket.checked_in", "ticket.checkin_reversed", "ticket.checked_in"]
+    );
+    for (const row of scanAudit.rows) {
+      assert.ok(
+        !row.detail.includes(scanBearer),
+        "Audit detail never carries a raw QR bearer."
+      );
+    }
+
     process.stdout.write(
       `${JSON.stringify({
         assignedSeatHolds: "verified",
@@ -2461,6 +2748,7 @@ try {
         migrations: "applied",
         paymentFinalization: "verified",
         redis: "isolated",
+        scannerCheckIn: "verified",
         schedules: "verified",
         seedDomainRecords: 27,
         seedOutboxEvents: 1,

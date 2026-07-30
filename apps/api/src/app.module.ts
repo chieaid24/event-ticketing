@@ -40,6 +40,9 @@ import { OrganizationsController } from "./organizations/organizations.controlle
 import { OrganizationsService } from "./organizations/organizations.service.js";
 import { PgOrganizationsStore } from "./organizations/organizations.store.js";
 import { RequestLoggingMiddleware } from "./request-logging.middleware.js";
+import { ScanningController } from "./scanning/scanning.controller.js";
+import { ScanningService } from "./scanning/scanning.service.js";
+import { PgScanningStore } from "./scanning/scanning.store.js";
 import { TicketsController } from "./tickets/tickets.controller.js";
 import { TicketsService } from "./tickets/tickets.service.js";
 import { PgTicketsStore } from "./tickets/tickets.store.js";
@@ -64,6 +67,8 @@ import {
   ORGANIZATIONS_SERVICE,
   ORGANIZATIONS_STORE,
   REDIS_HEALTH,
+  SCANNING_SERVICE,
+  SCANNING_STORE,
   STRUCTURED_LOGGER,
   TICKETS_SERVICE,
   TICKETS_STORE,
@@ -98,6 +103,7 @@ export class AppModule implements NestModule {
         WaitingRoomController,
         CheckoutController,
         TicketsController,
+        ScanningController,
         PaymentWebhooksController,
         // The simulated payment surface exists only for the fake provider.
         ...(config.paymentProvider === "fake"
@@ -237,6 +243,19 @@ export class AppModule implements NestModule {
           provide: TICKETS_SERVICE,
           useFactory: (auth: AuthService, store: PgTicketsStore) =>
             new TicketsService(auth, store),
+        },
+        {
+          provide: SCANNING_STORE,
+          useFactory: () => new PgScanningStore(config.databaseUrl),
+        },
+        {
+          inject: [AUTH_SERVICE, SCANNING_STORE, AUTH_RATE_LIMITER],
+          provide: SCANNING_SERVICE,
+          useFactory: (
+            auth: AuthService,
+            store: PgScanningStore,
+            rateLimiter: RedisRateLimiter
+          ) => new ScanningService(auth, store, rateLimiter),
         },
         {
           provide: PAYMENT_GATEWAY,

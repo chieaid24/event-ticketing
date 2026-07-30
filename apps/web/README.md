@@ -46,6 +46,16 @@ alternative, name and description editing, JSON layout editing with a full
 client-side validation summary from the shared contract, and confirmed
 deletion). Editing controls render only with the `venues.manage` permission.
 
+Scanner flows live at `/scan` (event selection across the caller's scanning
+organizations) and `/scan/[organizationId]/[eventId]` (the gate scanner). The
+scanner is a client component that decodes QR codes from the camera with jsQR
+and falls back to manual ticket-number entry when no camera is available. A
+decoded bearer is posted once and dropped; it never renders or persists. Every
+result pairs color with text, an icon shape, sound, and vibration, and the
+recent-activity list shows attempts with actor attribution. Supervisors with
+`scanner.reverse` get an inline reversal form that requires a reason; the API
+remains the enforcement point.
+
 ## Run
 
 ```bash

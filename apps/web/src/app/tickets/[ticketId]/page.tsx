@@ -3,6 +3,10 @@ import { loadWebConfig } from "@event-ticketing/config";
 import { SiteHeader } from "../../../components/site-header";
 import { fetchCurrentUser } from "../../../lib/auth-server";
 import { formatEventInstant } from "../../../lib/format";
+import {
+  ticketStatusDescriptions,
+  ticketStatusLabels,
+} from "../../../lib/ticket-status";
 import { fetchTicket } from "../../../lib/tickets-server";
 import { TicketQrClient } from "./ticket-qr-client";
 
@@ -76,11 +80,9 @@ export default async function TicketPage({ params }: PageProps) {
         <h1 className="auth-shell__heading">{ticket.eventTitle}</h1>
         <p className="auth-shell__summary">
           <span className="ticket-status" data-status={ticket.status}>
-            {ticket.status === "active" ? "Active" : "Void"}
+            {ticketStatusLabels[ticket.status]}
           </span>{" "}
-          {ticket.status === "active"
-            ? "This ticket admits one at the gate."
-            : "This ticket is void and cannot be used for entry."}
+          {ticketStatusDescriptions[ticket.status]}
         </p>
 
         <section
