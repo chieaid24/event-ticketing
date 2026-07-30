@@ -45,6 +45,7 @@ describe("rolePermissions", () => {
         "events.manage",
         "finance.manage",
         "scanner.checkin",
+        "scanner.reverse",
       ],
       event_manager: [
         "organization.read",
