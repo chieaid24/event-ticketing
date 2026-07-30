@@ -27,7 +27,27 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.13.3
       - run: pnpm install --frozen-lockfile
+      - run: terraform fmt -check -recursive infrastructure/terraform
+      - run:
+          terraform -chdir=infrastructure/terraform/foundation init
+          -backend=false
+      - run: terraform -chdir=infrastructure/terraform/foundation validate
+      - run:
+          terraform -chdir=infrastructure/terraform/environments/staging init
+          -backend=false
+      - run:
+          terraform -chdir=infrastructure/terraform/environments/staging
+          validate
+      - run:
+          terraform -chdir=infrastructure/terraform/environments/production init
+          -backend=false
+      - run:
+          terraform -chdir=infrastructure/terraform/environments/production
+          validate
       - run: docker compose config --quiet
       - run: docker compose up --detach --wait
       - run: pnpm db:migrate
@@ -38,6 +58,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run:
+          docker build --file infrastructure/container/Dockerfile --tag
+          event-ticketing:test .
       - run: pnpm smoke:api
       - uses: gitleaks/gitleaks-action@v2
         env:
