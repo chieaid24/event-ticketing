@@ -1,0 +1,11 @@
+.git
+.github
+.next
+.turbo
+.worktrees
+coverage
+node_modules
+**/node_modules
+**/dist
+docs
+infrastructure/terraform
