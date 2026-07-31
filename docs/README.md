@@ -36,6 +36,8 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [Runbooks](runbooks/) contain executable operational procedures as they are
   introduced.
 - [Load tests](load-tests/) contain k6 scenarios and measured reports.
+- [Release verification](testing/2026-07-31-release-verification.md) records
+  browser, security, concurrency, and recovery evidence.
 - [UI evidence](screenshots/) records manually verified product surfaces.
 - [Local infrastructure](../infrastructure/README.md) defines Docker service
   startup, endpoints, and destructive reset behavior.

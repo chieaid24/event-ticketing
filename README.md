@@ -62,6 +62,21 @@ execute repository and unit tests, and build all applications and packages. Run
 `pnpm test:integration` while PostgreSQL and Redis are running to apply the
 migration and seed in an isolated PostgreSQL schema and Redis key prefix.
 
+Run the release verification suites while the local services are running:
+
+```bash
+pnpm test:races
+pnpm test:recovery
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+The race runner repeats the isolated integration suite three times by default.
+Set `RACE_RUNS` from 1 through 20 to change the repetition count. The recovery
+runner creates and removes a temporary PostgreSQL database after comparing a
+restored backup with the source. Playwright starts the web, API, and worker
+processes and exercises the complete fake-provider release journey.
+
 ## Codebase
 
 ```text

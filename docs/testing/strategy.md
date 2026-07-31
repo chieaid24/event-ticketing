@@ -68,9 +68,34 @@ Run `pnpm --filter @event-ticketing/api test:waiting-room-load` against the
 pinned local Redis service to measure 500 concurrent joins and atomic admission
 under a 25-lease cap.
 
+## Release verification
+
+Run these suites with the pinned local services:
+
+```bash
+pnpm test:races
+pnpm test:recovery
+pnpm test:e2e
+```
+
+`test:races` repeats the isolated PostgreSQL and Redis integration suite. Set
+`RACE_RUNS` from 1 through 20 when you need more repetitions. `test:recovery`
+verifies migration history, transaction rollback, and a temporary
+`pg_dump`/`pg_restore` database. `test:e2e` runs the Chromium release journey
+and live HTTP security probes.
+
+Run the public-read k6 scenario from the pinned container command in the
+[release load report](../load-tests/2026-07-31-release-verification.md). Keep
+authenticated mutation and provider-webhook load in a private environment that
+can supply per-user sessions and provider secrets.
+
+The [release verification report](2026-07-31-release-verification.md) records
+the measured browser, security, concurrency, migration, rollback, and
+restoration evidence.
+
 ## Repository tests
 
 `pnpm test` validates documentation structure, naming, links, and workspace unit
 behavior. The required CI `test` job also runs formatting, lint, strict type
-checks, builds, and secret scanning. Later slices add migrations, OpenAPI,
-integration tests, security tests, and selected smoke tests to the same gate.
+checks, builds, isolated integration and race suites, recovery, Playwright
+journeys, container smoke tests, and secret scanning.

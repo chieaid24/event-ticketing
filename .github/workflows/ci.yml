@@ -53,11 +53,15 @@ jobs:
       - run: pnpm db:migrate
       - run: pnpm db:seed
       - run: pnpm test:integration
+      - run: pnpm test:races
+      - run: pnpm test:recovery
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
       - run:
           docker build --file infrastructure/container/Dockerfile --tag
           event-ticketing:test .
