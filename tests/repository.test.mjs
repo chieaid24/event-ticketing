@@ -21,6 +21,7 @@ const requiredFiles = [
   "docs/engineering/standards.md",
   "docs/security/security-model.md",
   "docs/testing/strategy.md",
+  "docs/testing/2026-07-31-release-verification.md",
   "docs/operations/runbook-index.md",
   "docs/operations/aws-deployment.md",
   "docs/adr/README.md",
@@ -29,6 +30,7 @@ const requiredFiles = [
   "docs/runbooks/aws-backup-restoration.md",
   "docs/runbooks/aws-rollback.md",
   "docs/runbooks/aws-secret-rotation.md",
+  "docs/load-tests/2026-07-31-release-verification.md",
   "apps/web/README.md",
   "apps/api/README.md",
   "apps/worker/README.md",
@@ -49,6 +51,12 @@ const requiredFiles = [
   ".github/workflows/deploy.yml",
   "scripts/container-entrypoint.sh",
   "scripts/deploy-ecs.sh",
+  "scripts/repeat-integration.mjs",
+  "scripts/verify-local-recovery.mjs",
+  "playwright.config.ts",
+  "tests/e2e/release-journey.spec.ts",
+  "tests/e2e/security-boundaries.spec.ts",
+  "tests/load/release-verification.js",
 ];
 
 async function markdownFiles(directory) {
