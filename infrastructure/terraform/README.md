@@ -30,5 +30,4 @@ terraform -chdir=infrastructure/terraform/environments/production validate
 ```
 
 The [deployment guide](../../docs/operations/aws-deployment.md) still describes
-the previous AWS flow; its Azure rewrite lands with the deploy pipeline
-migration.
+the previous AWS flow; its Azure rewrite lands with the documentation migration.

@@ -1,6 +1,6 @@
 # Infrastructure
 
-Use Docker Compose for local dependencies and Terraform for AWS staging and
+Use Docker Compose for local dependencies and Terraform for Azure staging and
 production environments.
 
 ## Local services
@@ -34,24 +34,28 @@ Grafana dashboard for API traffic, failures, latency, dead letters, and outbox
 backlog. Import them into the deployment monitoring stack; they are not loaded
 by local Compose.
 
-## AWS
+## Azure
 
 The [Terraform configuration](terraform/) creates:
 
-- public load-balancer subnets and private application and data subnets in at
-  least two Availability Zones;
-- separate web and API CloudFront distributions, AWS WAF, an Application Load
-  Balancer, and private ECS Fargate services for the web, API, and worker roles;
-- private Multi-AZ RDS PostgreSQL and ElastiCache Valkey services;
-- encrypted S3, Secrets Manager, Elastic Container Registry, CloudWatch, Simple
-  Email Service, and AWS Backup resources; and
-- GitHub OpenID Connect roles for image publication and environment deployment.
+- delegated container-apps, database, and private-endpoint subnets with NAT
+  egress and private DNS zones in each environment network;
+- separate web and API Front Door endpoints, a Front Door WAF policy, and
+  zone-redundant Container Apps for the web, API, and worker roles plus a manual
+  migrate job;
+- private zone-redundant PostgreSQL Flexible Server and Azure Managed Redis
+  services;
+- encrypted blob storage, Key Vault, Azure Container Registry, Log Analytics,
+  and Azure Communication Services email resources; and
+- GitHub OpenID Connect identities for image publication and environment
+  deployment.
 
 The [container definition](container/Dockerfile) builds one image that runs any
 application role or a database migration. The deployment workflow identifies
 that image by digest, migrates and verifies staging, then gives the production
 GitHub environment the same digest.
 
-Start with the [AWS deployment guide](../docs/operations/aws-deployment.md). Use
+The [deployment guide](../docs/operations/aws-deployment.md) still describes the
+previous AWS flow; its Azure rewrite lands with the documentation migration. Use
 the [runbook index](../docs/operations/runbook-index.md) for recovery and the
 [security policy](../SECURITY.md) for public-repository constraints.
