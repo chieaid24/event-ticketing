@@ -55,7 +55,7 @@ application role or a database migration. The deployment workflow identifies
 that image by digest, migrates and verifies staging, then gives the production
 GitHub environment the same digest.
 
-The [deployment guide](../docs/operations/aws-deployment.md) still describes the
-previous AWS flow; its Azure rewrite lands with the documentation migration. Use
-the [runbook index](../docs/operations/runbook-index.md) for recovery and the
+The [deployment guide](../docs/operations/azure-deployment.md) describes
+bootstrap order, secret population, and digest promotion. Use the
+[runbook index](../docs/operations/runbook-index.md) for recovery and the
 [security policy](../SECURITY.md) for public-repository constraints.
