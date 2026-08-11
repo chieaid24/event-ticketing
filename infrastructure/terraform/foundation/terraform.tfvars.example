@@ -1,2 +1,6 @@
-aws_region       = "us-east-1"
+deployment_scopes = {
+  production = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/event-ticketing-production"
+  staging    = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/event-ticketing-staging"
+}
 github_repository = "chieaid24/event-ticketing"
+location          = "eastus2"

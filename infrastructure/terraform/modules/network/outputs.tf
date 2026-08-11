@@ -1,19 +1,25 @@
-output "application_subnet_ids" {
-  value = aws_subnet.application[*].id
+output "container_apps_subnet_id" {
+  value = azurerm_subnet.container_apps.id
 }
 
-output "application_security_group_id" {
-  value = aws_security_group.application.id
+output "database_subnet_id" {
+  value = azurerm_subnet.database.id
 }
 
-output "data_subnet_ids" {
-  value = aws_subnet.data[*].id
+output "postgres_private_dns_zone_id" {
+  value = azurerm_private_dns_zone.postgres.id
 }
 
-output "public_subnet_ids" {
-  value = aws_subnet.public[*].id
+output "private_dns_zone_ids" {
+  value = {
+    for key, zone in azurerm_private_dns_zone.private_link : key => zone.id
+  }
 }
 
-output "vpc_id" {
-  value = aws_vpc.this.id
+output "private_endpoints_subnet_id" {
+  value = azurerm_subnet.private_endpoints.id
+}
+
+output "vnet_id" {
+  value = azurerm_virtual_network.this.id
 }

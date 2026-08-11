@@ -1,16 +1,15 @@
-variable "availability_zone_count" {
-  description = "Number of availability zones used by each subnet tier."
-  type        = number
-  default     = 2
-
-  validation {
-    condition     = var.availability_zone_count >= 2
-    error_message = "Use at least two availability zones."
-  }
+variable "location" {
+  description = "Azure region for network resources."
+  type        = string
 }
 
 variable "name" {
   description = "Resource name prefix."
+  type        = string
+}
+
+variable "resource_group_name" {
+  description = "Resource group containing the network."
   type        = string
 }
 
@@ -20,7 +19,7 @@ variable "tags" {
   default     = {}
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
+variable "vnet_cidr" {
+  description = "CIDR block for the virtual network."
   type        = string
 }

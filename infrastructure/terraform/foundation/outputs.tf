@@ -1,11 +1,18 @@
-output "build_role_arn" {
-  value = aws_iam_role.build.arn
+output "build_identity_client_id" {
+  value = azurerm_user_assigned_identity.github["build"].client_id
 }
 
-output "ecr_repository_name" {
-  value = aws_ecr_repository.this.name
+output "container_registry_id" {
+  value = azurerm_container_registry.this.id
 }
 
-output "github_oidc_provider_arn" {
-  value = aws_iam_openid_connect_provider.github.arn
+output "container_registry_login_server" {
+  value = azurerm_container_registry.this.login_server
+}
+
+output "deploy_identity_client_ids" {
+  value = {
+    production = azurerm_user_assigned_identity.github["deploy-production"].client_id
+    staging    = azurerm_user_assigned_identity.github["deploy-staging"].client_id
+  }
 }

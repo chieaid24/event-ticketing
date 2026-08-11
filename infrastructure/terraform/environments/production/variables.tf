@@ -1,30 +1,25 @@
-variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-}
-
 variable "api_origin" {
   type = string
 }
 
-variable "github_oidc_provider_arn" {
+variable "container_registry_id" {
   type = string
-}
-
-variable "github_repository" {
-  type    = string
-  default = "chieaid24/event-ticketing"
 }
 
 variable "image_uri" {
   type = string
 }
 
+variable "location" {
+  type    = string
+  default = "eastus2"
+}
+
 variable "public_origin" {
   type = string
 }
 
-variable "vpc_cidr" {
+variable "vnet_cidr" {
   type    = string
   default = "10.20.0.0/16"
 }
