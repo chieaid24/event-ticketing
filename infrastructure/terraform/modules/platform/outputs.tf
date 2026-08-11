@@ -1,27 +1,25 @@
-output "api_cloudfront_domain_name" {
-  value = aws_cloudfront_distribution.api.domain_name
+output "api_front_door_hostname" {
+  value = azurerm_cdn_frontdoor_endpoint.api.host_name
 }
 
-output "cloudfront_domain_name" {
-  value = aws_cloudfront_distribution.this.domain_name
+output "application_identity_client_id" {
+  value = azurerm_user_assigned_identity.application.client_id
 }
 
-output "deployment_role_arn" {
-  value = aws_iam_role.deploy.arn
+output "container_app_environment_id" {
+  value = azurerm_container_app_environment.this.id
 }
 
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.this.name
-}
-
-output "ecs_service_names" {
+output "container_app_names" {
   value = {
-    for name, service in aws_ecs_service.this : name => service.name
+    for name, app in azurerm_container_app.this : name => app.name
   }
 }
 
-output "task_definition_families" {
-  value = {
-    for name, definition in aws_ecs_task_definition.this : name => definition.family
-  }
+output "migrate_job_name" {
+  value = azurerm_container_app_job.migrate.name
+}
+
+output "web_front_door_hostname" {
+  value = azurerm_cdn_frontdoor_endpoint.web.host_name
 }

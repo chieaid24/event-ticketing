@@ -1,33 +1,32 @@
-data "aws_region" "current" {}
-
-data "aws_ec2_managed_prefix_list" "cloudfront" {
-  name = "com.amazonaws.global.cloudfront.origin-facing"
-}
-
-data "aws_cloudfront_cache_policy" "disabled" {
-  name = "Managed-CachingDisabled"
-}
-
-data "aws_cloudfront_origin_request_policy" "all_except_host" {
-  name = "Managed-AllViewerExceptHostHeader"
-}
-
 locals {
   common_tags = merge(var.tags, { Component = "platform" })
+
+  registry_server = split("/", var.image_uri)[0]
+
+  # Runtime secrets resolve through key vault references; operators populate
+  # every value except redis-url, which the data module manages.
   secret_keys = {
     api = [
       "DATABASE_URL",
       "PAYMENT_WEBHOOK_SECRET",
+      "REDIS_URL",
       "STRIPE_PUBLISHABLE_KEY",
       "STRIPE_SECRET_KEY",
       "WAITING_ROOM_TOKEN_SECRET",
     ]
     worker = [
       "DATABASE_URL",
+      "REDIS_URL",
       "SMTP_URL",
       "STRIPE_SECRET_KEY",
     ]
   }
+
+  secret_names = {
+    for key in distinct(flatten(values(local.secret_keys))) :
+    key => lower(replace(key, "_", "-"))
+  }
+
   runtime_environment = {
     api = {
       API_COOKIE_SECURE                  = "true"
@@ -36,7 +35,6 @@ locals {
       API_TRUSTED_ORIGINS                = var.public_origin
       LOG_LEVEL                          = "info"
       PAYMENT_PROVIDER                   = "stripe"
-      REDIS_URL                          = "rediss://${var.redis_endpoint}:6379"
       WAITING_ROOM_ADMISSION_CAPACITY    = "100"
       WAITING_ROOM_HEARTBEAT_TTL_SECONDS = "60"
       WAITING_ROOM_LEASE_TTL_SECONDS     = "300"
@@ -51,7 +49,6 @@ locals {
       MAIL_FROM                      = "Event Ticketing <no-reply@example.test>"
       OPS_ALERT_EMAIL                = "ops@example.test"
       PAYMENT_PROVIDER               = "stripe"
-      REDIS_URL                      = "rediss://${var.redis_endpoint}:6379"
       WEB_BASE_URL                   = var.public_origin
       WORKER_OUTBOX_BATCH_SIZE       = "10"
       WORKER_OUTBOX_LEASE_MS         = "30000"
@@ -61,604 +58,509 @@ locals {
       WORKER_SHUTDOWN_TIMEOUT_MS     = "10000"
     }
   }
+
   services = {
     api = {
-      cpu           = 512
-      memory        = 1024
-      port          = 4000
-      health_path   = "/health/ready"
-      desired_count = var.desired_count
+      port        = 4000
+      health_path = "/health/ready"
     }
     web = {
-      cpu           = 512
-      memory        = 1024
-      port          = 3000
-      health_path   = "/"
-      desired_count = var.desired_count
+      port        = 3000
+      health_path = "/"
     }
     worker = {
-      cpu           = 512
-      memory        = 1024
-      port          = null
-      health_path   = null
-      desired_count = var.desired_count
+      port        = null
+      health_path = null
     }
   }
 }
 
-resource "aws_security_group" "load_balancer" {
-  name_prefix = "${var.name}-alb-"
-  description = "Allow CloudFront origin traffic"
-  vpc_id      = var.vpc_id
+resource "azurerm_user_assigned_identity" "application" {
+  name                = "${var.name}-application"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = local.common_tags
+}
 
-  ingress {
-    description     = "HTTP from CloudFront origins"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
-  }
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.application.principal_id
+}
 
-  egress {
-    from_port       = 3000
-    to_port         = 4000
-    protocol        = "tcp"
-    security_groups = [var.application_security_group_id]
+resource "azurerm_role_assignment" "key_vault_secrets" {
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.application.principal_id
+}
+
+resource "azurerm_role_assignment" "artifacts" {
+  scope                = var.storage_account_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.application.principal_id
+}
+
+resource "azurerm_container_app_environment" "this" {
+  name                = var.name
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  infrastructure_subnet_id       = var.container_apps_subnet_id
+  internal_load_balancer_enabled = false
+  log_analytics_workspace_id     = var.log_analytics_workspace_id
+  logs_destination               = "log-analytics"
+  zone_redundancy_enabled        = true
+
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
   }
 
   tags = local.common_tags
 }
 
-resource "aws_security_group_rule" "application_from_alb" {
-  type                     = "ingress"
-  description              = "Application ports from the load balancer"
-  from_port                = 3000
-  to_port                  = 4000
-  protocol                 = "tcp"
-  security_group_id        = var.application_security_group_id
-  source_security_group_id = aws_security_group.load_balancer.id
-}
+resource "azurerm_container_app" "this" {
+  for_each = local.services
 
-resource "aws_lb" "this" {
-  name_prefix        = substr(replace(var.name, "-", ""), 0, 6)
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.load_balancer.id]
-  subnets            = var.public_subnet_ids
+  name                         = each.key
+  resource_group_name          = var.resource_group_name
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
-  drop_invalid_header_fields = true
-  enable_deletion_protection = true
-
-  tags = local.common_tags
-}
-
-resource "aws_lb_target_group" "this" {
-  for_each = {
-    for name, service in local.services : name => service
-    if service.port != null
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.application.id]
   }
 
-  name_prefix = substr(each.key, 0, 5)
-  port        = each.value.port
-  protocol    = "HTTP"
-  target_type = "ip"
-  vpc_id      = var.vpc_id
-
-  deregistration_delay = 30
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200-399"
-    path                = each.value.health_path
-    timeout             = 5
-    unhealthy_threshold = 3
+  registry {
+    server   = local.registry_server
+    identity = azurerm_user_assigned_identity.application.id
   }
 
-  tags = local.common_tags
-}
+  dynamic "secret" {
+    for_each = toset(lookup(local.secret_keys, each.key, []))
 
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.this["web"].arn
-  }
-}
-
-resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 5
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.this["api"].arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-Event-Ticketing-Origin"
-      values           = ["api"]
+    content {
+      name                = local.secret_names[secret.value]
+      identity            = azurerm_user_assigned_identity.application.id
+      key_vault_secret_id = "${var.key_vault_uri}secrets/${local.secret_names[secret.value]}"
     }
   }
-}
 
-resource "aws_ecs_cluster" "this" {
-  name = var.name
-
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-
-  tags = local.common_tags
-}
-
-data "aws_iam_policy_document" "ecs_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "execution" {
-  name_prefix        = "${var.name}-execution-"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = local.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "execution" {
-  role       = aws_iam_role.execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-data "aws_iam_policy_document" "execution" {
-  statement {
-    actions = [
-      "secretsmanager:GetSecretValue",
-    ]
-    resources = [var.application_secret_arn]
-  }
-
-  statement {
-    actions   = ["kms:Decrypt"]
-    resources = [var.kms_key_arn]
-  }
-}
-
-resource "aws_iam_role_policy" "execution" {
-  name   = "read-runtime-secrets"
-  policy = data.aws_iam_policy_document.execution.json
-  role   = aws_iam_role.execution.id
-}
-
-resource "aws_iam_role" "task" {
-  for_each = local.services
-
-  name_prefix        = "${var.name}-${each.key}-"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = local.common_tags
-}
-
-data "aws_iam_policy_document" "application" {
-  statement {
-    actions = [
-      "s3:AbortMultipartUpload",
-      "s3:DeleteObject",
-      "s3:GetObject",
-      "s3:ListBucket",
-      "s3:PutObject",
-    ]
-    resources = [
-      var.artifact_bucket_arn,
-      "${var.artifact_bucket_arn}/*",
-    ]
-  }
-
-  statement {
-    actions = [
-      "kms:Decrypt",
-      "kms:Encrypt",
-      "kms:GenerateDataKey",
-    ]
-    resources = [var.kms_key_arn]
-  }
-
-  statement {
-    actions = [
-      "ses:SendEmail",
-      "ses:SendRawEmail",
-    ]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "application" {
-  for_each = toset(["api", "worker"])
-
-  name   = "application-integrations"
-  policy = data.aws_iam_policy_document.application.json
-  role   = aws_iam_role.task[each.key].id
-}
-
-resource "aws_cloudwatch_log_group" "service" {
-  for_each = local.services
-
-  name              = "/ecs/${var.name}/${each.key}"
-  retention_in_days = 30
-  kms_key_id        = var.kms_key_arn
-  tags              = local.common_tags
-}
-
-resource "aws_ecs_task_definition" "this" {
-  for_each = local.services
-
-  family                   = "${var.name}-${each.key}"
-  cpu                      = each.value.cpu
-  memory                   = each.value.memory
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task[each.key].arn
-
-  container_definitions = jsonencode([
-    {
-      name      = "application"
-      image     = var.image_uri
-      essential = true
-      command   = [each.key]
-      environment = [
-        for key, value in local.runtime_environment[each.key] : {
-          name  = key
-          value = value
-        }
-      ]
-      secrets = [
-        for key in lookup(local.secret_keys, each.key, []) : {
-          name      = key
-          valueFrom = "${var.application_secret_arn}:${key}::"
-        }
-      ]
-      portMappings = each.value.port == null ? [] : [{
-        name          = each.key
-        containerPort = each.value.port
-        hostPort      = each.value.port
-        protocol      = "tcp"
-      }]
-      readonlyRootFilesystem = true
-      user                   = "node"
-      linuxParameters = {
-        initProcessEnabled = true
-      }
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.service[each.key].name
-          awslogs-region        = data.aws_region.current.region
-          awslogs-stream-prefix = "application"
-        }
-      }
-    }
-  ])
-
-  runtime_platform {
-    cpu_architecture        = "X86_64"
-    operating_system_family = "LINUX"
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_ecs_service" "this" {
-  for_each = local.services
-
-  name            = each.key
-  cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.this[each.key].arn
-  desired_count   = each.value.desired_count
-  launch_type     = "FARGATE"
-
-  deployment_circuit_breaker {
-    enable   = true
-    rollback = true
-  }
-
-  deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 200
-  enable_execute_command             = false
-  health_check_grace_period_seconds  = each.value.port == null ? null : 60
-  propagate_tags                     = "SERVICE"
-
-  network_configuration {
-    assign_public_ip = false
-    security_groups  = [var.application_security_group_id]
-    subnets          = var.application_subnet_ids
-  }
-
-  dynamic "load_balancer" {
+  dynamic "ingress" {
     for_each = each.value.port == null ? [] : [each.value]
 
     content {
-      container_name   = "application"
-      container_port   = load_balancer.value.port
-      target_group_arn = aws_lb_target_group.this[each.key].arn
+      external_enabled = true
+      target_port      = ingress.value.port
+      transport        = "auto"
+
+      traffic_weight {
+        latest_revision = true
+        percentage      = 100
+      }
+
+      # Only Front Door may reach the ingress; the subnet NSG enforces the
+      # same service tag at the network layer.
+      ip_security_restriction {
+        name             = "front-door"
+        action           = "Allow"
+        ip_address_range = "AzureFrontDoor.Backend"
+        description      = "Front Door origin traffic only"
+      }
     }
   }
 
-  depends_on = [aws_lb_listener.http]
-  tags       = local.common_tags
+  template {
+    min_replicas = each.key == "worker" ? 1 : var.desired_count
+    max_replicas = max(4, var.desired_count * 4)
 
-  lifecycle {
-    ignore_changes = [task_definition]
-  }
-}
+    container {
+      name   = "application"
+      image  = var.image_uri
+      cpu    = 0.5
+      memory = "1Gi"
 
-resource "aws_appautoscaling_target" "service" {
-  for_each = local.services
+      # The shared entrypoint selects the role from the first argument.
+      args = [each.key]
 
-  max_capacity       = max(4, each.value.desired_count * 4)
-  min_capacity       = each.value.desired_count
-  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.this[each.key].name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  service_namespace  = "ecs"
-}
+      dynamic "env" {
+        for_each = local.runtime_environment[each.key]
 
-resource "aws_appautoscaling_policy" "cpu" {
-  for_each = local.services
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
 
-  name               = "${var.name}-${each.key}-cpu"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.service[each.key].resource_id
-  scalable_dimension = aws_appautoscaling_target.service[each.key].scalable_dimension
-  service_namespace  = aws_appautoscaling_target.service[each.key].service_namespace
+      dynamic "env" {
+        for_each = toset(lookup(local.secret_keys, each.key, []))
 
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
-    }
+        content {
+          name        = env.value
+          secret_name = local.secret_names[env.value]
+        }
+      }
 
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-    target_value       = 60
-  }
-}
+      dynamic "readiness_probe" {
+        for_each = each.value.health_path == null ? [] : [each.value]
 
-resource "aws_ses_configuration_set" "this" {
-  name                       = var.name
-  reputation_metrics_enabled = true
-}
-
-resource "aws_wafv2_web_acl" "this" {
-  name  = var.name
-  scope = "CLOUDFRONT"
-
-  default_action {
-    allow {}
-  }
-
-  rule {
-    name     = "aws-common-rule-set"
-    priority = 10
-
-    override_action {
-      none {}
-    }
-
-    statement {
-      managed_rule_group_statement {
-        name        = "AWSManagedRulesCommonRuleSet"
-        vendor_name = "AWS"
+        content {
+          transport = "HTTP"
+          port      = readiness_probe.value.port
+          path      = readiness_probe.value.health_path
+        }
       }
     }
 
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-common"
-      sampled_requests_enabled   = false
-    }
-  }
+    dynamic "http_scale_rule" {
+      for_each = each.value.port == null ? [] : [each.value]
 
-  rule {
-    name     = "rate-limit"
-    priority = 20
-
-    action {
-      block {}
-    }
-
-    statement {
-      rate_based_statement {
-        aggregate_key_type = "IP"
-        limit              = 2000
+      content {
+        name                = "http-concurrency"
+        concurrent_requests = "50"
       }
     }
 
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-rate"
-      sampled_requests_enabled   = false
+    # KEDA postgresql scaler keeps at least one always-on outbox poller and
+    # adds replicas while claimable outbox events back up.
+    dynamic "custom_scale_rule" {
+      for_each = each.key == "worker" ? [each.key] : []
+
+      content {
+        name             = "outbox-backlog"
+        custom_rule_type = "postgresql"
+
+        metadata = {
+          query            = "SELECT COUNT(*) FROM outbox_events WHERE status IN ('pending', 'processing') AND available_at <= now()"
+          targetQueryValue = "50"
+        }
+
+        authentication {
+          secret_name       = local.secret_names["DATABASE_URL"]
+          trigger_parameter = "connection"
+        }
+      }
     }
   }
 
-  visibility_config {
-    cloudwatch_metrics_enabled = true
-    metric_name                = var.name
-    sampled_requests_enabled   = false
+  tags = local.common_tags
+
+  depends_on = [
+    azurerm_role_assignment.acr_pull,
+    azurerm_role_assignment.key_vault_secrets,
+  ]
+}
+
+resource "azurerm_container_app_job" "migrate" {
+  name                         = "migrate"
+  resource_group_name          = var.resource_group_name
+  location                     = var.location
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  workload_profile_name        = "Consumption"
+
+  replica_timeout_in_seconds = 1800
+  replica_retry_limit        = 1
+
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.application.id]
+  }
+
+  registry {
+    server   = local.registry_server
+    identity = azurerm_user_assigned_identity.application.id
+  }
+
+  secret {
+    name                = local.secret_names["DATABASE_URL"]
+    identity            = azurerm_user_assigned_identity.application.id
+    key_vault_secret_id = "${var.key_vault_uri}secrets/${local.secret_names["DATABASE_URL"]}"
+  }
+
+  template {
+    container {
+      name   = "application"
+      image  = var.image_uri
+      cpu    = 0.5
+      memory = "1Gi"
+      args   = ["migrate"]
+
+      env {
+        name        = "DATABASE_URL"
+        secret_name = local.secret_names["DATABASE_URL"]
+      }
+    }
+  }
+
+  tags = local.common_tags
+
+  depends_on = [
+    azurerm_role_assignment.acr_pull,
+    azurerm_role_assignment.key_vault_secrets,
+  ]
+}
+
+resource "azurerm_cdn_frontdoor_profile" "this" {
+  name                     = var.name
+  resource_group_name      = var.resource_group_name
+  sku_name                 = "Premium_AzureFrontDoor"
+  response_timeout_seconds = 60
+  tags                     = local.common_tags
+}
+
+resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
+  name                = replace(var.name, "-", "")
+  resource_group_name = var.resource_group_name
+  sku_name            = azurerm_cdn_frontdoor_profile.this.sku_name
+  enabled             = true
+  mode                = "Prevention"
+
+  custom_rule {
+    name                           = "RateLimit"
+    enabled                        = true
+    priority                       = 100
+    type                           = "RateLimitRule"
+    action                         = "Block"
+    rate_limit_duration_in_minutes = 5
+    rate_limit_threshold           = 2000
+
+    match_condition {
+      match_variable     = "RemoteAddr"
+      operator           = "IPMatch"
+      negation_condition = false
+      match_values       = ["0.0.0.0/0"]
+    }
+  }
+
+  managed_rule {
+    type    = "Microsoft_DefaultRuleSet"
+    version = "2.1"
+    action  = "Block"
+  }
+
+  managed_rule {
+    type    = "Microsoft_BotManagerRuleSet"
+    version = "1.0"
+    action  = "Block"
   }
 
   tags = local.common_tags
 }
 
-resource "aws_cloudfront_distribution" "this" {
-  enabled         = true
-  http_version    = "http2and3"
-  is_ipv6_enabled = true
-  price_class     = "PriceClass_100"
-  web_acl_id      = aws_wafv2_web_acl.this.arn
+resource "azurerm_cdn_frontdoor_endpoint" "web" {
+  name                     = "${var.name}-web"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  tags                     = local.common_tags
+}
 
-  origin {
-    domain_name = aws_lb.this.dns_name
-    origin_id   = "application-load-balancer"
+resource "azurerm_cdn_frontdoor_endpoint" "api" {
+  name                     = "${var.name}-api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  tags                     = local.common_tags
+}
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+resource "azurerm_cdn_frontdoor_origin_group" "web" {
+  name                     = "web"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  session_affinity_enabled = false
+
+  load_balancing {
+    sample_size                 = 4
+    successful_samples_required = 3
+  }
+
+  health_probe {
+    interval_in_seconds = 30
+    path                = "/"
+    protocol            = "Https"
+    request_type        = "GET"
+  }
+}
+
+resource "azurerm_cdn_frontdoor_origin_group" "api" {
+  name                     = "api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  session_affinity_enabled = false
+
+  load_balancing {
+    sample_size                 = 4
+    successful_samples_required = 3
+  }
+
+  health_probe {
+    interval_in_seconds = 30
+    path                = "/health/ready"
+    protocol            = "Https"
+    request_type        = "GET"
+  }
+}
+
+resource "azurerm_cdn_frontdoor_origin" "web" {
+  name                          = "web"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
+
+  certificate_name_check_enabled = true
+  enabled                        = true
+  host_name                      = azurerm_container_app.this["web"].ingress[0].fqdn
+  origin_host_header             = azurerm_container_app.this["web"].ingress[0].fqdn
+  http_port                      = 80
+  https_port                     = 443
+  priority                       = 1
+  weight                         = 1000
+}
+
+resource "azurerm_cdn_frontdoor_origin" "api" {
+  name                          = "api"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
+
+  certificate_name_check_enabled = true
+  enabled                        = true
+  host_name                      = azurerm_container_app.this["api"].ingress[0].fqdn
+  origin_host_header             = azurerm_container_app.this["api"].ingress[0].fqdn
+  http_port                      = 80
+  https_port                     = 443
+  priority                       = 1
+  weight                         = 1000
+}
+
+resource "azurerm_cdn_frontdoor_rule_set" "api" {
+  name                     = "api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+}
+
+# Preserves the routing header contract the API expects from its edge.
+resource "azurerm_cdn_frontdoor_rule" "api_origin_header" {
+  name                      = "apioriginheader"
+  cdn_frontdoor_rule_set_id = azurerm_cdn_frontdoor_rule_set.api.id
+  order                     = 1
+  behavior_on_match         = "Continue"
+
+  actions {
+    request_header_action {
+      header_action = "Overwrite"
+      header_name   = "X-Event-Ticketing-Origin"
+      value         = "api"
     }
   }
 
-  default_cache_behavior {
-    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
-    compress                 = true
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_except_host.id
-    target_origin_id         = "application-load-balancer"
-    viewer_protocol_policy   = "redirect-to-https"
-  }
+  depends_on = [
+    azurerm_cdn_frontdoor_origin_group.api,
+    azurerm_cdn_frontdoor_origin.api,
+  ]
+}
 
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
+resource "azurerm_cdn_frontdoor_route" "web" {
+  name                          = "web"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.web.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.web.id]
+
+  enabled                = true
+  forwarding_protocol    = "HttpsOnly"
+  https_redirect_enabled = true
+  link_to_default_domain = true
+  patterns_to_match      = ["/*"]
+  supported_protocols    = ["Http", "Https"]
+}
+
+resource "azurerm_cdn_frontdoor_route" "api" {
+  name                          = "api"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.api.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.api.id]
+  cdn_frontdoor_rule_set_ids    = [azurerm_cdn_frontdoor_rule_set.api.id]
+
+  enabled                = true
+  forwarding_protocol    = "HttpsOnly"
+  https_redirect_enabled = true
+  link_to_default_domain = true
+  patterns_to_match      = ["/*"]
+  supported_protocols    = ["Http", "Https"]
+}
+
+resource "azurerm_cdn_frontdoor_security_policy" "this" {
+  name                     = var.name
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+
+  security_policies {
+    firewall {
+      cdn_frontdoor_firewall_policy_id = azurerm_cdn_frontdoor_firewall_policy.this.id
+
+      association {
+        patterns_to_match = ["/*"]
+
+        domain {
+          cdn_frontdoor_domain_id = azurerm_cdn_frontdoor_endpoint.web.id
+        }
+
+        domain {
+          cdn_frontdoor_domain_id = azurerm_cdn_frontdoor_endpoint.api.id
+        }
+      }
     }
   }
+}
 
-  viewer_certificate {
-    cloudfront_default_certificate = true
-    minimum_protocol_version       = "TLSv1.2_2021"
+# SMTP credentials for the Azure-managed sender domain are provisioned outside
+# Terraform and land in the existing SMTP_URL key vault secret.
+resource "azurerm_email_communication_service" "this" {
+  name                = var.name
+  resource_group_name = var.resource_group_name
+  data_location       = "United States"
+  tags                = local.common_tags
+}
+
+resource "azurerm_email_communication_service_domain" "this" {
+  name              = "AzureManagedDomain"
+  email_service_id  = azurerm_email_communication_service.this.id
+  domain_management = "AzureManaged"
+}
+
+resource "azurerm_communication_service" "this" {
+  name                = var.name
+  resource_group_name = var.resource_group_name
+  data_location       = "United States"
+  tags                = local.common_tags
+}
+
+resource "azurerm_communication_service_email_domain_association" "this" {
+  communication_service_id = azurerm_communication_service.this.id
+  email_service_domain_id  = azurerm_email_communication_service_domain.this.id
+}
+
+resource "azurerm_monitor_metric_alert" "front_door_5xx" {
+  name                = "${var.name}-front-door-5xx"
+  resource_group_name = var.resource_group_name
+  scopes              = [azurerm_cdn_frontdoor_profile.this.id]
+  description         = "Edge is returning server errors."
+  severity            = 2
+  frequency           = "PT5M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.Cdn/profiles"
+    metric_name      = "Percentage5XX"
+    aggregation      = "Average"
+    operator         = "GreaterThan"
+    threshold        = 5
   }
 
   tags = local.common_tags
 }
 
-resource "aws_cloudfront_distribution" "api" {
-  enabled         = true
-  http_version    = "http2and3"
-  is_ipv6_enabled = true
-  price_class     = "PriceClass_100"
-  web_acl_id      = aws_wafv2_web_acl.this.arn
+resource "azurerm_monitor_diagnostic_setting" "front_door" {
+  name                       = "${var.name}-front-door"
+  target_resource_id         = azurerm_cdn_frontdoor_profile.this.id
+  log_analytics_workspace_id = var.log_analytics_workspace_id
 
-  origin {
-    domain_name = aws_lb.this.dns_name
-    origin_id   = "application-load-balancer"
-
-    custom_header {
-      name  = "X-Event-Ticketing-Origin"
-      value = "api"
-    }
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
+  enabled_log {
+    category_group = "allLogs"
   }
-
-  default_cache_behavior {
-    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
-    compress                 = true
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_except_host.id
-    target_origin_id         = "application-load-balancer"
-    viewer_protocol_policy   = "redirect-to-https"
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-    minimum_protocol_version       = "TLSv1.2_2021"
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
-  alarm_name          = "${var.name}-alb-5xx"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2
-  metric_name         = "HTTPCode_ELB_5XX_Count"
-  namespace           = "AWS/ApplicationELB"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 5
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    LoadBalancer = aws_lb.this.arn_suffix
-  }
-
-  tags = local.common_tags
-}
-
-data "aws_iam_policy_document" "deploy_assume" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [var.github_oidc_provider_arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:environment:${var.github_environment}"]
-    }
-  }
-}
-
-resource "aws_iam_role" "deploy" {
-  name_prefix        = "${var.name}-deploy-"
-  assume_role_policy = data.aws_iam_policy_document.deploy_assume.json
-  tags               = local.common_tags
-}
-
-data "aws_iam_policy_document" "deploy" {
-  statement {
-    actions = [
-      "ecs:DescribeServices",
-      "ecs:DescribeTaskDefinition",
-      "ecs:DescribeTasks",
-      "ecs:RegisterTaskDefinition",
-      "ecs:RunTask",
-      "ecs:UpdateService",
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    actions = ["iam:PassRole"]
-    resources = concat(
-      [aws_iam_role.execution.arn],
-      [for role in aws_iam_role.task : role.arn]
-    )
-  }
-}
-
-resource "aws_iam_role_policy" "deploy" {
-  name   = "deploy-ecs-services"
-  policy = data.aws_iam_policy_document.deploy.json
-  role   = aws_iam_role.deploy.id
 }
