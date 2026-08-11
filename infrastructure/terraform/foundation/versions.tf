@@ -1,31 +1,18 @@
 terraform {
   required_version = ">= 1.10.0"
 
-  backend "s3" {
-    encrypt      = true
-    use_lockfile = true
+  backend "azurerm" {
+    use_azuread_auth = true
   }
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.0"
-    }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.40"
     }
   }
 }
 
-provider "aws" {
-  region = var.aws_region
-
-  default_tags {
-    tags = {
-      Environment = "shared"
-      ManagedBy   = "terraform"
-      Project     = "event-ticketing"
-    }
-  }
+provider "azurerm" {
+  features {}
 }
