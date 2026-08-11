@@ -70,7 +70,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 | `packages/config`     | Validated application configuration                      | security, operations              |
 | `packages/ui`         | Shared accessible UI primitives                          | `DESIGN.md`                       |
 | `packages/test-utils` | Shared deterministic test helpers                        | testing strategy                  |
-| `infrastructure`      | Local Docker services, containers, and AWS Terraform     | infrastructure, operations        |
+| `infrastructure`      | Local Docker services, containers, and Azure Terraform   | infrastructure, operations        |
 
 Each implemented area gets a short local `README.md` that explains its boundary,
 entry points, tests, and dependencies. Do not duplicate product rules there;

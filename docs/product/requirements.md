@@ -52,7 +52,7 @@ The first production-style release includes:
 - refunds, ticket voiding, inventory return policy, and notifications;
 - analytics, audit logging, rate limits, logs, metrics, traces, and alerts;
 - Dockerized local dependencies, CI, E2E and concurrency tests; and
-- reproducible AWS deployment and recovery documentation.
+- reproducible Azure deployment and recovery documentation.
 
 ## Deferred scope
 

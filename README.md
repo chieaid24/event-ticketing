@@ -92,7 +92,7 @@ packages/
   test-utils/
 infrastructure/
   README.md  Local PostgreSQL, Redis, Mailpit, and MinIO operations
-  terraform/ Planned AWS infrastructure
+  terraform/ Azure delivery, staging, and production infrastructure
 docs/        Product and engineering source of truth
 ```
 

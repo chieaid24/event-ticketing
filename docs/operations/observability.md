@@ -8,8 +8,8 @@ logs, then use metrics to decide whether the failure is isolated or systemic.
 Scrape `GET /metrics` from the API on the private service network. The endpoint
 exports request counts and duration histograms with bounded method, normalized
 path, and status labels. It also exports outbox state counts and the age of the
-oldest ready job. Do not publish the endpoint through the customer-facing load
-balancer.
+oldest ready job. Do not publish the endpoint through the customer-facing Front
+Door endpoints.
 
 Collect JSON logs from the API and worker. API completion entries include
 `request_id` and `trace_id`. The API returns the same values in `x-request-id`

@@ -69,9 +69,9 @@ locks authoritative.
 
 ## Phase 10: Production hardening
 
-Deliver Terraform, AWS networking and services, WAF, secret references, backups,
-autoscaling, immutable images, staging deployment, security scans, restore and
-rollback drills, threat model review, and measured load reports.
+Deliver Terraform, Azure networking and services, WAF, secret references,
+backups, autoscaling, immutable images, staging deployment, security scans,
+restore and rollback drills, threat model review, and measured load reports.
 
 ## Demonstration
 

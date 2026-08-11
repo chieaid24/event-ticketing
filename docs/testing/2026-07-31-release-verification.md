@@ -76,8 +76,8 @@ production dataset size.
 
 This run used the fake payment provider, local Mailpit, and local containers.
 The live Stripe test-mode journey remains gated on owner-provided credentials.
-AWS staging deployment, rollback, and managed backup restoration remain gated on
-account access and spending approval. The local checks do not substitute for
+Azure staging deployment, rollback, and managed backup restoration remain gated
+on account access and spending approval. The local checks do not substitute for
 those credentialed drills.
 
 See the
