@@ -26,7 +26,7 @@ const requiredFiles = [
   "docs/operations/aws-deployment.md",
   "docs/adr/README.md",
   "docs/adr/0001-monorepo-and-service-boundaries.md",
-  "docs/adr/0010-aws-ecs-single-image-deployment.md",
+  "docs/adr/0010-azure-container-apps-single-image-deployment.md",
   "docs/runbooks/aws-backup-restoration.md",
   "docs/runbooks/aws-rollback.md",
   "docs/runbooks/aws-secret-rotation.md",

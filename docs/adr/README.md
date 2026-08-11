@@ -22,7 +22,7 @@ Each ADR contains:
 Initial decisions expected during implementation cover service boundaries,
 PostgreSQL inventory authority, locking, server-managed sessions, shared Zod
 contracts, Stripe finalization, the transactional outbox, QR token design, the
-waiting room, and AWS deployment.
+waiting room, and Azure deployment.
 
 Do not pre-write an accepted ADR before the implementation issue evaluates its
 trade-offs. Link accepted ADRs from the relevant architecture document and
@@ -39,4 +39,4 @@ issue.
 - [ADR 0007: Redis waiting-room admission](0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](0008-qr-ticket-tokens.md)
 - [ADR 0009: Refund finalization and inventory return](0009-refund-finalization-and-inventory-return.md)
-- [ADR 0010: AWS ECS single-image deployment](0010-aws-ecs-single-image-deployment.md)
+- [ADR 0010: Azure Container Apps single-image deployment](0010-azure-container-apps-single-image-deployment.md)

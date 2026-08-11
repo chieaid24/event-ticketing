@@ -5,8 +5,8 @@ deployable web, API, and worker applications.
 [ADR 0001](../adr/0001-monorepo-and-service-boundaries.md) records the boundary
 and tooling decision. [ADR 0002](../adr/0002-postgresql-transactional-outbox.md)
 records durable asynchronous delivery and retry semantics.
-[ADR 0010](../adr/0010-aws-ecs-single-image-deployment.md) records the AWS
-network, compute, and immutable-image promotion decision.
+[ADR 0010](../adr/0010-azure-container-apps-single-image-deployment.md) records
+the Azure network, compute, and immutable-image promotion decision.
 
 ```text
 Browser and scanner

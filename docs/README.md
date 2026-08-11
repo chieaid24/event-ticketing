@@ -50,7 +50,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [ADR 0007: Redis waiting-room admission](adr/0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](adr/0008-qr-ticket-tokens.md)
 - [ADR 0009: Refund finalization and inventory return](adr/0009-refund-finalization-and-inventory-return.md)
-- [ADR 0010: AWS ECS single-image deployment](adr/0010-aws-ecs-single-image-deployment.md)
+- [ADR 0010: Azure Container Apps single-image deployment](adr/0010-azure-container-apps-single-image-deployment.md)
 - [Deploy to AWS](operations/aws-deployment.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
 - [Recover a refund webhook backlog](runbooks/refund-webhook-backlog.md)
