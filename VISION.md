@@ -48,6 +48,39 @@ coordination but never decides whether inventory is sold. The browser never
 decides price, permission, availability, total, user identity, payment state, or
 ticket state.
 
+## Cloud platform
+
+The platform deploys on Microsoft Azure. The choice follows the workload:
+
+- Transactional email is core to the product (verification, order confirmation,
+  refund, reminder). Azure Communication Services provides first-party email
+  behind the existing SMTP contract.
+- On-sale traffic produces connection surges against PostgreSQL. Azure Database
+  for PostgreSQL Flexible Server ships managed PgBouncer pooling in front of the
+  authoritative store.
+- Container Apps scales on demand signals through KEDA: HTTP concurrency for web
+  and API, outbox backlog for the worker, instead of trailing CPU averages.
+- Front Door and its WAF policy preserve the dual-endpoint edge design and the
+  origin-routing header without application routing changes.
+- Ticketing is a payments-heavy, audit-first workload; Azure's enterprise
+  compliance posture matches the priority order above.
+
+The application layer stays cloud neutral: plain containers, PostgreSQL, Redis
+commands, SMTP, and Stripe. Azure specifics live only in Terraform, the deploy
+workflow, and operations documents.
+
+### Resume-ready summary
+
+- Migrated a production-style ticketing platform from AWS (ECS Fargate, RDS,
+  CloudFront and WAF) to Azure (Container Apps, PostgreSQL Flexible Server,
+  Front Door and WAF) with Terraform and digest-based GitHub Actions OIDC
+  promotion, keeping the application layer cloud neutral.
+- Chose Azure on workload grounds: first-party transactional email, managed
+  PgBouncer pooling for on-sale connection surges, and KEDA scaling on domain
+  signals such as outbox backlog rather than CPU.
+- Preserved zero-static-credential deployments through federated identity and
+  private-only data services across both clouds.
+
 ## Scope
 
 The first complete release includes authentication, organizations, venue and

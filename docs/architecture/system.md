@@ -5,14 +5,14 @@ deployable web, API, and worker applications.
 [ADR 0001](../adr/0001-monorepo-and-service-boundaries.md) records the boundary
 and tooling decision. [ADR 0002](../adr/0002-postgresql-transactional-outbox.md)
 records durable asynchronous delivery and retry semantics.
-[ADR 0010](../adr/0010-aws-ecs-single-image-deployment.md) records the AWS
-network, compute, and immutable-image promotion decision.
+[ADR 0010](../adr/0010-azure-container-apps-single-image-deployment.md) records
+the Azure network, compute, and immutable-image promotion decision.
 
 ```text
 Browser and scanner
-  -> CloudFront, WAF, and load balancer
+  -> Front Door and WAF
   -> Next.js web and NestJS API
-  -> PostgreSQL, Redis, Stripe, S3, and BullMQ
+  -> PostgreSQL, Redis, Stripe, object storage, and BullMQ
   -> worker
   -> email, artifacts, analytics, and operational signals
 ```
@@ -47,8 +47,9 @@ behind interfaces. Keep raw SQL parameterized and isolated.
 - PostgreSQL, Redis, BullMQ, Stripe, Pino, OpenTelemetry, and Prometheus metrics
 - Vitest, React Testing Library, Playwright, Testcontainers, and k6
 - Docker Compose locally
-- Terraform, ECS Fargate, RDS, ElastiCache, S3, SES, ECR, CloudFront, WAF,
-  Secrets Manager, and GitHub Actions OIDC in AWS
+- Terraform, Container Apps, PostgreSQL Flexible Server, Managed Redis, blob
+  storage, Communication Services email, Container Registry, Front Door, WAF,
+  Key Vault, and GitHub Actions OIDC in Azure
 
 ## Reliability patterns
 
@@ -81,25 +82,26 @@ requires admission and remains authoritative for every hold. See
 
 Web, API, and worker applications have separate Zod schemas. Only intentionally
 public browser values use `NEXT_PUBLIC_`. Production services resolve secrets
-from AWS Secrets Manager. No application reads `process.env` outside its
+through Key Vault references. No application reads `process.env` outside its
 configuration module.
 
 The local environment runs PostgreSQL, Redis, Mailpit, and MinIO from pinned
 container images. The API checks PostgreSQL and Redis readiness with finite
 driver and application timeouts. Liveness never depends on external services.
 
-AWS environments span at least two Availability Zones. The load balancer uses
-public subnets, ECS tasks use private application subnets without public
-addresses, and RDS and ElastiCache use isolated private data subnets. Interface
-endpoints keep image pulls, logs, and secret reads on the AWS network. One NAT
-gateway per Availability Zone avoids a shared application-egress failure.
+Azure environments run zone-redundant compute and data services. The container
+apps environment uses a delegated private subnet, PostgreSQL Flexible Server
+uses its own delegated subnet, and Managed Redis, Key Vault, and blob storage
+attach through private endpoints. Private DNS zones resolve every data service
+inside the virtual network, and one NAT gateway gives outbound provider calls a
+stable public address.
 
-Separate web and API CloudFront distributions share one AWS WAF. The API
-distribution adds an origin-routing header so paths such as `/organizations` can
-exist in both applications without collision. The load balancer accepts only
-CloudFront origin traffic and routes that header to the API target group. ECS
-services use separate task roles, secrets, logs, health checks, and scaling
-policies while running the same digest-addressed image.
+Separate web and API Front Door endpoints share one Front Door WAF policy. The
+API route overwrites an origin-routing header so paths such as `/organizations`
+can exist in both applications without collision. Container app ingress accepts
+only Front Door origin traffic. The web, API, and worker apps use separate
+arguments, secrets, probes, and scale rules while running the same
+digest-addressed image.
 
 Every API response carries a request ID. Structured request logs include the
 method, path without query parameters, response status, duration, and request

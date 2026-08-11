@@ -65,10 +65,10 @@ ceiling; it does not justify raising that ceiling.
 
 ## Limits
 
-This was a local, single-process, cleartext HTTP test. It excluded CloudFront,
-WAF, TLS, network latency, ECS scaling, RDS, ElastiCache, authenticated holds,
-checkout mutations, payment webhooks, and scanner bursts. It did not collect
-CPU, memory, database lock-wait, or Redis latency time series. Run credentialed
-mutation and provider scenarios in an owner-authorized private staging
-environment, then report those signals before making a production capacity
-claim.
+This was a local, single-process, cleartext HTTP test. It excluded Front Door,
+WAF, TLS, network latency, Container Apps scaling, PostgreSQL Flexible Server,
+Managed Redis, authenticated holds, checkout mutations, payment webhooks, and
+scanner bursts. It did not collect CPU, memory, database lock-wait, or Redis
+latency time series. Run credentialed mutation and provider scenarios in an
+owner-authorized private staging environment, then report those signals before
+making a production capacity claim.

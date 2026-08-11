@@ -31,16 +31,18 @@ unique PostgreSQL schema and verify Redis through a unique key prefix.
 
 ## Production
 
-Use CloudFront and WAF before an Application Load Balancer. Run web, API, and
-worker services in private ECS subnets. Keep RDS and ElastiCache private. Use S3
-for artifacts and media, SES for email, Secrets Manager for credentials, ECR for
-immutable images, and OpenID Connect for GitHub deployment identity.
+Use Front Door and its WAF policy in front of the container apps. Run web, API,
+and worker as Container Apps that accept only Front Door origin traffic. Keep
+PostgreSQL Flexible Server and Managed Redis private. Use blob storage for
+artifacts and media, Azure Communication Services for email, Key Vault for
+credentials, Azure Container Registry for digest-addressed images, and federated
+identity credentials for GitHub deployment identity.
 
 Build one image per commit, deploy it to staging, run controlled migrations and
 smoke tests, and promote the same image. Do not rebuild for production. Follow
-the [AWS deployment guide](aws-deployment.md). The Terraform roots create
-private application and data subnets, per-AZ egress, encrypted data services,
-AWS Backup, and GitHub OpenID Connect roles.
+the [Azure deployment guide](azure-deployment.md). The Terraform roots create
+delegated private subnets, NAT egress, private zone-redundant data services, and
+GitHub federated identity credentials.
 
 ## Signals
 
@@ -76,9 +78,9 @@ Available runbooks:
 - [Inspect and redeliver outbox dead letters](../runbooks/outbox-dead-letters.md)
 - [Recover a refund webhook backlog](../runbooks/refund-webhook-backlog.md)
 - [Retry a dead-letter job](../runbooks/dead-letter-jobs.md)
-- [Roll back an AWS release](../runbooks/aws-rollback.md)
-- [Restore an AWS backup](../runbooks/aws-backup-restoration.md)
-- [Rotate AWS runtime secrets](../runbooks/aws-secret-rotation.md)
+- [Roll back an Azure release](../runbooks/azure-rollback.md)
+- [Restore an Azure backup](../runbooks/azure-backup-restoration.md)
+- [Rotate Azure runtime secrets](../runbooks/azure-secret-rotation.md)
 
 See [observability](observability.md) for metric collection, trace correlation,
 alert rules, dashboards, analytics access, and operational ownership.

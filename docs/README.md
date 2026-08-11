@@ -50,13 +50,13 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [ADR 0007: Redis waiting-room admission](adr/0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](adr/0008-qr-ticket-tokens.md)
 - [ADR 0009: Refund finalization and inventory return](adr/0009-refund-finalization-and-inventory-return.md)
-- [ADR 0010: AWS ECS single-image deployment](adr/0010-aws-ecs-single-image-deployment.md)
-- [Deploy to AWS](operations/aws-deployment.md)
+- [ADR 0010: Azure Container Apps single-image deployment](adr/0010-azure-container-apps-single-image-deployment.md)
+- [Deploy to Azure](operations/azure-deployment.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
 - [Recover a refund webhook backlog](runbooks/refund-webhook-backlog.md)
-- [Roll back an AWS release](runbooks/aws-rollback.md)
-- [Restore an AWS backup](runbooks/aws-backup-restoration.md)
-- [Rotate AWS runtime secrets](runbooks/aws-secret-rotation.md)
+- [Roll back an Azure release](runbooks/azure-rollback.md)
+- [Restore an Azure backup](runbooks/azure-backup-restoration.md)
+- [Rotate Azure runtime secrets](runbooks/azure-secret-rotation.md)
 
 ## Ownership map
 
@@ -70,7 +70,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 | `packages/config`     | Validated application configuration                      | security, operations              |
 | `packages/ui`         | Shared accessible UI primitives                          | `DESIGN.md`                       |
 | `packages/test-utils` | Shared deterministic test helpers                        | testing strategy                  |
-| `infrastructure`      | Local Docker services, containers, and AWS Terraform     | infrastructure, operations        |
+| `infrastructure`      | Local Docker services, containers, and Azure Terraform   | infrastructure, operations        |
 
 Each implemented area gets a short local `README.md` that explains its boundary,
 entry points, tests, and dependencies. Do not duplicate product rules there;

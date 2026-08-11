@@ -29,5 +29,5 @@ terraform -chdir=infrastructure/terraform/environments/production init -backend=
 terraform -chdir=infrastructure/terraform/environments/production validate
 ```
 
-The [deployment guide](../../docs/operations/aws-deployment.md) still describes
-the previous AWS flow; its Azure rewrite lands with the documentation migration.
+The [deployment guide](../../docs/operations/azure-deployment.md) describes
+bootstrap order, secret population, and digest promotion.
