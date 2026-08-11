@@ -126,7 +126,7 @@ test("local service images and health checks are pinned", async () => {
   );
 });
 
-test("AWS infrastructure preserves isolation and immutable promotion", async () => {
+test("Azure infrastructure preserves isolation and immutable promotion", async () => {
   const network = await readFile(
     join(root, "infrastructure/terraform/modules/network/main.tf"),
     "utf8"
@@ -152,21 +152,21 @@ test("AWS infrastructure preserves isolation and immutable promotion", async () 
     "utf8"
   );
 
-  for (const tier of ["public", "application", "data"]) {
-    assert.match(network, new RegExp(`resource "aws_subnet" "${tier}"`));
+  for (const tier of ["container_apps", "database", "private_endpoints"]) {
+    assert.match(network, new RegExp(`resource "azurerm_subnet" "${tier}"`));
   }
-  assert.match(network, /map_public_ip_on_launch = false/g);
-  assert.match(data, /publicly_accessible\s+= false/);
-  assert.match(data, /multi_az\s+= true/g);
-  assert.match(data, /resource "aws_backup_plan"/);
-  assert.match(platform, /assign_public_ip = false/);
-  assert.match(platform, /resource "aws_wafv2_web_acl"/);
-  assert.match(platform, /resource "aws_cloudfront_distribution" "api"/);
-  assert.match(platform, /http_header_name = "X-Event-Ticketing-Origin"/);
+  assert.match(network, /service_delegation/g);
+  assert.match(data, /public_network_access_enabled\s+= false/g);
+  assert.match(data, /public_network_access\s+= "Disabled"/);
+  assert.match(data, /high_availability/);
+  assert.match(data, /mode\s+= "ZoneRedundant"/);
+  assert.match(platform, /zone_redundancy_enabled\s+= true/);
+  assert.match(platform, /resource "azurerm_cdn_frontdoor_firewall_policy"/);
+  assert.match(platform, /header_name\s+= "X-Event-Ticketing-Origin"/);
   assert.match(platform, /API_BASE_URL = var\.api_origin/);
-  assert.match(platform, /resource "aws_appautoscaling_policy"/);
-  assert.match(platform, /AssumeRoleWithWebIdentity/);
-  assert.match(foundation, /image_tag_mutability = "IMMUTABLE"/);
+  assert.match(platform, /http_scale_rule/);
+  assert.match(platform, /custom_scale_rule/);
+  assert.match(foundation, /resource "azurerm_federated_identity_credential"/);
   assert.match(deployment, /id-token: write/);
   assert.match(deployment, /needs: \[build, staging\]/);
   assert.match(deployment, /needs\.build\.outputs\.image-uri/g);
