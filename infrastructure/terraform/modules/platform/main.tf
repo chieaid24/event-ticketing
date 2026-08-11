@@ -162,7 +162,8 @@ resource "azurerm_container_app" "this" {
       }
 
       # Only Front Door may reach the ingress; the subnet NSG enforces the
-      # same service tag at the network layer.
+      # same service tag. The tag admits any Front Door profile, so the app
+      # must verify X-Azure-FDID against this profile as a follow-up.
       ip_security_restriction {
         name             = "front-door"
         action           = "Allow"
