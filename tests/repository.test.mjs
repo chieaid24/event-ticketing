@@ -50,7 +50,7 @@ const requiredFiles = [
   "infrastructure/terraform/modules/platform/main.tf",
   ".github/workflows/deploy.yml",
   "scripts/container-entrypoint.sh",
-  "scripts/deploy-ecs.sh",
+  "scripts/deploy-container-apps.sh",
   "scripts/repeat-integration.mjs",
   "scripts/verify-local-recovery.mjs",
   "playwright.config.ts",
@@ -170,7 +170,10 @@ test("Azure infrastructure preserves isolation and immutable promotion", async (
   assert.match(deployment, /id-token: write/);
   assert.match(deployment, /needs: \[build, staging\]/);
   assert.match(deployment, /needs\.build\.outputs\.image-uri/g);
-  assert.doesNotMatch(deployment, /AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY/);
+  assert.doesNotMatch(
+    deployment,
+    /AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AZURE_CLIENT_SECRET|AZURE_CREDENTIALS/
+  );
   assert.match(dockerfile, /^FROM .+@sha256:[0-9a-f]{64}/m);
 });
 

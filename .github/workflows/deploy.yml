@@ -21,28 +21,32 @@ jobs:
       image-uri: ${{ steps.image.outputs.uri }}
     steps:
       - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: azure/login@v2
         with:
-          aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
-      - id: login
-        uses: aws-actions/amazon-ecr-login@v2
+          client-id: ${{ vars.AZURE_CLIENT_ID_BUILD }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - id: lookup
         env:
           COMMIT: ${{ github.sha }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          REGISTRY: ${{ vars.ACR_NAME }}
+          REPOSITORY: ${{ vars.ACR_REPOSITORY }}
         run: |
-          digest="$(aws ecr describe-images \
-            --repository-name "$REPOSITORY" \
-            --image-ids "imageTag=$COMMIT" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text 2>/dev/null || true)"
-          if [ -n "$digest" ] && [ "$digest" != "None" ]; then
+          digest="$(az acr repository show \
+            --name "$REGISTRY" \
+            --image "$REPOSITORY:$COMMIT" \
+            --query digest \
+            --output tsv 2>/dev/null || true)"
+          if [ -n "$digest" ]; then
             printf 'exists=true\n' >> "$GITHUB_OUTPUT"
             printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
           else
             printf 'exists=false\n' >> "$GITHUB_OUTPUT"
           fi
+      - if: steps.lookup.outputs.exists != 'true'
+        env:
+          REGISTRY: ${{ vars.ACR_NAME }}
+        run: az acr login --name "$REGISTRY"
       - if: steps.lookup.outputs.exists != 'true'
         uses: docker/setup-buildx-action@v3
       - id: build
@@ -55,17 +59,17 @@ jobs:
           provenance: mode=max
           sbom: true
           tags:
-            ${{ steps.login.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{
+            ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.ACR_REPOSITORY }}:${{
             github.sha }}
       - id: image
         env:
           DIGEST:
             ${{ steps.lookup.outputs.digest || steps.build.outputs.digest }}
-          REGISTRY: ${{ steps.login.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          REGISTRY: ${{ vars.ACR_NAME }}
+          REPOSITORY: ${{ vars.ACR_REPOSITORY }}
         run:
-          printf 'uri=%s/%s@%s\n' "$REGISTRY" "$REPOSITORY" "$DIGEST" >>
-          "$GITHUB_OUTPUT"
+          printf 'uri=%s.azurecr.io/%s@%s\n' "$REGISTRY" "$REPOSITORY" "$DIGEST"
+          >> "$GITHUB_OUTPUT"
 
   staging:
     name: deploy staging
@@ -74,20 +78,22 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: azure/login@v2
         with:
-          aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - env:
-          API_SERVICE: ${{ vars.ECS_API_SERVICE }}
-          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          API_APP: ${{ vars.ACA_API_APP }}
           IMAGE_URI: ${{ needs.build.outputs.image-uri }}
+          MIGRATE_JOB: ${{ vars.ACA_MIGRATE_JOB }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           SMOKE_URL: ${{ vars.SMOKE_URL }}
-          WEB_SERVICE: ${{ vars.ECS_WEB_SERVICE }}
-          WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+          WEB_APP: ${{ vars.ACA_WEB_APP }}
+          WORKER_APP: ${{ vars.ACA_WORKER_APP }}
         run:
-          ./scripts/deploy-ecs.sh "$CLUSTER" "$WEB_SERVICE" "$API_SERVICE"
-          "$WORKER_SERVICE" "$IMAGE_URI" "$SMOKE_URL"
+          ./scripts/deploy-container-apps.sh "$RESOURCE_GROUP" "$WEB_APP"
+          "$API_APP" "$WORKER_APP" "$MIGRATE_JOB" "$IMAGE_URI" "$SMOKE_URL"
 
   production:
     name: promote production
@@ -96,17 +102,19 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: azure/login@v2
         with:
-          aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - env:
-          API_SERVICE: ${{ vars.ECS_API_SERVICE }}
-          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          API_APP: ${{ vars.ACA_API_APP }}
           IMAGE_URI: ${{ needs.build.outputs.image-uri }}
+          MIGRATE_JOB: ${{ vars.ACA_MIGRATE_JOB }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           SMOKE_URL: ${{ vars.SMOKE_URL }}
-          WEB_SERVICE: ${{ vars.ECS_WEB_SERVICE }}
-          WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+          WEB_APP: ${{ vars.ACA_WEB_APP }}
+          WORKER_APP: ${{ vars.ACA_WORKER_APP }}
         run:
-          ./scripts/deploy-ecs.sh "$CLUSTER" "$WEB_SERVICE" "$API_SERVICE"
-          "$WORKER_SERVICE" "$IMAGE_URI" "$SMOKE_URL"
+          ./scripts/deploy-container-apps.sh "$RESOURCE_GROUP" "$WEB_APP"
+          "$API_APP" "$WORKER_APP" "$MIGRATE_JOB" "$IMAGE_URI" "$SMOKE_URL"
