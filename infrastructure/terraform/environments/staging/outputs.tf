@@ -1,28 +1,27 @@
-output "api_cloudfront_domain_name" {
-  value = module.platform.api_cloudfront_domain_name
+output "api_front_door_hostname" {
+  value = module.platform.api_front_door_hostname
 }
 
-output "application_secret_arn" {
-  value = module.data.application_secret_arn
+output "container_app_environment_id" {
+  value = module.platform.container_app_environment_id
 }
 
-output "cloudfront_domain_name" {
-  value = module.platform.cloudfront_domain_name
+output "container_app_names" {
+  value = module.platform.container_app_names
 }
 
-output "database_master_secret_arn" {
-  value     = module.data.database_master_secret_arn
-  sensitive = true
+output "database_fqdn" {
+  value = module.data.database_fqdn
 }
 
-output "deployment_role_arn" {
-  value = module.platform.deployment_role_arn
+output "key_vault_uri" {
+  value = module.data.key_vault_uri
 }
 
-output "ecs_cluster_name" {
-  value = module.platform.ecs_cluster_name
+output "migrate_job_name" {
+  value = module.platform.migrate_job_name
 }
 
-output "ecs_service_names" {
-  value = module.platform.ecs_service_names
+output "web_front_door_hostname" {
+  value = module.platform.web_front_door_hostname
 }

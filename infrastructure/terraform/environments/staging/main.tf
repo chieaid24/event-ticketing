@@ -7,47 +7,64 @@ locals {
   }
 }
 
+resource "azurerm_resource_group" "this" {
+  name     = local.name
+  location = var.location
+  tags     = local.tags
+}
+
+resource "azurerm_log_analytics_workspace" "this" {
+  name                = local.name
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  tags                = local.tags
+}
+
 module "network" {
   source = "../../modules/network"
 
-  name     = local.name
-  tags     = local.tags
-  vpc_cidr = var.vpc_cidr
+  location            = azurerm_resource_group.this.location
+  name                = local.name
+  resource_group_name = azurerm_resource_group.this.name
+  tags                = local.tags
+  vnet_cidr           = var.vnet_cidr
 }
 
 module "data" {
   source = "../../modules/data"
 
-  application_security_group_id = module.network.application_security_group_id
-  backup_retention_days         = 35
-  data_subnet_ids               = module.network.data_subnet_ids
-  deletion_protection           = true
-  name                          = local.name
-  rds_instance_class            = "db.t4g.small"
-  redis_node_type               = "cache.t4g.small"
-  tags                          = local.tags
-  vpc_id                        = module.network.vpc_id
+  backup_retention_days        = 35
+  database_subnet_id           = module.network.database_subnet_id
+  deletion_protection          = true
+  location                     = azurerm_resource_group.this.location
+  log_analytics_workspace_id   = azurerm_log_analytics_workspace.this.id
+  name                         = local.name
+  postgres_private_dns_zone_id = module.network.postgres_private_dns_zone_id
+  postgres_sku_name            = "GP_Standard_D2ds_v5"
+  private_dns_zone_ids         = module.network.private_dns_zone_ids
+  private_endpoints_subnet_id  = module.network.private_endpoints_subnet_id
+  redis_sku_name               = "Balanced_B1"
+  resource_group_name          = azurerm_resource_group.this.name
+  tags                         = local.tags
 }
 
 module "platform" {
   source = "../../modules/platform"
 
-  application_secret_arn        = module.data.application_secret_arn
-  application_security_group_id = module.network.application_security_group_id
-  application_subnet_ids        = module.network.application_subnet_ids
-  api_origin                    = var.api_origin
-  artifact_bucket_arn           = module.data.artifact_bucket_arn
-  artifact_bucket_name          = module.data.artifact_bucket_name
-  desired_count                 = 2
-  github_environment            = "staging"
-  github_oidc_provider_arn      = var.github_oidc_provider_arn
-  github_repository             = var.github_repository
-  image_uri                     = var.image_uri
-  kms_key_arn                   = module.data.kms_key_arn
-  name                          = local.name
-  public_origin                 = var.public_origin
-  public_subnet_ids             = module.network.public_subnet_ids
-  redis_endpoint                = module.data.redis_endpoint
-  tags                          = local.tags
-  vpc_id                        = module.network.vpc_id
+  api_origin                 = var.api_origin
+  container_apps_subnet_id   = module.network.container_apps_subnet_id
+  container_registry_id      = var.container_registry_id
+  desired_count              = 2
+  image_uri                  = var.image_uri
+  key_vault_id               = module.data.key_vault_id
+  key_vault_uri              = module.data.key_vault_uri
+  location                   = azurerm_resource_group.this.location
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+  name                       = local.name
+  public_origin              = var.public_origin
+  resource_group_name        = azurerm_resource_group.this.name
+  storage_account_id         = module.data.storage_account_id
+  tags                       = local.tags
 }
