@@ -22,3 +22,6 @@ packages/database/src/generated/
 CLAUDE.md
 AGENTS.md
 .worktrees/
+
+# Local notes
+RESUME_BULLETS.md
