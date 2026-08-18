@@ -38,6 +38,8 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [Load tests](load-tests/) contain k6 scenarios and measured reports.
 - [Release verification](testing/2026-07-31-release-verification.md) records
   browser, security, concurrency, and recovery evidence.
+- [Stripe test-mode verification](testing/2026-08-18-stripe-test-mode-verification.md)
+  records the credentialed live payment, decline, and refund journeys.
 - [UI evidence](screenshots/) records manually verified product surfaces.
 - [Local infrastructure](../infrastructure/README.md) defines Docker service
   startup, endpoints, and destructive reset behavior.

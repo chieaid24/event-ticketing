@@ -1,5 +1,22 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "API_*",
+    "DATABASE_URL",
+    "LOG_LEVEL",
+    "MAIL_FROM",
+    "OPS_ALERT_EMAIL",
+    "PAYMENT_*",
+    "REDIS_URL",
+    "RESET_TOKEN_TTL_SECONDS",
+    "SESSION_*",
+    "SMTP_URL",
+    "STRIPE_*",
+    "VERIFICATION_TOKEN_TTL_SECONDS",
+    "WAITING_ROOM_*",
+    "WEB_BASE_URL",
+    "WORKER_*"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
