@@ -12,6 +12,16 @@ variable "deployment_scopes" {
   }
 }
 
+variable "registry_name" {
+  description = "Globally unique Azure Container Registry name (5-50 alphanumeric characters)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]{5,50}$", var.registry_name))
+    error_message = "registry_name must be 5-50 alphanumeric characters and globally unique across Azure."
+  }
+}
+
 variable "github_repository" {
   description = "GitHub owner and repository allowed to publish and deploy images."
   type        = string

@@ -19,6 +19,9 @@ and secret files outside Git. The checked-in examples contain placeholders only.
 
 ## Create shared delivery resources
 
+Set `registry_name` to a globally unique value (5-50 alphanumeric characters);
+verify it with `az acr check-name --name <name>` before applying.
+
 ```bash
 terraform -chdir=infrastructure/terraform/foundation init \
   -backend-config="resource_group_name=$TF_STATE_RESOURCE_GROUP" \
