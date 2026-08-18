@@ -119,6 +119,13 @@ Front Door endpoint. Require approval on the production environment.
 
 ## Automated promotion
 
+Every push to `main` runs the workflow's `lint` and `validate` jobs, which
+shellcheck `scripts/deploy-container-apps.sh` and validate the staging and
+production Terraform without contacting Azure. The `build`, `staging`, and
+`production` jobs stay skipped until the `AZURE_CLIENT_ID_BUILD` and
+`AZURE_CLIENT_ID_DEPLOY` repository variables are set, so the pipeline never
+fails or deploys before Azure exists.
+
 `.github/workflows/deploy.yml` reuses the digest of an existing commit-tagged
 image or builds and pushes one with provenance and SBOM attestations. The
 staging job runs `scripts/deploy-container-apps.sh`, which moves the migrate job
