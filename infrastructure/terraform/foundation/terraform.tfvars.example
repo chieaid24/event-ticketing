@@ -4,3 +4,6 @@ deployment_scopes = {
 }
 github_repository = "chieaid24/event-ticketing"
 location          = "eastus2"
+# Globally unique across Azure; pick your own and verify with
+# `az acr check-name --name <name>`.
+registry_name = "eventticketingexample"
