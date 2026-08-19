@@ -258,13 +258,23 @@ describe("DiscoveryService.getAvailability", () => {
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
         name: "Standing Floor",
         priceMinor: 1_800,
+        remaining: 150,
       },
       {
-        capacity: 0,
+        capacity: 200,
+        feeMinor: 150,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4",
+        name: "Nearly Held Floor",
+        priceMinor: 1_800,
+        remaining: 12,
+      },
+      {
+        capacity: 100,
         feeMinor: 0,
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
-        name: "Closed Floor",
+        name: "Fully Held Floor",
         priceMinor: 1_000,
+        remaining: 0,
       },
     ];
     store.availability = { generalAdmission, seats: [] };
@@ -274,7 +284,7 @@ describe("DiscoveryService.getAvailability", () => {
     expect(eventAvailabilityResponseSchema.parse(response)).toEqual(response);
     expect(
       response.generalAdmission.map((ticketType) => ticketType.level)
-    ).toEqual(["available", "sold_out"]);
+    ).toEqual(["available", "limited", "sold_out"]);
   });
 
   it("returns 404 before exposing availability of an unpublished event", async () => {

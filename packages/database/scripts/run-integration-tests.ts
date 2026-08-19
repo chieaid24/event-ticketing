@@ -1183,6 +1183,7 @@ try {
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
         name: "Standing Floor",
         priceMinor: 1800,
+        remaining: 200,
       },
     ]);
 
@@ -1305,6 +1306,19 @@ try {
     assert.deepEqual(
       { available: afterReplay.available, reserved: afterReplay.reserved },
       { available: 0, reserved: 5 }
+    );
+    // Public discovery reflects the reserved counters immediately.
+    const [oversellPublic] = await fetchGeneralAdmissionCapacity(
+      pool,
+      oversell.eventId
+    );
+    assert.ok(oversellPublic);
+    assert.deepEqual(
+      {
+        capacity: oversellPublic.capacity,
+        remaining: oversellPublic.remaining,
+      },
+      { capacity: 5, remaining: 0 }
     );
 
     // A roomy ticket type for the lifecycle transitions below.
