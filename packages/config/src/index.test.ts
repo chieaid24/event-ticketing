@@ -129,6 +129,48 @@ describe("application configuration", () => {
   });
 });
 
+describe("production secret requirements", () => {
+  it("rejects missing api secrets in production", () => {
+    expect(() => loadApiConfig({ NODE_ENV: "production" })).toThrow(
+      expect.objectContaining({
+        variables: ["PAYMENT_WEBHOOK_SECRET", "WAITING_ROOM_TOKEN_SECRET"],
+      })
+    );
+  });
+
+  it("rejects the publicly known development defaults in production", () => {
+    expect(() =>
+      loadApiConfig({
+        NODE_ENV: "production",
+        PAYMENT_WEBHOOK_SECRET: "whsec_local_development_only",
+        WAITING_ROOM_TOKEN_SECRET: "local-waiting-room-secret-only-32-bytes",
+      })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["PAYMENT_WEBHOOK_SECRET", "WAITING_ROOM_TOKEN_SECRET"],
+      })
+    );
+  });
+
+  it("accepts production once both secrets are explicit", () => {
+    const config = loadApiConfig({
+      NODE_ENV: "production",
+      PAYMENT_WEBHOOK_SECRET: "whsec_example_value",
+      WAITING_ROOM_TOKEN_SECRET: "an-explicit-secret-of-32-characters!",
+    });
+    expect(config.paymentWebhookSecret).toBe("whsec_example_value");
+    expect(config.waitingRoomTokenSecret).toBe(
+      "an-explicit-secret-of-32-characters!"
+    );
+  });
+
+  it("keeps development defaults outside production", () => {
+    expect(loadApiConfig({ NODE_ENV: "test" }).paymentWebhookSecret).toBe(
+      "whsec_local_development_only"
+    );
+  });
+});
+
 describe("payment provider configuration", () => {
   it("requires stripe credentials when the provider is stripe", () => {
     expect(() => loadApiConfig({ PAYMENT_PROVIDER: "stripe" })).toThrowError(
