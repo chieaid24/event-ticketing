@@ -25,6 +25,13 @@ the request cookies and redirects to `/login` without a valid session. Browse
 the site and the API on the same host (`127.0.0.1` by default) so the browser
 treats them as one site for cookies.
 
+Checkout flows live at `/checkout/[holdId]` (payment for a confirmed hold
+through the Stripe or fake provider), `/orders/[orderId]/processing` (a polling
+page while the worker finalizes payment), and `/orders/[orderId]` (order
+confirmation with issued tickets). All three render dynamically and forward the
+request cookies; the API remains authoritative for prices, totals, and payment
+state.
+
 Ticket flows live at `/account/tickets` (the customer's issued tickets) and
 `/tickets/[ticketId]` (one ticket with event timezone, venue and access details,
 seat or general-admission line, status, and accessible text). The QR code is a
@@ -39,6 +46,14 @@ change/remove, audit log, owner-only deletion). Sections render only when the
 caller's permissions from the API allow them; visibility mirrors the
 [authorization policy](../../docs/security/authorization.md) and the API remains
 the enforcement point.
+
+Event management lives at `/organizations/[organizationId]/events` (event list
+and creation) and `.../events/[eventId]` (draft basics, venue sections, ticket
+type configuration, publication, and cancellation). The operations dashboard at
+`/organizations/[organizationId]/operations` reconciles orders, tickets, fees,
+refunds, inventory, funnel activity, and check-ins, and lets permitted roles
+inspect jobs and retry dead letters; see
+[observability](../../docs/operations/observability.md).
 
 Venue flows live at `/organizations/[organizationId]/venues` (template list and
 creation) and `.../venues/[venueId]` (accessible seat-map preview with a table

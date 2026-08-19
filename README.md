@@ -83,7 +83,7 @@ processes and exercises the complete fake-provider release journey.
 apps/
   web/       Next.js customer, organizer, scanner, and admin UI
   api/       NestJS REST API and domain services
-  worker/    BullMQ processors and schedules
+  worker/    PostgreSQL outbox processors and schedules
 packages/
   contracts/ Shared Zod request and response contracts
   database/  Prisma schema, migrations, seeds, and inventory repositories

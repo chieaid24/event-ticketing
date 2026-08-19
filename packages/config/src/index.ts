@@ -48,13 +48,18 @@ const originListSchema = z
 
 const paymentProviderSchema = z.enum(["stripe", "fake"]).default("fake");
 
+// Publicly known local defaults; production refuses them (see loadApiConfig).
+const developmentPaymentWebhookSecret = "whsec_local_development_only";
+const developmentWaitingRoomTokenSecret =
+  "local-waiting-room-secret-only-32-bytes";
+
 // The default only signs local fake-provider deliveries; a real Stripe
 // endpoint secret always arrives via PAYMENT_WEBHOOK_SECRET.
 const paymentWebhookSecretSchema = z
   .string()
   .min(8)
   .max(200)
-  .default("whsec_local_development_only");
+  .default(developmentPaymentWebhookSecret);
 
 function requireStripeCredentials(config: {
   paymentProvider: "stripe" | "fake";
@@ -121,7 +126,7 @@ const apiConfigSchema = z
       .string()
       .min(32)
       .max(200)
-      .default("local-waiting-room-secret-only-32-bytes"),
+      .default(developmentWaitingRoomTokenSecret),
     waitingRoomTokenTtlSeconds: z.coerce
       .number()
       .int()
@@ -275,9 +280,35 @@ function parseConfig<T>(
   throw new ConfigurationError(application, variables);
 }
 
+// Fails closed in production: these secrets must be set explicitly and must
+// not reuse the publicly known development defaults.
+const productionRequiredApiSecrets: Readonly<Record<string, string>> = {
+  PAYMENT_WEBHOOK_SECRET: developmentPaymentWebhookSecret,
+  WAITING_ROOM_TOKEN_SECRET: developmentWaitingRoomTokenSecret,
+};
+
+function assertProductionApiSecrets(environment: NodeJS.ProcessEnv): void {
+  if (environment["NODE_ENV"] !== "production") {
+    return;
+  }
+
+  const variables = Object.entries(productionRequiredApiSecrets)
+    .filter(([name, developmentDefault]) => {
+      const value = environment[name];
+      return !value || value === developmentDefault;
+    })
+    .map(([name]) => name)
+    .sort();
+
+  if (variables.length > 0) {
+    throw new ConfigurationError("api", variables);
+  }
+}
+
 export function loadApiConfig(
   environment: NodeJS.ProcessEnv = process.env
 ): ApiConfig {
+  assertProductionApiSecrets(environment);
   return parseConfig(
     "api",
     apiConfigSchema,

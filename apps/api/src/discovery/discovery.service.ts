@@ -127,9 +127,7 @@ export class DiscoveryService {
       eventId: event.id,
       generalAdmission: generalAdmission.map((ticketType) => ({
         feeMinor: ticketType.feeMinor,
-        // Remaining equals capacity until the hold slices add reserved and
-        // sold counters.
-        level: generalAdmissionLevel(ticketType.capacity, ticketType.capacity),
+        level: generalAdmissionLevel(ticketType.remaining, ticketType.capacity),
         name: ticketType.name,
         priceMinor: ticketType.priceMinor,
         ticketTypeId: ticketType.id,

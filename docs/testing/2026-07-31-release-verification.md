@@ -75,10 +75,12 @@ production dataset size.
 ## Limits
 
 This run used the fake payment provider, local Mailpit, and local containers.
-The live Stripe test-mode journey remains gated on owner-provided credentials.
-Azure staging deployment, rollback, and managed backup restoration remain gated
-on account access and spending approval. The local checks do not substitute for
-those credentialed drills.
+The live Stripe test-mode journey was gated on owner-provided credentials at the
+time of this run;
+[the 2026-08-18 verification](2026-08-18-stripe-test-mode-verification.md)
+records that credentialed journey. Azure staging deployment, rollback, and
+managed backup restoration remain gated on account access and spending approval.
+The local checks do not substitute for those credentialed drills.
 
 See the
 [public-read load report](../load-tests/2026-07-31-release-verification.md) for

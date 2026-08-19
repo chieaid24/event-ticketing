@@ -25,9 +25,11 @@ The web, API, and worker validate separate configuration schemas before startup.
 PostgreSQL and Redis within a bounded timeout and returns `503` without error
 details when either dependency fails.
 
-The seed writes three synthetic records with stable UUIDs and no usable
-password. Run `pnpm test:integration` to apply migrations and seed data in a
-unique PostgreSQL schema and verify Redis through a unique key prefix.
+The seed writes synthetic users, venues, and a published event with stable
+UUIDs; the seeded owner signs in with the documented development-only password
+in `packages/database/README.md`. Run `pnpm test:integration` to apply
+migrations and seed data in a unique PostgreSQL schema and verify Redis through
+a unique key prefix.
 
 ## Production
 

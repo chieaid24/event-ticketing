@@ -1,9 +1,9 @@
 # Worker
 
 `@event-ticketing/worker` claims and processes PostgreSQL outbox events. It
-hosts retryable asynchronous jobs for hold expiry, notifications, ticket
-artifacts, and aggregates. It does not accept HTTP requests or decide inventory
-state.
+hosts retryable asynchronous jobs for hold expiry sweeps, auth and notification
+email, payment finalization, and refunds. It does not accept HTTP requests or
+decide inventory state.
 
 The runtime materializes due schedules, claims events with expiring leases,
 executes registered handlers, and records completion receipts. It writes
@@ -45,11 +45,12 @@ Verified payment webhooks finalize orders here, never in the API request (see
 `PAYMENT_PROVIDER` selects the Stripe or fake gateway; the stripe provider also
 requires `STRIPE_SECRET_KEY`.
 
-The application depends on `@event-ticketing/config` and
-`@event-ticketing/database`. Register handlers in `src/handlers.ts`; handlers
-that need runtime dependencies (such as the auth email handlers in
-`src/auth-email-handlers.ts`) are composed in `src/main.ts`. Each provider
-handler must use the event ID passed as `idempotencyKey`.
+The application depends on `@event-ticketing/config`,
+`@event-ticketing/database`, `@event-ticketing/payments`, and `nodemailer`.
+Register handlers in `src/handlers.ts`; handlers that need runtime dependencies
+(such as the auth email handlers in `src/auth-email-handlers.ts`) are composed
+in `src/main.ts`. Each provider handler must use the event ID passed as
+`idempotencyKey`.
 
 ## Hold expiration sweep
 

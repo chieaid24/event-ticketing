@@ -69,18 +69,6 @@ The application layer stays cloud neutral: plain containers, PostgreSQL, Redis
 commands, SMTP, and Stripe. Azure specifics live only in Terraform, the deploy
 workflow, and operations documents.
 
-### Resume-ready summary
-
-- Migrated a production-style ticketing platform from AWS (ECS Fargate, RDS,
-  CloudFront and WAF) to Azure (Container Apps, PostgreSQL Flexible Server,
-  Front Door and WAF) with Terraform and digest-based GitHub Actions OIDC
-  promotion, keeping the application layer cloud neutral.
-- Chose Azure on workload grounds: first-party transactional email, managed
-  PgBouncer pooling for on-sale connection surges, and KEDA scaling on domain
-  signals such as outbox backlog rather than CPU.
-- Preserved zero-static-credential deployments through federated identity and
-  private-only data services across both clouds.
-
 ## Scope
 
 The first complete release includes authentication, organizations, venue and

@@ -64,6 +64,7 @@ export interface GeneralAdmissionCapacityRow extends QueryResultRow {
   id: string;
   name: string;
   priceMinor: number;
+  remaining: number;
 }
 
 export interface PublishedEventListInput {
@@ -216,9 +217,9 @@ export async function fetchAvailabilitySeats(
 }
 
 /**
- * General-admission capacity per ticket type. Remaining quantity equals
- * capacity until the hold slices add reserved and sold counters; this query is
- * where those subtractions land.
+ * General-admission capacity per ticket type. Remaining subtracts reserved
+ * holds and sales, clamped at zero because expired-but-unswept holds may
+ * briefly keep the counters above capacity.
  */
 export async function fetchGeneralAdmissionCapacity(
   executor: DatabaseExecutor,
@@ -230,7 +231,11 @@ export async function fetchGeneralAdmissionCapacity(
        t."name",
        t."price_minor" AS "priceMinor",
        t."fee_minor" AS "feeMinor",
-       COALESCE(t."capacity", 0)::int AS "capacity"
+       COALESCE(t."capacity", 0)::int AS "capacity",
+       GREATEST(
+         COALESCE(t."capacity", 0) - t."reserved_quantity" - t."sold_quantity",
+         0
+       )::int AS "remaining"
      FROM "ticket_types" t
      WHERE t."event_id" = $1 AND t."kind" = 'general_admission'
      ORDER BY t."position", t."name"`,
