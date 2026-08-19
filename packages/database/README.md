@@ -45,8 +45,9 @@ pnpm db:seed
 
 The seed upserts one `owner@example.test` user (development password
 `owner-password-dev`), one example organization, one active owner membership,
-and one venue template with an assigned section, a general-admission section,
-two rows, and eight seats, all with stable UUIDs.
+one venue template with an assigned section, a general-admission section, two
+rows, and eight seats, and one published example event with two ticket types and
+eight event seats, all with stable UUIDs.
 
 The migrations enforce normalized email, organization slug and version checks,
 one membership per user and organization, explicit role and status enums,
@@ -63,8 +64,8 @@ capacity, exactly one hold actor per hold, and a positive hold-item quantity.
 Assigned-seat holds link each held seat to its hold, permit that link only while
 the seat is held, and keep at most one hold item per seat within a hold.
 
-The seed transaction upserts sixteen domain records and one deduplicated
-`organization.created` event. Running it again preserves the same seventeen
+The seed transaction upserts twenty-seven domain records and one deduplicated
+`organization.created` event. Running it again preserves the same twenty-eight
 logical records.
 
 ## Integration test

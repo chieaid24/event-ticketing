@@ -75,7 +75,7 @@ inventory. Verify provider identity, amount, currency, ownership, and allowed
 grace rules. Move inventory to sold, mark the order paid, create one ticket per
 unit, insert outbox events, and commit.
 
-If payment succeeds after inventory is lost, record `PAYMENT_CONFLICT`, start an
+If payment succeeds after inventory is lost, record `payment_conflict`, start an
 idempotent full refund, notify the customer, and alert operations. Never
 substitute seats or leave a charge without admission or compensation.
 

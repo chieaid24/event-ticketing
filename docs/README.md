@@ -48,6 +48,9 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 
 - [ADR 0001: Monorepo and service boundaries](adr/0001-monorepo-and-service-boundaries.md)
 - [ADR 0002: PostgreSQL transactional outbox](adr/0002-postgresql-transactional-outbox.md)
+- [ADR 0003: Database-backed opaque sessions](adr/0003-database-backed-opaque-sessions.md)
+- [ADR 0004: General-admission inventory counters](adr/0004-general-admission-inventory-counters.md)
+- [ADR 0005: Assigned-seat holds](adr/0005-assigned-seat-holds.md)
 - [ADR 0006: Stripe payment finalization](adr/0006-stripe-payment-finalization.md)
 - [ADR 0007: Redis waiting-room admission](adr/0007-redis-waiting-room-admission.md)
 - [ADR 0008: QR ticket tokens](adr/0008-qr-ticket-tokens.md)
@@ -55,6 +58,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 - [ADR 0010: Azure Container Apps single-image deployment](adr/0010-azure-container-apps-single-image-deployment.md)
 - [Deploy to Azure](operations/azure-deployment.md)
 - [Inspect and redeliver outbox dead letters](runbooks/outbox-dead-letters.md)
+- [Recover dead-lettered jobs](runbooks/dead-letter-jobs.md)
 - [Recover a refund webhook backlog](runbooks/refund-webhook-backlog.md)
 - [Roll back an Azure release](runbooks/azure-rollback.md)
 - [Restore an Azure backup](runbooks/azure-backup-restoration.md)
@@ -69,6 +73,7 @@ documentation, examples, logs, screenshots, fixtures, and operational records.
 | `apps/worker`         | Outbox, expiry, notification, analytics, and retry jobs  | system, operations                |
 | `packages/contracts`  | Shared request and response schemas                      | domain model, standards           |
 | `packages/database`   | Schema, migrations, locks, and seeds                     | domain model, inventory           |
+| `packages/payments`   | Payment provider gateway behind one interface            | ADR 0006, security                |
 | `packages/config`     | Validated application configuration                      | security, operations              |
 | `packages/ui`         | Shared accessible UI primitives                          | `DESIGN.md`                       |
 | `packages/test-utils` | Shared deterministic test helpers                        | testing strategy                  |
