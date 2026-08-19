@@ -13,7 +13,7 @@ private endpoints, or undisclosed incident details.
 3. Topic documents under `docs/` define product and engineering behavior.
 4. ADRs explain hard-to-reverse decisions.
 5. The nearest code-area `README.md` explains current implementation.
-6. Generated OpenAPI and database artifacts describe executable interfaces.
+6. Zod contract schemas and database migrations describe executable interfaces.
 
 When sources disagree, do not silently choose one. Correct the stale source in
 the same pull request or record the unresolved conflict in the issue.

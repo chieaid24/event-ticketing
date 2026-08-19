@@ -12,9 +12,9 @@ the Azure network, compute, and immutable-image promotion decision.
 Browser and scanner
   -> Front Door and WAF
   -> Next.js web and NestJS API
-  -> PostgreSQL, Redis, Stripe, object storage, and BullMQ
+  -> PostgreSQL, Redis, and Stripe
   -> worker
-  -> email, artifacts, analytics, and operational signals
+  -> email, analytics, and operational signals
 ```
 
 ## Boundaries
@@ -23,11 +23,14 @@ Browser and scanner
   databases, Redis, Stripe secret APIs, or private objects.
 - `apps/api` owns authentication, authorization, validation, pricing, inventory,
   orders, payments, refunds, tickets, scans, and administrative decisions.
-- `apps/worker` performs retryable asynchronous work such as expiration, outbox
-  delivery, email, artifacts, reminders, and aggregates.
+- `apps/worker` performs retryable asynchronous work such as outbox delivery,
+  hold expiration sweeps, auth and notification email, payment finalization, and
+  refunds.
 - `packages/contracts` exposes explicit Zod request and response schemas.
 - `packages/database` owns Prisma schema, migrations, seed data, transaction
   helpers, and isolated raw SQL repositories for locking-sensitive operations.
+- `packages/payments` keeps the payment provider behind one gateway interface
+  with Stripe and deterministic fake implementations.
 - `packages/config` parses and validates environment variables once at startup.
 - `packages/ui` provides accessible shared UI patterns.
 - `packages/test-utils` provides deterministic helpers for tests that coordinate
@@ -40,12 +43,11 @@ behind interfaces. Keep raw SQL parameterized and isolated.
 
 - pnpm workspaces and Turborepo
 - TypeScript strict mode, ESLint, and Prettier
-- Next.js App Router, React, Tailwind CSS, Zod, React Hook Form, and TanStack
-  Query
-- NestJS REST API with generated OpenAPI
+- Next.js App Router, React, Zod, and hand-written CSS custom properties
+- NestJS REST API validated by the shared Zod contracts
 - Prisma plus parameterized SQL for inventory locks
-- PostgreSQL, Redis, BullMQ, Stripe, Pino, OpenTelemetry, and Prometheus metrics
-- Vitest, React Testing Library, Playwright, Testcontainers, and k6
+- PostgreSQL, Redis, Stripe, Pino, and Prometheus-format metrics
+- Vitest, Playwright, and k6
 - Docker Compose locally
 - Terraform, Container Apps, PostgreSQL Flexible Server, Managed Redis, blob
   storage, Communication Services email, Container Registry, Front Door, WAF,
@@ -54,7 +56,7 @@ behind interfaces. Keep raw SQL parameterized and isolated.
 ## Reliability patterns
 
 Database transactions enforce inventory and order invariants. Redis holds
-expiring mirrors, rate limits, queue state, caches, and BullMQ data. Redis loss
+expiring hold mirrors, rate limits, and waiting room queue state. Redis loss
 must not make sold inventory available.
 
 Commit an outbox event in the same transaction as domain state. The database

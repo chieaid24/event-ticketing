@@ -286,8 +286,9 @@ request ID as JSON. It does not log headers, query strings, or dependency
 errors.
 
 The application depends on `@event-ticketing/config`,
-`@event-ticketing/contracts`, `@event-ticketing/database`, PostgreSQL, and
-Redis. It does not require Mailpit or MinIO for current routes.
+`@event-ticketing/contracts`, `@event-ticketing/database`,
+`@event-ticketing/payments`, PostgreSQL, and Redis. It does not require Mailpit
+or MinIO for current routes.
 
 ## Test
 
