@@ -12,7 +12,11 @@ import { createPaymentGateway } from "@event-ticketing/payments";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import { PgAuthStore } from "./auth/auth.store.js";
-import { RedisRateLimiter } from "./auth/rate-limiter.js";
+import {
+  DisabledRateLimiter,
+  RedisRateLimiter,
+  type RateLimiter,
+} from "./auth/rate-limiter.js";
 import { CheckoutController } from "./checkout/checkout.controller.js";
 import { CheckoutService } from "./checkout/checkout.service.js";
 import { PgCheckoutStore } from "./checkout/checkout.store.js";
@@ -135,12 +139,17 @@ export class AppModule implements NestModule {
         },
         {
           provide: AUTH_RATE_LIMITER,
-          useFactory: () =>
-            new RedisRateLimiter(
+          useFactory: (): RateLimiter => {
+            if (config.rateLimitsDisabled) {
+              logger.warn({ event: "api.rate_limits.disabled" });
+              return new DisabledRateLimiter();
+            }
+            return new RedisRateLimiter(
               config.redisUrl,
               config.dependencyTimeoutMs,
               logger
-            ),
+            );
+          },
         },
         {
           inject: [AUTH_STORE],
@@ -295,7 +304,7 @@ export class AppModule implements NestModule {
           useFactory: (
             auth: AuthService,
             store: PgScanningStore,
-            rateLimiter: RedisRateLimiter
+            rateLimiter: RateLimiter
           ) => new ScanningService(auth, store, rateLimiter),
         },
         {

@@ -6,6 +6,14 @@ export interface RateLimiter {
   consume(key: string, max: number, windowMs: number): Promise<boolean>;
 }
 
+// Local load-testing bypass; config refuses API_RATE_LIMITS_DISABLED in
+// production.
+export class DisabledRateLimiter implements RateLimiter {
+  consume(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+}
+
 export class RedisRateLimiter implements RateLimiter, OnApplicationShutdown {
   private readonly client: Redis;
 
