@@ -24,6 +24,23 @@ The repository includes:
 Import both files into the monitoring stack during deployment. The local files
 contain no account identifiers or private endpoints.
 
+## Observe locally
+
+`pnpm services:up` starts Prometheus at `http://127.0.0.1:9090` and Grafana at
+`http://127.0.0.1:3001`. Prometheus scrapes the API through the Docker host
+gateway every 15 seconds and evaluates the checked-in alert rules, so the
+`event-ticketing-api` target reports `up` while `pnpm dev` runs and
+`EventTicketingApiUnavailable` fires two minutes after the API stops. Grafana
+provisions the Prometheus datasource and the checked-in dashboard at startup;
+sign in with the local-only credentials in `compose.yaml`. Both services load
+the same rule and dashboard files the deployed stack imports, so a threshold
+change rehearses locally before it ships.
+
+The host-gateway scrape resolves the API from inside a container. On a Docker
+Engine without `host.docker.internal`, the target stays down unless the API
+listens beyond loopback; CI never needs the scrape, so this only affects
+watching metrics during local development.
+
 ## Read analytics
 
 Open an organization's Operations page to reconcile paid orders, ticket counts,

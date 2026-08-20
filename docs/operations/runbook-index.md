@@ -15,9 +15,9 @@ pnpm db:seed
 pnpm dev
 ```
 
-Docker Compose starts PostgreSQL, Redis, Mailpit, MinIO, and a MinIO-backed
-Turborepo remote cache from pinned images, binds their ports to loopback, and
-waits for health checks. See
+Docker Compose starts PostgreSQL, Redis, Mailpit, MinIO, a MinIO-backed
+Turborepo remote cache, Prometheus, and Grafana from pinned images, binds their
+ports to loopback, and waits for health checks. See
 [local infrastructure](../../infrastructure/README.md) for endpoints and reset
 behavior.
 
