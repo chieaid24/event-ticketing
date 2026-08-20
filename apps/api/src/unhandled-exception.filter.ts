@@ -24,6 +24,20 @@ export class UnhandledExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // http-errors thrown below Nest (e.g. body-parser's 413) carry their own
+    // statusCode; mirror Nest's default handling instead of masking as 500.
+    if (
+      exception instanceof Error &&
+      "statusCode" in exception &&
+      typeof exception.statusCode === "number"
+    ) {
+      response.status(exception.statusCode).json({
+        message: exception.message,
+        statusCode: exception.statusCode,
+      });
+      return;
+    }
+
     const error =
       exception instanceof Error ? exception : new Error(String(exception));
     this.logger.error({

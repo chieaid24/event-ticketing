@@ -40,6 +40,24 @@ describe("UnhandledExceptionFilter", () => {
     });
   });
 
+  it("passes http-errors with their own status through without logging", () => {
+    const logger = { error: vi.fn() } as unknown as Logger;
+    const { host, response } = buildHost();
+    const payloadTooLarge = Object.assign(
+      new Error("request entity too large"),
+      { statusCode: 413 }
+    );
+
+    new UnhandledExceptionFilter(logger).catch(payloadTooLarge, host);
+
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(413);
+    expect(response.json).toHaveBeenCalledWith({
+      message: "request entity too large",
+      statusCode: 413,
+    });
+  });
+
   it("passes HttpException responses through without logging", () => {
     const logger = { error: vi.fn() } as unknown as Logger;
     const { host, response } = buildHost();
