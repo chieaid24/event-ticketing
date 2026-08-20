@@ -115,7 +115,18 @@ test("workspace entry points exist", async () => {
 
 test("local service images and health checks are pinned", async () => {
   const compose = await readFile(join(root, "compose.yaml"), "utf8");
-  const services = ["postgres", "redis", "mailpit", "minio"];
+  const services = [
+    "postgres",
+    "redis",
+    "mailpit",
+    "minio",
+    "minio-init",
+    "turbo-remote-cache",
+    "prometheus",
+    "grafana",
+  ];
+  // One-shot bootstrap containers exit instead of reporting health.
+  const oneShotServices = ["minio-init"];
   const pinnedImage = /^\s+image: \S+:[^@\s]+@sha256:[0-9a-f]{64}\s*$/gm;
 
   assert.equal([...compose.matchAll(pinnedImage)].length, services.length);
@@ -126,7 +137,7 @@ test("local service images and health checks are pinned", async () => {
 
   assert.equal(
     compose.match(/^\s+healthcheck:\s*$/gm)?.length,
-    services.length
+    services.length - oneShotServices.length
   );
 });
 
