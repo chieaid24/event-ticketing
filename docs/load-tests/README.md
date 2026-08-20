@@ -7,6 +7,14 @@ Available reports:
 
 - [Waiting-room load](2026-07-29-waiting-room.md)
 - [Release public-read load](2026-07-31-release-verification.md)
+- [Purchase-flow load](2026-08-20-purchase-flow.md)
+
+Purchase-flow scenario assets:
+[`tests/load/purchase-flow.js`](../../tests/load/purchase-flow.js) drives login,
+holds, checkout, simulated payment, and ticket issuance;
+[`tests/load/verify-purchase-invariants.mjs`](../../tests/load/verify-purchase-invariants.mjs)
+verifies inventory, payment, and expiry invariants against PostgreSQL after a
+run. Seed the dataset with `pnpm db:seed:load` first.
 
 Store k6 scenarios, environment descriptions, and dated measured reports here.
 Keep raw customer data and credentials out of this public repository.
