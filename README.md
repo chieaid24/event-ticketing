@@ -14,6 +14,39 @@ This is a public repository. Never commit secrets, credentials, personal data,
 private incident details, or production configuration. Read
 [SECURITY.md](SECURITY.md) before contributing.
 
+## Tools Used
+
+<table>
+  <tr>
+    <td><strong>Backend</strong></td>
+    <td><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%233178C6?style=for-the-badge&logo=typescript&logoColor=%23FFFFFF"> <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%235FA04E?style=for-the-badge&logo=nodedotjs&logoColor=%23FFFFFF"> <img alt="NestJS" src="https://img.shields.io/badge/NestJS-%23E0234E?style=for-the-badge&logo=nestjs&logoColor=%23FFFFFF"> <img alt="Zod" src="https://img.shields.io/badge/Zod-%233E67B1?style=for-the-badge&logo=zod&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Frontend</strong></td>
+    <td><img alt="Next.js" src="https://img.shields.io/badge/Next.js-black?style=for-the-badge&logo=nextdotjs&logoColor=%23FFFFFF"> <img alt="React" src="https://img.shields.io/badge/React-%2361DAFB?style=for-the-badge&logo=react&logoColor=%23000000"> <img alt="CSS" src="https://img.shields.io/badge/CSS-%23663399?style=for-the-badge&logo=css&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Data / Messaging</strong></td>
+    <td><img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-%234169E1?style=for-the-badge&logo=postgresql&logoColor=%23FFFFFF"> <img alt="Prisma" src="https://img.shields.io/badge/Prisma-%232D3748?style=for-the-badge&logo=prisma&logoColor=%23FFFFFF"> <img alt="Redis" src="https://img.shields.io/badge/Redis-%23FF4438?style=for-the-badge&logo=redis&logoColor=%23FFFFFF"> <img alt="MinIO" src="https://img.shields.io/badge/MinIO-%23C72E49?style=for-the-badge&logo=minio&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Payments / Email</strong></td>
+    <td><img alt="Stripe" src="https://img.shields.io/badge/Stripe-%23635BFF?style=for-the-badge&logo=stripe&logoColor=%23FFFFFF"> <img alt="Azure Communication Services" src="https://img.shields.io/badge/Azure%20Communication%20Services-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="Mailpit" src="https://img.shields.io/badge/Mailpit-%232E7D9A?style=for-the-badge&logo=maildotru&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Testing</strong></td>
+    <td><img alt="Vitest" src="https://img.shields.io/badge/Vitest-%236E9F18?style=for-the-badge&logo=vitest&logoColor=%23FFFFFF"> <img alt="Playwright" src="https://img.shields.io/badge/Playwright-%232EAD33?style=for-the-badge&logo=playwright&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Observability</strong></td>
+    <td><img alt="Pino" src="https://img.shields.io/badge/Pino-%23687634?style=for-the-badge&logo=pino&logoColor=%23FFFFFF"> <img alt="Azure Monitor" src="https://img.shields.io/badge/Azure%20Monitor-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="Log Analytics" src="https://img.shields.io/badge/Log%20Analytics-%230062AD?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"></td>
+  </tr>
+  <tr>
+    <td><strong>Infrastructure</strong></td>
+    <td><img alt="Docker" src="https://img.shields.io/badge/Docker-%232496ED?style=for-the-badge&logo=docker&logoColor=%23FFFFFF"> <img alt="Terraform" src="https://img.shields.io/badge/Terraform-%23844FBA?style=for-the-badge&logo=terraform&logoColor=%23FFFFFF"> <img alt="Azure Container Apps" src="https://img.shields.io/badge/Azure%20Container%20Apps-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-%232088FF?style=for-the-badge&logo=githubactions&logoColor=%23FFFFFF"> <img alt="Turborepo" src="https://img.shields.io/badge/Turborepo-%23EF4444?style=for-the-badge&logo=turborepo&logoColor=%23FFFFFF"> <img alt="pnpm" src="https://img.shields.io/badge/pnpm-%23F69220?style=for-the-badge&logo=pnpm&logoColor=%23FFFFFF"></td>
+  </tr>
+</table>
+
 ## Start here
 
 Read these documents in order:
