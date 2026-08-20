@@ -59,7 +59,6 @@ export interface OrderRecord {
   paidAt: Date | null;
   payment: OrderPaymentRecord;
   publicNumber: string;
-  /** True when an existing order was returned for a repeated checkout. */
   replayed: boolean;
   status: OrderStatus;
   subtotalMinor: number;
@@ -68,11 +67,11 @@ export interface OrderRecord {
 }
 
 export type FinalizePaymentOutcome =
-  /** Inventory secured, order paid, tickets issued. */
+  // inventory secured and tickets issued
   | { outcome: "paid"; orderId: string; ticketCount: number }
-  /** Payment captured but inventory lost; compensation must follow. */
+  // captured payment needs compensation
   | { outcome: "conflict"; orderId: string }
-  /** A duplicate delivery of an already-applied transition. */
+  // transition already applied
   | { outcome: "already_final"; orderId: string; status: OrderStatus };
 
 export class OrderInputError extends Error {
@@ -141,8 +140,7 @@ export function resolveActorKey(actor: OrderActor): string {
   return hasUser ? `user:${actor.userId!}` : `guest:${actor.guestSessionId!}`;
 }
 
-// Crockford-style alphabet without ambiguous glyphs; 12 chars of 31 symbols
-// leaves collisions negligible, and the unique index rejects the exception.
+// unambiguous alphabet; unique index catches collisions
 const PUBLIC_NUMBER_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 export function generateOrderPublicNumber(): string {
@@ -298,12 +296,7 @@ async function assembleOrderRecord(
   };
 }
 
-/**
- * Creates or replays the one order for an actor-owned hold. Must run inside a
- * transaction. The unique orders.hold_id index arbitrates duplicate checkouts:
- * the loser of a race replays the winner's order. Money is recalculated from
- * the hold's server-priced items; nothing commercial comes from the caller.
- */
+// caller tx; unique hold id elects one server-priced order
 export async function createOrderForHold(
   executor: DatabaseExecutor,
   input: CreateOrderForHoldInput
@@ -331,7 +324,7 @@ export async function createOrderForHold(
     [input.holdId, actorKey]
   );
   const hold = holdResult.rows[0];
-  // An actor may only see and check out its own hold.
+  // actor may only check out own hold
   if (!hold) {
     throw new OrderHoldNotFoundError();
   }
@@ -398,8 +391,7 @@ export async function createOrderForHold(
     ]
   );
   const orderRow = inserted.rows[0];
-  // The hold row lock serializes checkouts for one hold, so a lost insert can
-  // only mean a competing transaction already committed this order.
+  // hold lock serializes checkout; lost insert replays winner
   if (!orderRow) {
     const replay = await executor.query<OrderRow>(
       `SELECT ${orderColumns} FROM "orders" WHERE "hold_id" = $1`,
@@ -435,11 +427,7 @@ export async function createOrderForHold(
   return assembleOrderRecord(executor, orderRow, false);
 }
 
-/**
- * Records the provider references created after the checkout transaction
- * committed. Idempotent for the same intent; a different intent for an order
- * that already has one is an invariant violation, never silently replaced.
- */
+// same intent replays; replacement breaks the invariant
 export async function attachPaymentIntent(
   executor: DatabaseExecutor,
   input: {
@@ -465,7 +453,6 @@ export async function attachPaymentIntent(
   }
 }
 
-/** Loads one actor-scoped order; the actor never sees another actor's order. */
 export async function loadOrderForActor(
   executor: DatabaseExecutor,
   input: { actor: OrderActor; orderId: string }
@@ -492,15 +479,10 @@ export interface RecordWebhookEventInput {
 
 export interface WebhookEventRecord {
   id: string;
-  /** True when this delivery duplicated an already-recorded event. */
   replayed: boolean;
 }
 
-/**
- * Durably records one verified provider event before any processing. The
- * (provider, event id) unique index makes duplicate deliveries replay the
- * original row instead of recording twice.
- */
+// unique provider event makes delivery durable and replayable
 export async function recordWebhookEvent(
   executor: DatabaseExecutor,
   input: RecordWebhookEventInput
@@ -531,7 +513,7 @@ export async function recordWebhookEvent(
   return { id: existing.rows[0]!.id, replayed: true };
 }
 
-/** Marks a webhook event processed; repeat calls keep the first timestamp. */
+// preserve first processing timestamp
 export async function markWebhookEventProcessed(
   executor: DatabaseExecutor,
   webhookEventId: string
@@ -561,17 +543,7 @@ interface FinalizeItemRow extends QueryResultRow {
   ticketTypeId: string;
 }
 
-/**
- * Applies a verified successful payment to its order exactly once.
- *
- * Must run inside a transaction. Locks the order, payment, hold, ticket types,
- * and seats, then either secures every unit and issues tickets, or - when any
- * unit is lost - leaves the order in payment_conflict for compensation. Grace
- * rule: a hold that expired while the customer paid may still finalize when
- * every unit is reattachable (a seat still held by it, reclaimable, or back to
- * available; general admission with remaining capacity). Units are never
- * partially secured and seats are never substituted.
- */
+// locked caller tx secures every unit or records payment_conflict
 export async function finalizeOrderPayment(
   executor: DatabaseExecutor,
   input: {
@@ -600,8 +572,7 @@ export async function finalizeOrderPayment(
     throw new PaymentNotFoundError();
   }
 
-  // The provider never decides commercial value: a mismatch is an invariant
-  // violation surfaced for operators, not a state to reconcile automatically.
+  // stored order owns value; mismatch needs operator review
   if (
     input.amountMinor !== target.amountMinor ||
     input.currency.toUpperCase() !== target.currency.toUpperCase()
@@ -636,7 +607,7 @@ export async function finalizeOrderPayment(
     [target.orderId]
   );
 
-  // Stable ticket-type lock order (sorted ids) matches every hold flow.
+  // shared lock order prevents deadlocks
   const lockedTypes = await executor.query<
     {
       capacity: number | null;
@@ -668,8 +639,7 @@ export async function finalizeOrderPayment(
     .filter((id): id is string => id !== null)
     .sort((left, right) => (left < right ? -1 : 1));
 
-  // A seat is securable while this hold still holds it, when it fell back to
-  // available, or when a newer hold on it has itself expired by database time.
+  // database time decides whether a seat is reclaimable
   const securableSeats = new Set<string>();
   if (seatIds.length > 0) {
     const lockedSeats = await executor.query<
@@ -707,7 +677,7 @@ export async function finalizeOrderPayment(
   for (const item of generalAdmissionItems) {
     const ticketType = typesById.get(item.ticketTypeId)!;
     if (holdOwnsReservation) {
-      continue; // Reserved quantity still covers this line.
+      continue; // reservation still covers line
     }
     const remaining =
       (ticketType.capacity ?? 0) -
@@ -719,8 +689,7 @@ export async function finalizeOrderPayment(
   }
 
   if (!everyUnitSecurable) {
-    // Free whatever this hold still occupies; the charge is compensated by an
-    // idempotent full refund, never by substituting inventory.
+    // release this hold only; refund instead of substituting
     if (holdOwnsReservation) {
       await executor.query(
         `UPDATE "ticket_types" t
@@ -766,7 +735,7 @@ export async function finalizeOrderPayment(
        WHERE "id" = ANY($1::uuid[])`,
       [seatIds]
     );
-    // The seats were validated under lock, so every row must flip.
+    // locked validation requires every row to flip
     if ((soldSeats.rowCount ?? 0) !== seatIds.length) {
       throw new OrderStateError("A validated seat failed to move to sold.");
     }
@@ -798,14 +767,7 @@ export async function finalizeOrderPayment(
     [target.holdId]
   );
 
-  // One admission credential per purchased unit. The order was still
-  // pending_payment under lock, so tickets cannot already exist.
-  //
-  // Each ticket gets a nonsecret public number plus a placeholder QR hash whose
-  // preimage is discarded random data: no presented value can match until the
-  // authenticated owner's first QR view rotates the credential (see ADR 0008).
-  // This keeps every raw bearer inside authenticated HTTPS responses, never in
-  // this asynchronous issuance path, notifications, or logs.
+  // discarded preimages keep issued qr placeholders unusable
   const insertedTickets = await executor.query(
     `INSERT INTO "tickets"
        ("order_id", "order_item_id", "event_id", "ticket_type_id",
@@ -843,11 +805,7 @@ export async function finalizeOrderPayment(
   };
 }
 
-/**
- * Records a failed payment attempt. The order stays pending because the
- * provider lets the customer retry against the same logical intent; a late
- * failure event after success or compensation changes nothing.
- */
+// pending orders can retry; final orders ignore late failures
 export async function recordPaymentFailure(
   executor: DatabaseExecutor,
   input: { failureCode: string; providerPaymentIntentId: string }
@@ -892,7 +850,7 @@ export interface CompensationTarget {
   userId: string | null;
 }
 
-/** Reads the refund target without locks; the provider call happens outside. */
+// unlocked read keeps provider calls outside transactions
 export async function loadCompensationTarget(
   executor: DatabaseExecutor,
   orderId: string
@@ -919,10 +877,7 @@ export async function loadCompensationTarget(
   return row;
 }
 
-/**
- * Applies a provider refund result to the compensated order. Idempotent: a
- * repeat delivery of the same refund changes nothing.
- */
+// compensated state makes refund delivery idempotent
 export async function applyRefundResult(
   executor: DatabaseExecutor,
   input: { orderId: string; providerRefundId: string; settled: boolean }

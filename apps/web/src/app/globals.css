@@ -765,7 +765,7 @@ h2 {
   border: 0;
 }
 
-/* Customer tickets */
+/* customer tickets */
 
 .ticket-list {
   margin: 32px 0 0;
@@ -853,7 +853,7 @@ h2 {
 }
 
 .ticket-qr__frame {
-  /* Always light so the code scans on a phone set to a dark theme. */
+  /* always light so code scans on dark-theme phones */
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -872,7 +872,7 @@ h2 {
   outline-offset: 4px;
 }
 
-/* Public discovery: event listing */
+/* public discovery: event listing */
 
 .auth-shell--wide .auth-shell__heading {
   max-width: none;
@@ -967,7 +967,7 @@ h2 {
   text-decoration: underline;
 }
 
-/* Public discovery: availability */
+/* public discovery: availability */
 
 .availability-toolbar {
   display: flex;
@@ -1284,9 +1284,7 @@ h2 {
   }
 }
 
-/* Scanner: dense controls, one-hand reach, results readable at arm's length
-   in a dim venue. Color never stands alone; each result pairs an icon shape
-   and text with sound and vibration from the client. */
+/* scanner controls pair color with other cues */
 .scan-shell {
   display: grid;
   max-width: 480px;

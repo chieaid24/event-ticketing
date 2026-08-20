@@ -113,7 +113,7 @@ export interface OrganizationsStore {
   }): Promise<UpdateSettingsResult>;
 }
 
-/** Thrown inside a transaction to roll back a change that strands an org. */
+// thrown in tx to roll back a change that strands an org
 class LastOwnerError extends Error {
   constructor() {
     super("The organization would be left without an active owner.");
@@ -210,8 +210,7 @@ export class PgOrganizationsStore
   }): Promise<InviteMemberResult> {
     return withDatabaseTransaction(this.pool, async (tx) => {
       const user = await findUserByEmail(tx, input.email);
-      // Only verified accounts are invitable; the response stays generic
-      // either way so invitations cannot probe for accounts cheaply.
+      // generic result hides account existence
       if (!user || user.status !== "active") {
         return "skipped";
       }
@@ -408,8 +407,7 @@ export class PgOrganizationsStore
         return false;
       }
 
-      // The delete detaches this row (organization_id set to NULL), so the
-      // detail keeps the identifying facts for later investigation.
+      // deleted org details keep identifying facts
       await insertAuditLog(tx, {
         action: "organization.deleted",
         actorUserId: input.actorUserId,
@@ -437,7 +435,7 @@ export class PgOrganizationsStore
     await this.pool.end();
   }
 
-  /** Roll back owner-affecting writes that leave zero active owners. */
+  // roll back owner-affecting writes that leave zero active owners
   private async assertOwnerRemains(
     tx: DatabaseExecutor,
     input: { expectedRole: MembershipRole; organizationId: string }

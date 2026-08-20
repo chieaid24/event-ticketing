@@ -12,15 +12,11 @@ export const scanResultSchema = z.enum([
 ]);
 export type ScanResult = z.infer<typeof scanResultSchema>;
 
-/** Check-in attempts record every result except a reversal. */
+// check-in records every result except reversal
 export const checkInResultSchema = scanResultSchema.exclude(["reversed"]);
 export type CheckInResult = z.infer<typeof checkInResultSchema>;
 
-/**
- * A stable client-generated identifier for the scanning device, used for
- * per-device rate limiting and scan attribution. Never trusted for
- * authorization.
- */
+// client device id for rate-limit + attribution; never trusted for authz
 export const scanDeviceIdSchema = z
   .string()
   .trim()
@@ -28,11 +24,7 @@ export const scanDeviceIdSchema = z
   .max(64)
   .regex(/^[A-Za-z0-9-]+$/);
 
-/**
- * One credential per attempt: the raw QR bearer from the camera, or the
- * nonsecret ticket public number typed as the manual fallback. The raw bearer
- * is hashed immediately server-side and never stored or logged.
- */
+// one credential per attempt; qr bearer is hash-only
 export const checkInRequestSchema = z
   .object({
     deviceId: scanDeviceIdSchema,
@@ -47,7 +39,7 @@ export const checkInRequestSchema = z
   );
 export type CheckInRequest = z.infer<typeof checkInRequestSchema>;
 
-/** The scanned ticket as staff may see it; never carries QR material. */
+// ticket as staff see it; never carries qr material
 export const scanTicketDetailSchema = z
   .object({
     checkedInAt: z.iso.datetime().nullable(),
@@ -66,7 +58,7 @@ export const checkInResponseSchema = z
   .object({
     result: checkInResultSchema,
     scanId: z.uuid(),
-    /** Null exactly when the result is invalid. */
+    // null exactly when result invalid
     ticket: scanTicketDetailSchema.nullable(),
   })
   .strict();
@@ -102,11 +94,7 @@ export const scanActivityEntrySchema = z
   .strict();
 export type ScanActivityEntry = z.infer<typeof scanActivityEntrySchema>;
 
-/**
- * canReverse mirrors the caller's scanner.reverse permission so the scanner UI
- * can show or hide the reversal control without duplicating the role matrix;
- * the API remains the enforcement point.
- */
+// canreverse mirrors scanner.reverse for ui only
 export const scanActivityResponseSchema = z
   .object({
     canReverse: z.boolean(),

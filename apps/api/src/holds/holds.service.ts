@@ -21,7 +21,7 @@ import { apiError, parseRequest } from "../request-validation.js";
 import type { GeneralAdmissionHoldRecord, HoldsStore } from "./holds.store.js";
 import type { WaitingRoomAdmission } from "../waiting-room/waiting-room.service.js";
 
-/** Route identifier for rate limiting and telemetry. */
+// route id for rate limiting and telemetry
 export const HOLD_ROUTE = "holds.assigned.create";
 
 export class HoldsService {
@@ -48,8 +48,7 @@ export class HoldsService {
     });
 
     try {
-      // Idempotency is already actor-scoped by the unique (actor, key) index, so
-      // the client key is stored as-is and keeps its full length budget.
+      // actor scope makes the client key safe as-is
       const hold = await this.store.createAssignedSeatHold({
         actor: { userId: user.id },
         eventId: request.eventId,
@@ -159,7 +158,7 @@ export class HoldsService {
 
   private translate(error: unknown): never {
     if (error instanceof SeatsUnavailableError) {
-      // Disclose only the unavailable seat ids, never another customer's hold.
+      // disclose only unavailable seat ids, never another customer's hold
       throw new HttpException(
         {
           code: "seats_unavailable",
@@ -170,7 +169,7 @@ export class HoldsService {
       );
     }
     if (error instanceof HoldCapacityError) {
-      // Disclose only the oversubscribed ticket types, never another hold.
+      // disclose only oversubscribed ticket types, never another hold
       throw new HttpException(
         {
           code: "capacity_unavailable",

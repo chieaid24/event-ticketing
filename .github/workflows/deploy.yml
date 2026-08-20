@@ -14,11 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # These jobs authenticate to Azure and promote an immutable image. They stay
-  # skipped (not failed) until the AZURE_* repository variables exist, so a push
-  # to main is a no-op here until deployment is configured. The shellcheck and
-  # terraform fmt/init/validate checks this workflow used to run now live in CI
-  # (ci.yml), which already validates foundation, staging, and production.
+  # skipped until azure vars exist
   build:
     name: build immutable image
     if: ${{ vars.AZURE_CLIENT_ID_BUILD != '' }}

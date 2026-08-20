@@ -72,8 +72,7 @@ export class PgAuthStore implements AuthStore, OnApplicationShutdown {
     await withDatabaseTransaction(this.pool, async (tx) => {
       const created = await createUser(tx, input);
       const user = created ?? (await findUserByEmail(tx, input.email));
-      // Existing verified accounts get no email so registration reveals
-      // nothing; pending accounts get their verification mail again.
+      // verified accounts get no mail; pending accounts get another
       if (user && user.emailVerifiedAt === null && user.status === "pending") {
         await enqueueOutboxEvent(tx, {
           aggregateId: user.id,

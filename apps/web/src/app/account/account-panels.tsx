@@ -12,7 +12,7 @@ import {
   revokeSession,
 } from "../../lib/auth-api";
 
-// Fixed locale and zone keep the server and client render identical.
+// fixed locale+zone so server/client render match
 const timestampFormat = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",

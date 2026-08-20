@@ -6,18 +6,13 @@ function toGatewayError(error: unknown): PaymentGatewayError {
   if (error instanceof Stripe.errors.StripeError) {
     return new PaymentGatewayError(
       error.code ?? error.type,
-      // Provider messages are operator-safe; card data never appears in them.
+      // provider messages operator-safe; no card data
       error.message
     );
   }
   return new PaymentGatewayError("provider_unreachable");
 }
 
-/**
- * Stripe-backed gateway. Test-mode credential wiring and the live Elements
- * journey are validated by a human-gated issue; every code path here is also
- * exercised through the fake gateway on the same interfaces.
- */
 export function createStripePaymentGateway(input: {
   secretKey: string;
 }): PaymentGateway {

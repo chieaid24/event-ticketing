@@ -22,8 +22,7 @@ case "$image_uri" in
     ;;
 esac
 
-# Migrations run before any service sees the new code; a failed migration
-# stops the rollout with the previous revisions still serving traffic.
+# failed migration leaves old revisions serving
 az containerapp job update \
   --resource-group "$resource_group" \
   --name "$migrate_job" \

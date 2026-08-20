@@ -24,7 +24,7 @@ import { hasPermission } from "../organizations/policy.js";
 import { apiError, parseRequest, uuidPattern } from "../request-validation.js";
 import type { VenuesStore } from "./venues.store.js";
 
-/** How many layout problems fit in one error message. */
+// layout problems shown per error message
 const LAYOUT_ISSUE_LIMIT = 3;
 
 interface ActiveMembership {
@@ -237,10 +237,7 @@ export class VenuesService {
     return { status: "accepted" };
   }
 
-  /**
-   * Non-members get the same 404 as a missing organization so that probing
-   * cannot confirm an organization exists.
-   */
+  // hide org existence from non-members
   private async requireActiveMembership(
     organizationId: string,
     userId: string

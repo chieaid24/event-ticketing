@@ -116,7 +116,7 @@ export function CheckoutClient({
           router.push(`/orders/${state.order.orderId}/processing`);
           return;
         }
-        // Give asynchronous failure processing a moment, then surface it.
+        // wait for async failure processing then surface it
         await new Promise((resolve) => setTimeout(resolve, 1_500));
         const order = await fetchOrder(apiBaseUrl, state.order.orderId);
         setPaying(false);

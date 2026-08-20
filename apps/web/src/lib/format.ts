@@ -1,4 +1,4 @@
-/** Money always arrives in integer minor units; format in the sale currency. */
+// money arrives in integer minor units; format in sale currency
 export function formatMoney(minor: number, currency: string): string {
   return new Intl.NumberFormat("en-GB", {
     currency,
@@ -6,11 +6,7 @@ export function formatMoney(minor: number, currency: string): string {
   }).format(minor / 100);
 }
 
-/**
- * Event times render in the event's own time zone, never the viewer's. Uses
- * explicit component options because `timeZoneName` cannot combine with the
- * `dateStyle`/`timeStyle` presets.
- */
+// explicit options allow event zone names
 export function formatEventInstant(iso: string, timeZone: string): string {
   const formatted = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",

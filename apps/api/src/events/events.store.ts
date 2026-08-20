@@ -34,7 +34,7 @@ import {
   type VenueSectionSummaryData,
 } from "@event-ticketing/database";
 
-/** Outbox topic for a published event; consumers materialize discovery. */
+// outbox topic for published event; consumers materialize discovery
 export const EVENT_PUBLISHED_TOPIC = "event.published";
 
 export type UpdateDraftResult = EventRow | "version_conflict";
@@ -245,7 +245,7 @@ export class PgEventsStore implements EventsStore, OnApplicationShutdown {
     ticketTypes: TicketTypeInputData[];
   }): Promise<ReplaceTicketTypesResult> {
     return withDatabaseTransaction(this.pool, async (tx) => {
-      // The CAS bump also locks the event row, serializing draft writes.
+      // cas bump also locks event row, serializing draft writes
       const event = await claimEventVersion(tx, {
         eventId: input.eventId,
         expectedVersion: input.expectedVersion,
@@ -335,7 +335,7 @@ export class PgEventsStore implements EventsStore, OnApplicationShutdown {
         eventId: input.eventId,
         organizationId: input.organizationId,
       });
-      // The claim already proved the event was a draft inside this transaction.
+      // claim already proved event was a draft in this tx
       return published ?? "version_conflict";
     });
   }

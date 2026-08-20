@@ -87,7 +87,7 @@ export function OrganizationDetailPanels({
   });
   const [confirmSlug, setConfirmSlug] = useState("");
 
-  // Visibility mirrors the backend policy; the API is the enforcement point.
+  // mirrors backend policy; api enforces
   const canManage = (target: Member): boolean =>
     target.userId !== currentUserId &&
     membership.assignableRoles.includes(target.role);

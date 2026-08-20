@@ -107,7 +107,7 @@ export async function findOrganizationById(
   return result.rows[0] ?? null;
 }
 
-/** Serializes owner-affecting mutations for one organization. */
+// serialize owner-affecting mutations for one org
 export async function lockOrganization(
   executor: DatabaseExecutor,
   organizationId: string
@@ -163,10 +163,7 @@ export async function insertActiveOwnerMembership(
   return row;
 }
 
-/**
- * Creates or revives an invitation. Returns null when the user already has a
- * live (invited or active) membership.
- */
+// create or revive invitation; null if user already has live (invited/active) membership
 export async function upsertInvitation(
   executor: DatabaseExecutor,
   input: {
@@ -312,7 +309,7 @@ export async function declineInvitation(
   return result.rows[0] ?? null;
 }
 
-/** Compare-and-swap on the current role so stale updates fail safely. */
+// cas on role rejects stale updates
 export async function updateMembershipRole(
   executor: DatabaseExecutor,
   input: {

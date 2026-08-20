@@ -44,7 +44,7 @@ export interface PublicTicketTypeRow extends QueryResultRow {
   sectionName: string;
 }
 
-/** Blocked seats are filtered out upstream; they are not public inventory. */
+// blocked seats filtered upstream; not public inventory
 export interface AvailabilitySeatRow extends QueryResultRow {
   accessible: boolean;
   companion: boolean;
@@ -93,11 +93,6 @@ const publishedEventFilter = `
     OR ($2::text = 'past' AND e."ends_at" < CURRENT_TIMESTAMP))
 `;
 
-/**
- * The public listing: published events only, with the venue name and the
- * cheapest ticket price. Upcoming events sort soonest first; past events sort
- * most recent first.
- */
 export async function listPublishedEvents(
   executor: DatabaseExecutor,
   input: PublishedEventListInput
@@ -186,11 +181,6 @@ export async function fetchPublicTicketTypes(
   return result.rows;
 }
 
-/**
- * Assigned-seat snapshot for the public map, ordered by section position for a
- * stable render. Blocked seats never reach the response: they are not sellable
- * inventory, and their existence is internal.
- */
 export async function fetchAvailabilitySeats(
   executor: DatabaseExecutor,
   eventId: string
@@ -216,11 +206,7 @@ export async function fetchAvailabilitySeats(
   return result.rows;
 }
 
-/**
- * General-admission capacity per ticket type. Remaining subtracts reserved
- * holds and sales, clamped at zero because expired-but-unswept holds may
- * briefly keep the counters above capacity.
- */
+// clamp ga remaining until expired holds sweep
 export async function fetchGeneralAdmissionCapacity(
   executor: DatabaseExecutor,
   eventId: string

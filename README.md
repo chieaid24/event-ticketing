@@ -6,13 +6,10 @@ inventory, and venue staff validate QR tickets without trusting client-side
 state.
 
 The repository contains a runnable TypeScript monorepo with a Next.js web
-application, a NestJS API, a worker process, and shared packages. Inventory,
-payment, and ticket workflows are delivered through the dependency-aware issue
-queue.
+application, a NestJS API, a worker process, and shared packages.
 
 This is a public repository. Never commit secrets, credentials, personal data,
-private incident details, or production configuration. Read
-[SECURITY.md](SECURITY.md) before contributing.
+private incident details, or production configuration.
 
 ## Tools Used
 
@@ -35,18 +32,6 @@ private incident details, or production configuration. Read
  <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-%232088FF?style=for-the-badge&logo=githubactions&logoColor=%23FFFFFF"></td>
   </tr>
 </table>
-
-## Start here
-
-Read these documents in order:
-
-1. [VISION.md](VISION.md) defines the product direction and repository rules.
-2. [CONTEXT.md](CONTEXT.md) defines the domain language.
-3. [docs/README.md](docs/README.md) routes you to the relevant specification.
-4. [DESIGN.md](DESIGN.md) governs every frontend change.
-
-Use [docs/product/roadmap.md](docs/product/roadmap.md) to understand delivery
-order. Use GitHub Issues as the executable dependency queue.
 
 ## Run locally
 
@@ -122,11 +107,8 @@ packages/
   ui/        Shared accessible UI components
   test-utils/
 infrastructure/
-  README.md  Local PostgreSQL, Redis, Mailpit, and MinIO operations
+  container/ Dockerfile for the shared runtime image
+  observability/ Prometheus, Grafana, and alert configuration
   terraform/ Azure delivery, staging, and production infrastructure
-docs/        Product and engineering source of truth
+docs/        Load-test reports and observability operations
 ```
-
-The nearest `README.md` explains a code area after that area exists. Keep
-[docs/README.md](docs/README.md) and [docs/maintenance.md](docs/maintenance.md)
-current when the structure changes.

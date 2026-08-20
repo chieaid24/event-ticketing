@@ -78,7 +78,6 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof AuthApiError ? error.message : fallback;
 }
 
-/** Parses editor text into a layout, or a complete list of problems. */
 function checkLayoutText(
   text: string
 ): { issues: string[] } | { layout: VenueLayout } {

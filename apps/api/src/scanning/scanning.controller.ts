@@ -28,11 +28,7 @@ interface RouteLimit {
   windowMs: number;
 }
 
-/**
- * Per-address limits stay generous because a venue's scanner devices often
- * share one network address; the service's per-device and per-actor limits
- * are the tight gate.
- */
+// shared venue addresses get a generous limit
 const routeLimits = {
   activity: { max: 2400, windowMs: 15 * 60 * 1000 },
   checkIn: { max: 6000, windowMs: 15 * 60 * 1000 },
@@ -119,10 +115,7 @@ export class ScanningController {
   }
 }
 
-/**
- * Scan results reference attendees and admission state: operational data that
- * must never be cached by a shared proxy or indexed by a crawler.
- */
+// attendee scan results must stay private
 function sealResponse(response: Response): void {
   response.setHeader("Cache-Control", "no-store, private");
   response.setHeader("X-Robots-Tag", "noindex, nofollow");

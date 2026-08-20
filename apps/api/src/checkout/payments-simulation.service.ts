@@ -13,12 +13,7 @@ import { apiError, parseRequest } from "../request-validation.js";
 import type { CheckoutStore } from "./checkout.store.js";
 import type { PaymentWebhooksService } from "./payment-webhooks.service.js";
 
-/**
- * Development-only stand-in for the provider's outbound webhook delivery.
- * Registered only under the fake provider; the signed event it builds passes
- * through the production ingest path: signature verification, durable
- * receipt, deduplication, and asynchronous finalization.
- */
+// signed fake events use the production ingest path
 export class PaymentsSimulationService {
   constructor(
     private readonly auth: AuthService,

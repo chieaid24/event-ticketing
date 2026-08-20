@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { currencySchema, moneyMinorSchema } from "./events.js";
 
-/** A single request may hold at most this many assigned seats. */
 export const MAX_SEATS_PER_HOLD = 10;
 export const MAX_IDEMPOTENCY_KEY = 200;
 
@@ -15,7 +14,7 @@ export const holdStatusSchema = z.enum([
 ]);
 export type HoldStatus = z.infer<typeof holdStatusSchema>;
 
-/** Carried in the `Idempotency-Key` header, scoped per actor by the server. */
+// idempotency-key header, scoped per actor server-side
 export const idempotencyKeySchema = z
   .string()
   .trim()
@@ -62,7 +61,7 @@ export type CreateAssignedSeatHoldResponse = z.infer<
   typeof createAssignedSeatHoldResponseSchema
 >;
 
-/** Conflict body: only unavailable seat ids, never another customer's hold. */
+// conflict body: only unavailable seat ids, never another customers hold
 export const seatsUnavailableResponseSchema = z
   .object({
     code: z.literal("seats_unavailable"),

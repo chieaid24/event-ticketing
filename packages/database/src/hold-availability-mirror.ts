@@ -1,9 +1,4 @@
-/**
- * Advisory Redis mirror of hold expiry. PostgreSQL stays authoritative for
- * inventory (invariant: Redis never overrides Postgres); this only accelerates
- * client-facing countdowns and availability hints. The client is injected as a
- * structural interface so this package keeps no Redis runtime dependency.
- */
+// advisory redis mirror of hold expiry; postgres authoritative, client injected so no redis dep
 
 export interface HoldExpiryMirrorClient {
   del(key: string): Promise<unknown>;
@@ -20,10 +15,7 @@ export function holdExpiryKey(prefix: string, holdId: string): string {
   return `${prefix}hold-expiry:${holdId}`;
 }
 
-/**
- * Mirrors a hold's expiry as a TTL key. Returns false and clears the key when
- * the hold has already expired, so a stale mirror never outlives the database.
- */
+// ttl mirror clears expired values to avoid stale advice
 export async function mirrorHoldExpiry(
   client: HoldExpiryMirrorClient,
   input: HoldExpiryMirrorInput & { expiresAt: Date; now?: Date }
@@ -40,7 +32,7 @@ export async function mirrorHoldExpiry(
   return true;
 }
 
-/** Clears a hold's expiry mirror once it is consumed, cancelled, or expired. */
+// clear hold expiry mirror once consumed/cancelled/expired
 export async function clearHoldExpiry(
   client: HoldExpiryMirrorClient,
   input: HoldExpiryMirrorInput
@@ -48,7 +40,7 @@ export async function clearHoldExpiry(
   await client.del(holdExpiryKey(input.prefix, input.holdId));
 }
 
-/** Reads the mirrored expiry, or null when Redis has dropped it. */
+// read mirrored expiry, null if redis dropped it
 export async function readHoldExpiry(
   client: HoldExpiryMirrorClient,
   input: HoldExpiryMirrorInput

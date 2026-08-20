@@ -7,11 +7,7 @@ import {
 import type { Response } from "express";
 import type { Logger } from "pino";
 
-/**
- * Logs unexpected errors before returning the anonymous 500 response. The
- * Nest logger is disabled in main.ts, so without this filter an unhandled
- * exception produces a bare 500 with no server-side trace.
- */
+// log unhandled errors while the framework logger is off
 @Catch()
 export class UnhandledExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: Logger) {}
@@ -24,8 +20,7 @@ export class UnhandledExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // http-errors thrown below Nest (e.g. body-parser's 413) carry their own
-    // statusCode; mirror Nest's default handling instead of masking as 500.
+    // preserve status from lower-level http errors
     if (
       exception instanceof Error &&
       "statusCode" in exception &&

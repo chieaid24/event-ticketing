@@ -65,12 +65,12 @@ function formatInstant(iso: string | null): string {
   return iso ? `${timestampFormat.format(new Date(iso))} UTC` : "Not set";
 }
 
-/** ISO instant to a datetime-local value in UTC (YYYY-MM-DDTHH:mm). */
+// iso value for utc datetime-local input
 function isoToInput(iso: string | null): string {
   return iso ? iso.slice(0, 16) : "";
 }
 
-/** A datetime-local value is read as a UTC wall-clock instant. */
+// datetime-local read as utc wall-clock
 function inputToIso(value: string): string | null {
   if (!value) {
     return null;
@@ -105,7 +105,6 @@ function toEditableTicketTypes(ticketTypes: readonly TicketType[]): unknown[] {
   );
 }
 
-/** Parses editor text into ticket types, or a complete list of problems. */
 function checkTicketTypesText(
   text: string
 ): { issues: string[] } | { ticketTypes: TicketTypeInput[] } {

@@ -48,13 +48,12 @@ const originListSchema = z
 
 const paymentProviderSchema = z.enum(["stripe", "fake"]).default("fake");
 
-// Publicly known local defaults; production refuses them (see loadApiConfig).
+// publicly known local defaults; production refuses them
 const developmentPaymentWebhookSecret = "whsec_local_development_only";
 const developmentWaitingRoomTokenSecret =
   "local-waiting-room-secret-only-32-bytes";
 
-// The default only signs local fake-provider deliveries; a real Stripe
-// endpoint secret always arrives via PAYMENT_WEBHOOK_SECRET.
+// local fake webhook secret; stripe uses payment_webhook_secret
 const paymentWebhookSecretSchema = z
   .string()
   .min(8)
@@ -81,15 +80,14 @@ const apiConfigSchema = z
       .min(100)
       .max(10_000)
       .default(2_000),
-    // Absent locally: Front Door origin verification only runs when deployed.
+    // absent locally; front door origin check only runs when deployed
     frontDoorProfileId: z.string().min(1).max(200).optional(),
     host: z.string().min(1).default("127.0.0.1"),
     logLevel: logLevelSchema,
     paymentProvider: paymentProviderSchema,
     paymentWebhookSecret: paymentWebhookSecretSchema,
     port: z.coerce.number().int().min(1).max(65_535).default(4000),
-    // Load-testing bypass for per-IP limits; production refuses it (see
-    // assertProductionApiConfiguration).
+    // load-test bypass for per-ip limits; production refuses it
     rateLimitsDisabled: booleanFlagSchema.default(false),
     redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
     sessionAbsoluteTtlSeconds: z.coerce
@@ -285,15 +283,13 @@ function parseConfig<T>(
   throw new ConfigurationError(application, variables);
 }
 
-// Fails closed in production: these secrets must be set explicitly and must
-// not reuse the publicly known development defaults.
+// fails closed in prod: secrets must be set, not the public dev defaults
 const productionRequiredApiSecrets: Readonly<Record<string, string>> = {
   PAYMENT_WEBHOOK_SECRET: developmentPaymentWebhookSecret,
   WAITING_ROOM_TOKEN_SECRET: developmentWaitingRoomTokenSecret,
 };
 
-// Production must select Stripe explicitly: the schema default is "fake",
-// which mounts the simulated payment surface (/payments/simulate).
+// prod must pick stripe explicitly; default "fake" mounts simulated payment surface
 function requiresExplicitStripeProvider(
   environment: NodeJS.ProcessEnv
 ): boolean {
@@ -318,7 +314,7 @@ function assertProductionApiConfiguration(
     variables.push("PAYMENT_PROVIDER");
   }
 
-  // The rate-limit bypass exists for local load testing only.
+  // rate-limit bypass is local load-testing only
   if (environment["API_RATE_LIMITS_DISABLED"] === "true") {
     variables.push("API_RATE_LIMITS_DISABLED");
   }

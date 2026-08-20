@@ -14,10 +14,9 @@ export type ScanResult =
   | "invalid"
   | "reversed";
 
-/** The ticket as scanner staff may see it after a validation attempt. */
 export interface ScanTicketDetail {
   checkedInAt: Date | null;
-  /** The ticket's own event title, which differs on a wrong_event result. */
+  // ticket's own event title; differs on wrong_event
   eventTitle: string;
   publicNumber: string;
   rowLabel: string | null;
@@ -27,7 +26,7 @@ export interface ScanTicketDetail {
   ticketTypeName: string;
 }
 
-/** How the scanner identified the ticket; raw QR bearers never reach here. */
+// raw qr never crosses this boundary
 export type ScanCredential =
   | { kind: "qr"; tokenHash: string }
   | { kind: "public_number"; publicNumber: string };
@@ -43,7 +42,7 @@ export interface CheckInInput {
 export interface CheckInOutcome {
   result: Exclude<ScanResult, "reversed">;
   scanId: string;
-  /** Null exactly when the result is invalid. */
+  // null exactly when result invalid
   ticket: ScanTicketDetail | null;
 }
 
@@ -58,11 +57,10 @@ export interface ReverseCheckInInput {
 
 export type ReverseCheckInOutcome =
   | { outcome: "reversed"; scanId: string; ticket: ScanTicketDetail }
-  /** The ticket is not visible to this organization and event. */
+  // ticket not visible to this org+event
   | { outcome: "not_found" }
   | { outcome: "not_checked_in"; status: TicketStatus };
 
-/** One row of an event's recent scan activity, newest first. */
 export interface ScanActivityRecord {
   actorEmail: string | null;
   createdAt: Date;
@@ -109,21 +107,10 @@ const lockedTicketSelect = `
   LEFT JOIN "event_seats" s ON s."id" = tk."event_seat_id"
 `;
 
-// Locks only the ticket row; the outer-joined seat cannot take FOR UPDATE.
+// lock ticket only; outer-joined seat cannot take for update
 const lockClause = `FOR UPDATE OF tk`;
 
-/**
- * Records one validation attempt and, when the ticket is eligible, performs
- * the atomic check-in: the ticket row is locked with FOR UPDATE, its state is
- * re-read under the lock, and the transition plus the scan row plus the audit
- * entry commit together. Concurrent scans of the same ticket serialize on the
- * row lock, so exactly one attempt returns accepted.
- *
- * Every attempt appends a scan row, including failures. A credential that
- * matches no ticket, or a ticket belonging to another organization, records
- * an invalid result with no ticket reference so scan history never leaks
- * another tenant's data.
- */
+// row lock elects one admission; invalid scans hide foreign tickets
 export async function checkInTicket(
   executor: DatabaseExecutor,
   input: CheckInInput
@@ -192,13 +179,7 @@ export async function checkInTicket(
   };
 }
 
-/**
- * Reverses an accidental check-in: the locked ticket returns to active while
- * the accepted scan row stays untouched and a reversed row with the stated
- * reason is appended. History is never rewritten. Permission and reason
- * validation happen in the API layer; this function still refuses tickets
- * outside the given organization and event.
- */
+// preserve accepted scan; append reversal only for matching scope
 export async function reverseCheckIn(
   executor: DatabaseExecutor,
   input: ReverseCheckInInput
@@ -249,7 +230,6 @@ export async function reverseCheckIn(
   };
 }
 
-/** Lists an event's most recent scan attempts, newest first. */
 export async function listRecentScans(
   executor: DatabaseExecutor,
   input: { eventId: string; limit: number; organizationId: string }

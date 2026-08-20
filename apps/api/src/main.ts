@@ -18,7 +18,7 @@ async function bootstrap(): Promise<void> {
   });
   const app = await NestFactory.create(AppModule.register(config, logger), {
     logger: false,
-    // Webhook signatures verify against the exact bytes the provider sent.
+    // webhook sigs verify against exact bytes provider sent
     rawBody: true,
   });
 

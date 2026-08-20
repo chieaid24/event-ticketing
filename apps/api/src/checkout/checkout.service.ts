@@ -29,12 +29,7 @@ export class CheckoutService {
     private readonly stripePublishableKey: string | null
   ) {}
 
-  /**
-   * Creates or replays the one order for the caller's hold, then guarantees a
-   * provider intent exists for it. The intent is created after the order
-   * committed, under a stable per-order idempotency key, so a crash or a
-   * duplicate request converges on the same logical intent.
-   */
+  // stable order key converges intent retries
   async startCheckout(
     context: RequestAuthContext,
     input: unknown
@@ -102,7 +97,7 @@ export class CheckoutService {
       return this.store.loadOrder({ actor, orderId: order.id });
     } catch (error) {
       if (error instanceof PaymentGatewayError) {
-        // The order stands; a retried checkout resumes at intent creation.
+        // order stands; retried checkout resumes at intent creation
         apiError(
           502,
           "payment_provider_unavailable",
@@ -140,7 +135,7 @@ export class CheckoutService {
       orderId: order.id,
       paidAt: order.paidAt?.toISOString() ?? null,
       payment: {
-        // The secret only serves an open payment; final orders never echo it.
+        // secret only serves an open payment; final orders never echo it
         clientSecret: paymentOpen ? order.payment.clientSecret : null,
         lastFailureAt: order.payment.lastFailureAt?.toISOString() ?? null,
         lastFailureCode: order.payment.lastFailureCode,

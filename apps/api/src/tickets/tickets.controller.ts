@@ -94,10 +94,7 @@ export class TicketsController {
   }
 }
 
-/**
- * Authenticated ticket data is owner-private: it must never be cached by a
- * shared proxy or indexed by a crawler that follows a leaked link.
- */
+// owner ticket data must stay private
 function sealResponse(response: Response): void {
   response.setHeader("Cache-Control", "no-store, private");
   response.setHeader("X-Robots-Tag", "noindex, nofollow");

@@ -13,13 +13,10 @@ export const metadata = {
   title: "Scanner | Event Ticketing Platform",
 };
 
-/**
- * Mirrors the scanner.checkin column of docs/security/authorization.md for
- * visibility only; the API enforces the permission on every scan.
- */
+// visibility only; api enforces permission on every scan
 const scanningRoles = new Set(["owner", "admin", "scanner"]);
 
-/** Gate scanning only makes sense for events that are on sale or running. */
+// only on-sale or running events are scannable
 function scannable(event: EventSummary): boolean {
   return event.status === "published" || event.status === "sales_paused";
 }

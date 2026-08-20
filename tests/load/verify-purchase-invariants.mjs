@@ -1,7 +1,4 @@
-// Post-run PostgreSQL invariant verification for the k6 purchase-flow load
-// scenario. PostgreSQL is the source of truth: every check reads the tables
-// directly and reports its violation count explicitly, including zeros.
-// Exits non-zero on any violation.
+// exits nonzero on purchase invariant failures
 import pg from "pg";
 
 const localDatabaseUrl =
@@ -9,8 +6,7 @@ const localDatabaseUrl =
 const databaseUrl = process.env["DATABASE_URL"] ?? localDatabaseUrl;
 const eventId =
   process.env["EVENT_ID"] ?? "dddddddd-dddd-4ddd-8ddd-000000000100";
-// Grace for the worker's expiry sweep; an active hold this far past expiry
-// means release is broken, not just lagging.
+// expiry grace separates lag from release failure
 const EXPIRY_SWEEP_GRACE_SECONDS = 120;
 
 const client = new pg.Client({ connectionString: databaseUrl });
@@ -23,7 +19,6 @@ async function count(query, parameters) {
 try {
   await client.connect();
 
-  // 1. Oversells, from the authoritative counters.
   const oversellsByCounter = await count(
     `
       SELECT count(*)::int AS count FROM "ticket_types"
@@ -33,7 +28,6 @@ try {
     [eventId]
   );
 
-  // 1b. Oversells recounted from rows, independent of the counters.
   const oversellsByRows = await count(
     `
       SELECT count(*)::int AS count FROM "ticket_types" tt
@@ -52,7 +46,6 @@ try {
     [eventId]
   );
 
-  // 2. Double-booked seats: more than one live ticket on one seat.
   const doubleBookedSeats = await count(
     `
       SELECT count(*)::int AS count FROM (
@@ -66,7 +59,6 @@ try {
     [eventId]
   );
 
-  // 2b. Sold seats must carry exactly one live ticket.
   const soldSeatTicketMismatches = await count(
     `
       SELECT count(*)::int AS count FROM "event_seats" s
@@ -80,8 +72,6 @@ try {
     [eventId]
   );
 
-  // 3. Paid-order integrity: one succeeded payment carrying the
-  // server-computed total, and one ticket per purchased unit.
   const paidOrderViolations = await count(
     `
       SELECT count(*)::int AS count FROM "orders" o
@@ -111,7 +101,6 @@ try {
     [eventId]
   );
 
-  // 4. Expired holds released inventory.
   const unreleasedExpiredHolds = await count(
     `
       SELECT count(*)::int AS count FROM "holds"

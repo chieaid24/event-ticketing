@@ -99,12 +99,7 @@ async function sendOrFail(
   }
 }
 
-/**
- * Handlers for verified payment webhook processing. Every handler is
- * idempotent under redelivery: finalization short-circuits on a final order,
- * compensation reuses one refund idempotency key, and failure recording is a
- * no-op once the order left pending payment.
- */
+// redelivery converges through stable keys and terminal states
 export function createPaymentHandlers(
   dependencies: PaymentHandlerDependencies
 ): Readonly<Record<string, OutboxHandler>> {
@@ -129,8 +124,7 @@ export function createPaymentHandlers(
       }
 
       if (outcome.outcome === "conflict") {
-        // Compensation is requested in the same transaction that recorded the
-        // conflict; the dedup key keeps redeliveries to one refund request.
+        // commit conflict and compensation together
         await enqueueOutboxEvent(transaction, {
           aggregateId: outcome.orderId,
           aggregateType: "order",
@@ -224,8 +218,7 @@ export function createPaymentHandlers(
 
     let refund;
     try {
-      // Provider call outside any transaction; the stable key makes retries
-      // converge on one logical refund.
+      // stable refund key converges provider retries
       refund = await dependencies.gateway.createRefund({
         amountMinor: target.amountMinor,
         idempotencyKey: `refund:order:${orderId}`,

@@ -258,7 +258,7 @@ interface Scenario {
   userId: string;
 }
 
-/** A store seeded with one organization and the actor as a member of it. */
+// store seeded with one org and actor as a member
 function makeScenario(actorRole: MembershipRole | null): Scenario {
   const userId = randomUUID();
   const store = new FakeOrganizationsStore();

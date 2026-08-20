@@ -127,7 +127,7 @@ export class AppModule implements NestModule {
         TicketsController,
         ScanningController,
         PaymentWebhooksController,
-        // The simulated payment surface exists only for the fake provider.
+        // simulated payment surface only for fake provider
         ...(config.paymentProvider === "fake"
           ? [PaymentsSimulationController]
           : []),
@@ -400,7 +400,7 @@ export class AppModule implements NestModule {
   }
 
   configure(consumer: MiddlewareConsumer): void {
-    // Logging runs first so rejected origins still get request IDs and logs.
+    // logging first so rejected origins still get request ids and logs
     consumer
       .apply(RequestLoggingMiddleware, FrontDoorVerificationMiddleware)
       .forRoutes("*");

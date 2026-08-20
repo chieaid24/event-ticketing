@@ -34,7 +34,7 @@ import type {
 
 const AUDIT_LOG_LIMIT = 100;
 
-/** The slice of AuthService this service needs; kept narrow for tests. */
+// slice of authservice this service needs, narrow for tests
 export interface SessionAuthenticator {
   requireMutationSession(
     context: RequestAuthContext
@@ -65,7 +65,7 @@ function toMembershipContext(role: MembershipRole): MembershipContext {
   };
 }
 
-/** A path id that cannot be a UUID gets the same answer as a missing row. */
+// non-uuid path id gets same answer as missing row
 function requireUuid(
   value: string,
   status: number,
@@ -248,8 +248,7 @@ export class OrganizationsService {
     const request = parseRequest(inviteMemberRequestSchema, input);
     this.requireAssignableRole(membership.role, request.role);
 
-    // Always generic so invitations cannot confirm whether an email has an
-    // account; see docs/security/authorization.md.
+    // generic response hides account existence
     await this.store.inviteMember({
       actorUserId: user.id,
       email: request.email,
@@ -350,7 +349,7 @@ export class OrganizationsService {
       membershipId
     );
     const leaving = target.userId === user.id;
-    // Any member may leave; removing someone else needs manage rights.
+    // any member may leave; removing someone else needs manage rights
     if (!leaving) {
       this.requirePermission(membership.role, "members.remove");
       if (!canManageRole(membership.role, target.role)) {
@@ -402,10 +401,7 @@ export class OrganizationsService {
     };
   }
 
-  /**
-   * Non-members get the same 404 as a missing organization so that probing
-   * cannot confirm an organization exists.
-   */
+  // hide org existence from non-members
   private async requireActiveMembership(
     organizationId: string,
     userId: string

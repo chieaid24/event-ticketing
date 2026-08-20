@@ -17,7 +17,7 @@ export const PAYMENT_FAILED_TOPIC = "payment.intent.failed";
 export const REFUND_SUCCEEDED_TOPIC = "refund.succeeded";
 export const REFUND_FAILED_TOPIC = "refund.failed";
 
-/** Minimal identity every recorded provider event must carry. */
+// minimal identity every recorded provider event must carry
 const eventIdentitySchema = z
   .object({ id: z.string().min(1).max(120), type: z.string().min(1).max(120) })
   .loose();
@@ -29,11 +29,7 @@ export class PaymentWebhooksService {
     private readonly webhookSecret: string
   ) {}
 
-  /**
-   * Verifies the raw-body signature, durably records the unique event, and
-   * commits the asynchronous processing request in the same transaction.
-   * Duplicate deliveries acknowledge without recording or enqueueing twice.
-   */
+  // verify, record, and enqueue atomically; ack duplicates
   async ingest(
     rawBody: Buffer | undefined,
     signatureHeader: string | undefined
@@ -120,8 +116,7 @@ export class PaymentWebhooksService {
     }
     const event = parsePaymentProviderEvent(body);
     if (!event) {
-      // Signature-verified but shape-drifted: keep the durable receipt, skip
-      // processing, and leave the payload for operators.
+      // keep valid receipts for unknown shapes
       return null;
     }
 

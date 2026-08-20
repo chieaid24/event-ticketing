@@ -174,11 +174,7 @@ export async function findEventById(
   return result.rows[0] ?? null;
 }
 
-/**
- * Capacity is the materialized sellable inventory: assigned seats exist only
- * after publication snapshots them, while general-admission capacity is known
- * from ticket-type configuration.
- */
+// capacity combines published seats with ga config
 export async function listEventsForOrganization(
   executor: DatabaseExecutor,
   organizationId: string
@@ -219,7 +215,7 @@ export async function listEventsForOrganization(
   return result.rows;
 }
 
-/** Compare-and-swap on version; a null result means a stale update. */
+// cas miss returns null
 export async function updateEventDraft(
   executor: DatabaseExecutor,
   input: UpdateEventDraftInput
@@ -270,7 +266,7 @@ export async function updateEventDraft(
   return result.rows[0] ?? null;
 }
 
-/** Locks the event row and bumps its version; null means a stale write. */
+// version bump also locks; stale write returns null
 export async function claimEventVersion(
   executor: DatabaseExecutor,
   input: { eventId: string; expectedVersion: number; organizationId: string }
@@ -316,7 +312,7 @@ export async function fetchTicketTypes(
   return result.rows;
 }
 
-/** Replaces the whole ticket-type set inside the caller's transaction. */
+// caller tx makes full replacement atomic
 export async function replaceTicketTypes(
   executor: DatabaseExecutor,
   input: { eventId: string; ticketTypes: TicketTypeInputData[] }
@@ -372,10 +368,6 @@ export async function replaceTicketTypes(
   );
 }
 
-/**
- * Section-level summary of a venue's current layout, used to validate ticket
- * configuration and to seat the assigned snapshot at publication.
- */
 export async function fetchVenueSectionSummaries(
   executor: DatabaseExecutor,
   venueId: string
@@ -404,7 +396,6 @@ export async function fetchVenueSectionSummaries(
   return result.rows;
 }
 
-/** The seats of one assigned section, ordered for a stable snapshot. */
 export async function fetchSectionSeats(
   executor: DatabaseExecutor,
   input: { sectionName: string; venueId: string }
@@ -487,7 +478,7 @@ export async function insertEventSeats(
   );
 }
 
-/** Marks a claimed event published; null means it was no longer a draft. */
+// null means claim no longer draft
 export async function markEventPublished(
   executor: DatabaseExecutor,
   input: { eventId: string; organizationId: string }

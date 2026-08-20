@@ -28,7 +28,7 @@ export type UpdateVenueResult = VenueRow | "version_conflict" | "name_taken";
 
 export type ReplaceLayoutResult = VenueRow | "version_conflict";
 
-/** Postgres unique-violation error code. */
+// postgres unique-violation code
 const UNIQUE_VIOLATION = "23505";
 
 function isUniqueViolation(error: unknown): boolean {
@@ -200,7 +200,7 @@ export class PgVenuesStore implements VenuesStore, OnApplicationShutdown {
     venueId: string;
   }): Promise<ReplaceLayoutResult> {
     return withDatabaseTransaction(this.pool, async (tx) => {
-      // The CAS bump also locks the venue row, serializing layout writes.
+      // cas bump also locks venue row, serializing layout writes
       const venue = await claimVenueVersion(tx, {
         expectedVersion: input.expectedVersion,
         organizationId: input.organizationId,

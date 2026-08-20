@@ -26,16 +26,13 @@ import {
 } from "../../../../lib/scan-api";
 
 const DECODE_INTERVAL_MS = 250;
-/** Ignore camera re-reads of the same code briefly to avoid duplicate posts. */
+// ignore quick re-reads of same code to avoid dup posts
 const RESCAN_HOLD_MS = 4000;
 const SAMPLE_WIDTH = 480;
 
 type Tone = "danger" | "success" | "warning";
 
-/**
- * Every outcome pairs color with text, an icon shape, sound, and vibration,
- * so no result relies on color alone.
- */
+// color never alone: pair text, icon, sound, vibration
 const resultPresentation: Record<
   CheckInResult,
   { label: string; message: string; tone: Tone }
@@ -100,8 +97,7 @@ export function ScannerClient({
   initialActivity: ScanActivityResponse | null;
   organizationId: string;
 }>): ReactNode {
-  // Lazy so the id mints once on the client; the empty server value never
-  // renders and only delays the camera until hydration.
+  // mint the id once after hydration
   const [deviceId] = useState(() =>
     typeof window === "undefined" ? "" : readScanDeviceId()
   );
@@ -169,8 +165,7 @@ export function ScannerClient({
     [apiBaseUrl, deviceId, eventId, organizationId, refreshActivity]
   );
 
-  // The camera loop samples frames onto a canvas and decodes them with jsQR.
-  // A decoded payload is submitted once and dropped; it never renders.
+  // submit decoded payload once and never render it
   useEffect(() => {
     if (!deviceId) {
       return;
@@ -641,10 +636,7 @@ function formatTime(instant: string | Date): string {
   }).format(new Date(instant));
 }
 
-/**
- * Audible feedback beside the visual result: rising beeps admit, one low
- * buzz rejects. Failures to play are ignored; sound is reinforcement only.
- */
+// sound patterns distinguish scan results
 function playFeedback(
   audioRef: { current: AudioContext | null },
   accepted: boolean
@@ -652,7 +644,7 @@ function playFeedback(
   try {
     navigator.vibrate?.(accepted ? [60] : [160, 60, 160]);
   } catch {
-    // Vibration is optional reinforcement.
+    // ignore unavailable vibration
   }
   try {
     audioRef.current ??= new AudioContext();
@@ -665,7 +657,7 @@ function playFeedback(
       beep(context, 196, 0, 0.4, "square");
     }
   } catch {
-    // Audio is optional reinforcement.
+    // ignore unavailable audio
   }
 }
 

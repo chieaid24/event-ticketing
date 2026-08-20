@@ -1,6 +1,6 @@
 import argon2, { type HashOptions } from "argon2";
 
-// OWASP argon2id baseline: 19 MiB memory, 2 iterations, single lane.
+// owasp argon2id baseline: 19 mib, 2 iterations, single lane
 const hashingOptions: HashOptions = {
   memoryCost: 19_456,
   parallelism: 1,
@@ -8,7 +8,7 @@ const hashingOptions: HashOptions = {
   type: argon2.argon2id,
 };
 
-// Verified when the user lookup misses so login timing stays uniform.
+// verify on user-miss to keep login timing uniform
 const timingEqualizationHash =
   "$argon2id$v=19$m=19456,p=1,t=2$/+wqKN6HMeDOf1f/9ijyFA" +
   "$0FBV2Xpdw1gtXbizrQzoJZUrdlft8BZ6T+I3cBNlCgg";

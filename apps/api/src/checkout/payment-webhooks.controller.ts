@@ -14,11 +14,7 @@ import type { WebhookAck } from "@event-ticketing/contracts";
 import { PAYMENT_WEBHOOKS_SERVICE } from "../runtime.tokens.js";
 import type { PaymentWebhooksService } from "./payment-webhooks.service.js";
 
-/**
- * Provider-facing endpoint. Authentication is the raw-body signature; there is
- * no session, no CSRF, and no rate limit beyond the bounded body size, because
- * the provider retries aggressively and rejected retries would drop payments.
- */
+// provider auth uses raw-body signatures
 @Controller("webhooks")
 export class PaymentWebhooksController {
   constructor(

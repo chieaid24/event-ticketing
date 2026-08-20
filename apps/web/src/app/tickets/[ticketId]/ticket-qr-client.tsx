@@ -35,8 +35,7 @@ export function TicketQrClient({
     setState({ kind: "loading" });
     try {
       const revealed = await revealTicketQr(apiBaseUrl, ticketId);
-      // Render entirely in the browser; the raw bearer never touches the DOM as
-      // text, only the encoded image pixels.
+      // render the bearer only as pixels
       const dataUrl = await QRCode.toDataURL(revealed.token, {
         errorCorrectionLevel: "M",
         margin: 1,

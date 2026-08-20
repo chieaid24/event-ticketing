@@ -43,8 +43,7 @@ export class PgHoldsStore implements HoldsStore, OnApplicationShutdown {
     const hold = await withDatabaseTransaction(this.pool, (transaction) =>
       createAssignedSeatHold(transaction, input)
     );
-    // Mirror expiry only after commit; the mirror is advisory, so its own
-    // failure is swallowed and never undoes a committed hold.
+    // mirror after commit; failures stay advisory
     await this.mirror.set(hold.id, hold.expiresAt);
     return hold;
   }

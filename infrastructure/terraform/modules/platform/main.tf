@@ -3,8 +3,7 @@ locals {
 
   registry_server = split("/", var.image_uri)[0]
 
-  # Runtime secrets resolve through key vault references; operators populate
-  # every value except redis-url, which the data module manages.
+  # data module owns only the redis url
   secret_keys = {
     api = [
       "DATABASE_URL",
@@ -30,7 +29,7 @@ locals {
   runtime_environment = {
     api = {
       API_COOKIE_SECURE = "true"
-      # X-Azure-FDID carries the profile GUID, not the ARM resource ID.
+      # x-azure-fdid is the profile guid not the arm resource id
       API_FRONT_DOOR_PROFILE_ID          = azurerm_cdn_frontdoor_profile.this.resource_guid
       API_HOST                           = "0.0.0.0"
       API_PORT                           = "4000"
@@ -163,9 +162,7 @@ resource "azurerm_container_app" "this" {
         percentage      = 100
       }
 
-      # Only Front Door may reach the ingress; the subnet NSG enforces the
-      # same service tag. The tag admits any Front Door profile, so the API
-      # also verifies X-Azure-FDID against this environment's profile GUID.
+      # app verifies profile id beyond the service tag
       ip_security_restriction {
         name             = "front-door"
         action           = "Allow"
@@ -185,7 +182,7 @@ resource "azurerm_container_app" "this" {
       cpu    = 0.5
       memory = "1Gi"
 
-      # The shared entrypoint selects the role from the first argument.
+      # entrypoint selects role from first arg
       args = [each.key]
 
       dynamic "env" {
@@ -226,8 +223,7 @@ resource "azurerm_container_app" "this" {
       }
     }
 
-    # KEDA postgresql scaler keeps at least one always-on outbox poller and
-    # adds replicas while claimable outbox events back up.
+    # keda postgres scaler adds replicas as outbox backlog grows
     dynamic "custom_scale_rule" {
       for_each = each.key == "worker" ? [each.key] : []
 
@@ -438,7 +434,7 @@ resource "azurerm_cdn_frontdoor_rule_set" "api" {
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
 }
 
-# Preserves the routing header contract the API expects from its edge.
+# adds origin header the api expects from its edge
 resource "azurerm_cdn_frontdoor_rule" "api_origin_header" {
   name                      = "apioriginheader"
   cdn_frontdoor_rule_set_id = azurerm_cdn_frontdoor_rule_set.api.id
@@ -511,8 +507,7 @@ resource "azurerm_cdn_frontdoor_security_policy" "this" {
   }
 }
 
-# SMTP credentials for the Azure-managed sender domain are provisioned outside
-# Terraform and land in the existing SMTP_URL key vault secret.
+# smtp creds provisioned outside terraform into the smtp-url secret
 resource "azurerm_email_communication_service" "this" {
   name                = var.name
   resource_group_name = var.resource_group_name

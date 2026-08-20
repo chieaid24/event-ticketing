@@ -1,12 +1,4 @@
-// k6 purchase-flow load scenario: login -> availability -> hold -> checkout
-// -> simulated payment -> poll to paid -> ticket issuance.
-//
-// Requires the load dataset (`pnpm db:seed:load`), an API started with
-// API_RATE_LIMITS_DISABLED=true and PAYMENT_PROVIDER=fake, and a running
-// worker (payment finalization is asynchronous via the outbox).
-//
-// Expected contention (409 seats_unavailable / capacity_unavailable) is
-// counted separately from failures via the response callback below.
+// purchase load needs seeded data, fake payments, and a worker
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter, Rate, Trend } from "k6/metrics";
@@ -16,7 +8,7 @@ const eventId = __ENV.EVENT_ID || "dddddddd-dddd-4ddd-8ddd-000000000100";
 const gaTicketTypeId =
   __ENV.GA_TICKET_TYPE_ID || "dddddddd-dddd-4ddd-8ddd-000000000202";
 const buyerCount = Number(__ENV.BUYERS || 250);
-// Synthetic local-only credential shared with the committed seed scripts.
+// local-only cred matching seed scripts
 const buyerPassword = __ENV.BUYER_PASSWORD || "owner-password-dev";
 const targetPurchases = Number(__ENV.TARGET_PURCHASES || 1000);
 const orderTimeoutSeconds = Number(__ENV.ORDER_TIMEOUT_S || 120);
@@ -33,11 +25,11 @@ const purchaseTimeouts = new Counter("purchase_timeouts");
 const invariantFailures = new Rate("invariant_failures");
 const finalizeWait = new Trend("finalize_wait_ms", true);
 
-// 409 is an expected, load-bearing contention signal, never a failure.
+// 409 = expected contention, not failure
 http.setResponseCallback(http.expectedStatuses({ min: 200, max: 399 }, 409));
 
 export const options = {
-  // Keep each VU's session cookies across iterations; VUs log in once.
+  // keep browser cookies across iterations; login once
   noCookiesReset: true,
   scenarios: {
     purchases: {
@@ -111,7 +103,7 @@ function pollOrderUntilPaid(orderId) {
         return order;
       }
       if (order.status !== "pending_payment") {
-        // payment_conflict etc. are unexpected here: inventory was reserved.
+        // payment_conflict unexpected here; inventory was reserved
         invariantFailures.add(true);
         return null;
       }
@@ -122,9 +114,7 @@ function pollOrderUntilPaid(orderId) {
   return null;
 }
 
-// Drives one held basket to issued tickets and verifies what the client can
-// see; PostgreSQL invariants are verified after the run by
-// verify-purchase-invariants.mjs.
+// database checks validate issued tickets later
 function purchaseHold(holdId, expectedTickets, exerciseReplays) {
   const checkoutResponse = http.post(
     `${baseUrl}/checkout`,
@@ -223,9 +213,7 @@ export default function () {
   }
   const body = availability.json();
 
-  // Deliberate assigned-seat contention: every fifth iteration races for one
-  // seat. Sold seats stay listed as "unavailable", so late attempts keep
-  // producing the expected 409 signal.
+  // every 5th iter races one seat for deliberate contention (409)
   if (__ITER % 5 === 0) {
     const seats = [];
     for (const section of body.sections) {
@@ -259,7 +247,6 @@ export default function () {
     }
   }
 
-  // The floor transaction: a general-admission purchase end to end.
   const quantity = 1 + (__ITER % 2);
   const idempotencyKey = uuidv4();
   const holdBody = JSON.stringify({
@@ -293,8 +280,7 @@ export default function () {
   }
   const holdId = holdResponse.json().holdId;
 
-  // Every tenth iteration replays the hold and checkout to prove idempotency
-  // under load, and takes the decline-then-retry payment path.
+  // periodic retries exercise idempotency and declines
   const exerciseReplays = __ITER % 10 === 0;
   if (exerciseReplays) {
     const replay = http.post(`${baseUrl}/holds/general-admission`, holdBody, {
@@ -312,8 +298,7 @@ export default function () {
 
   purchaseHold(holdId, quantity, exerciseReplays);
 
-  // A slice of buyers walks away after reserving, so the post-run invariant
-  // check can prove that expired holds release their inventory.
+  // abandoned holds exercise expiry release
   if (__ITER % 20 === 7) {
     const abandoned = http.post(
       `${baseUrl}/holds/general-admission`,

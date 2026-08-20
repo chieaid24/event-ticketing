@@ -9,8 +9,7 @@ function createRequest(headers: Record<string, string>, path = "/status") {
   return {
     header: vi.fn((name: string) => headers[name.toLowerCase()]),
     method: "GET",
-    // Express rewrites request.path inside mounted middleware; the
-    // middleware reads originalUrl instead.
+    // mounted express rewrites paths; use the original url
     originalUrl: path,
     requestId: "request-1",
   } as unknown as RequestWithId;

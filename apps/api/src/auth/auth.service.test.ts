@@ -245,7 +245,7 @@ describe("AuthService login", () => {
     expect(publicUser.id).toBe(user.id);
     const session = store.createdSessions[0];
     expect(session?.userId).toBe(user.id);
-    // Only SHA-256 hashes of the secrets reach the store.
+    // only sha-256 hashes of secrets reach store
     expect(store.createdSessions[0]?.csrfTokenHash).toBe(
       hashAuthSecret(secrets.csrfSecret)
     );

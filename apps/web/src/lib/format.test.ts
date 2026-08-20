@@ -14,7 +14,7 @@ describe("formatMoney", () => {
 
 describe("formatEventInstant", () => {
   it("renders the instant in the event time zone, not the viewer's", () => {
-    // 01:00 UTC on Sep 1 is the previous evening in Toronto (UTC-4).
+    // 01:00 utc sep 1 is prev evening in toronto (utc-4)
     const formatted = formatEventInstant(
       "2026-09-01T01:00:00.000Z",
       "America/Toronto"
@@ -25,7 +25,7 @@ describe("formatEventInstant", () => {
   });
 
   it("does not throw when pairing a zone label with date and time parts", () => {
-    // Guards the illegal dateStyle/timeStyle + timeZoneName combination.
+    // guards illegal datestyle/timestyle + timezonename combo
     expect(() =>
       formatEventInstant("2026-01-15T12:00:00.000Z", "UTC")
     ).not.toThrow();

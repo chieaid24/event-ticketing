@@ -22,7 +22,7 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** Malformed URLs degrade to the default listing instead of an error page. */
+// malformed urls degrade to default listing not error page
 function sanitizeQuery(params: SearchParams): PublicEventListQuery {
   const parsed = publicEventListQuerySchema.safeParse({
     ...(first(params["search"]) ? { search: first(params["search"]) } : {}),

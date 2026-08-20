@@ -24,7 +24,7 @@ interface RouteLimit {
 }
 
 const routeLimits = {
-  // Polling budget: the processing page reads the order every few seconds.
+  // polling budget: processing page reads order every few seconds
   getOrder: { max: 600, windowMs: 15 * 60 * 1000 },
   startCheckout: { max: 60, windowMs: 15 * 60 * 1000 },
 } satisfies Record<string, RouteLimit>;

@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { decodeQrFrame, type QrFrame } from "./qr-decode";
 
-/**
- * Rasterizes the QR bit matrix into RGBA pixel data the way a camera frame
- * arrives, including the quiet zone jsQR needs.
- */
+// rasterize a camera-like frame with quiet zone
 function frameFor(payload: string): QrFrame {
   const code = QRCode.create(payload, { errorCorrectionLevel: "M" });
   const moduleSize = 8;

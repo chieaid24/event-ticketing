@@ -13,7 +13,7 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
 
 const client = new pg.Client({ connectionString: databaseUrl });
 
-// Argon2id hash of the synthetic development password "owner-password-dev".
+// local synthetic owner password hash
 const ownerPasswordHash =
   "$argon2id$v=19$m=19456,p=1,t=2$mKwK8cARnS8akUQlAFsR7g" +
   "$BCp9DbDRNw28oOP5Yf5HaXl/hY6RDnQIYhS8vIcwt3c";
@@ -290,8 +290,7 @@ try {
       ]
     );
   }
-  // Snapshot of the Stalls venue seats, with one sold and one blocked seat so
-  // public availability states are demonstrable before holds exist.
+  // preset sold and blocked seats for availability states
   const seedEventSeats = [
     [
       "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",

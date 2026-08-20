@@ -32,7 +32,7 @@ import { hasPermission } from "../organizations/policy.js";
 import { apiError, parseRequest, uuidPattern } from "../request-validation.js";
 import type { EventsStore } from "./events.store.js";
 
-/** How many publication problems fit in one error message. */
+// publication problems shown per error message
 const PUBLISH_ISSUE_LIMIT = 3;
 
 interface ActiveMembership {
@@ -379,10 +379,7 @@ export class EventsService {
     };
   }
 
-  /**
-   * Rejects ticket types whose section is missing or of the wrong kind so a
-   * draft never stores inventory the venue cannot supply.
-   */
+  // reject ticket types without compatible sections
   private requireConsistentTicketTypes(
     ticketTypes: TicketTypeInput[],
     sections: VenueSectionSummaryData[]
@@ -401,10 +398,7 @@ export class EventsService {
     }
   }
 
-  /**
-   * Non-members get the same 404 as a missing organization so that probing
-   * cannot confirm an organization exists.
-   */
+  // hide org existence from non-members
   private async requireActiveMembership(
     organizationId: string,
     userId: string

@@ -17,7 +17,7 @@ import {
 } from "@event-ticketing/database";
 
 export interface WebhookIngestInput extends RecordWebhookEventInput {
-  /** Outbox event enqueued only for a first delivery of a handled type. */
+  // enqueued only on first delivery of a handled type
   enqueue: {
     deduplicationKey: string;
     payload: Record<string, unknown>;
@@ -66,7 +66,7 @@ export class PgCheckoutStore implements CheckoutStore, OnApplicationShutdown {
     actor: OrderActor;
     orderId: string;
   }): Promise<OrderRecord> {
-    // A transaction keeps the multi-query summary reading one snapshot.
+    // transaction keeps multi-query read on one snapshot
     return withDatabaseTransaction(this.pool, (transaction) =>
       loadOrderForActor(transaction, input)
     );
@@ -77,8 +77,7 @@ export class PgCheckoutStore implements CheckoutStore, OnApplicationShutdown {
   ): Promise<WebhookEventRecord> {
     return withDatabaseTransaction(this.pool, async (transaction) => {
       const record = await recordWebhookEvent(transaction, input);
-      // The receipt and the processing request commit atomically; outbox
-      // deduplication additionally guards a lost race on the receipt.
+      // receipt and processing commit together
       if (!record.replayed && input.enqueue) {
         await enqueueOutboxEvent(transaction, {
           deduplicationKey: input.enqueue.deduplicationKey,

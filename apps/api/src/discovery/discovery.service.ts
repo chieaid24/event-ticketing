@@ -56,8 +56,7 @@ function toDetailResponse(
   };
 }
 
-/** Groups seats into sections in query order, mapping statuses to the public
- * pair: held and sold both read as unavailable. */
+// held and sold seats both read unavailable
 function toSeatSections(seats: AvailabilitySeatRow[]): PublicSeatSection[] {
   const sections = new Map<string, PublicSeatSection>();
   for (const seat of seats) {
@@ -137,10 +136,7 @@ export class DiscoveryService {
     };
   }
 
-  /**
-   * Unpublished, missing, and malformed ids all return the same 404 so that
-   * probing cannot distinguish a draft from a nonexistent event.
-   */
+  // hide draft and malformed ids behind the same 404
   private async requirePublishedEvent(
     eventId: string
   ): Promise<PublishedEventDetailRow> {
