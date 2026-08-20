@@ -23,11 +23,11 @@ private incident details, or production configuration. Read
   </tr>
   <tr>
     <td><strong>Data / Messaging</strong></td>
-    <td><img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-%234169E1?style=for-the-badge&logo=postgresql&logoColor=%23FFFFFF"> <img alt="Prisma" src="https://img.shields.io/badge/Prisma-%232D3748?style=for-the-badge&logo=prisma&logoColor=%23FFFFFF"> <img alt="Redis" src="https://img.shields.io/badge/Redis-%23FF4438?style=for-the-badge&logo=redis&logoColor=%23FFFFFF"> <img alt="MinIO" src="https://img.shields.io/badge/MinIO-%23C72E49?style=for-the-badge&logo=minio&logoColor=%23FFFFFF"></td>
+    <td><img alt="PostgreSQL (Flexible Server)" src="https://img.shields.io/badge/PostgreSQL%20%28Flexible%20Server%29-%234169E1?style=for-the-badge&logo=postgresql&logoColor=%23FFFFFF"> <img alt="Prisma" src="https://img.shields.io/badge/Prisma-%232D3748?style=for-the-badge&logo=prisma&logoColor=%23FFFFFF"> <img alt="Redis (Azure Managed Redis)" src="https://img.shields.io/badge/Redis%20%28Azure%20Managed%20Redis%29-%23FF4438?style=for-the-badge&logo=redis&logoColor=%23FFFFFF"> <img alt="MinIO" src="https://img.shields.io/badge/MinIO-%23C72E49?style=for-the-badge&logo=minio&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
     <td><strong>Payments / Email</strong></td>
-    <td><img alt="Stripe" src="https://img.shields.io/badge/Stripe-%23635BFF?style=for-the-badge&logo=stripe&logoColor=%23FFFFFF"> <img alt="Azure Communication Services" src="https://img.shields.io/badge/Azure%20Communication%20Services-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="Mailpit" src="https://img.shields.io/badge/Mailpit-%232E7D9A?style=for-the-badge&logo=maildotru&logoColor=%23FFFFFF"></td>
+    <td><img alt="Stripe" src="https://img.shields.io/badge/Stripe-%23635BFF?style=for-the-badge&logo=stripe&logoColor=%23FFFFFF"> <img alt="Mailpit" src="https://img.shields.io/badge/Mailpit-%232E7D9A?style=for-the-badge&logo=maildotru&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
     <td><strong>Testing</strong></td>
