@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   test:
@@ -31,6 +30,14 @@ jobs:
         with:
           terraform_version: 1.13.3
       - run: pnpm install --frozen-lockfile
+      # Cheapest checks first: a formatting or type error fails the run in under
+      # a minute, before any container or database work starts.
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+      - run: shellcheck scripts/deploy-container-apps.sh
       - run: terraform fmt -check -recursive infrastructure/terraform
       - run:
           terraform -chdir=infrastructure/terraform/foundation init
@@ -52,14 +59,12 @@ jobs:
       - run: docker compose up --detach --wait
       - run: pnpm db:migrate
       - run: pnpm db:seed
-      - run: pnpm test:integration
+      # test:races runs the database integration suite RACE_RUNS times and is the
+      # only step that runs it, so the repetition count is deliberate.
       - run: pnpm test:races
+        env:
+          RACE_RUNS: 3
       - run: pnpm test:recovery
-      - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
       # The runner image ships Chromium's system libraries; --with-deps would
       # run apt-get, whose mirrors stall CI (2026-08-19: two hangs in a row).
       - run: pnpm exec playwright install chromium
