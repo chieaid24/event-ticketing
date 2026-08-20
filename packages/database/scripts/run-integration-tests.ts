@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { Redis } from "ioredis";
 import pg from "pg";
@@ -295,6 +296,58 @@ try {
     );
     assert.equal(new Set(deduplicated.map(({ id }) => id)).size, 1);
 
+    // Force the dedup fallback: hold a conflicting insert uncommitted so the
+    // enqueue statement blocks, takes a snapshot that excludes the winner, and
+    // must re-read the committed row outside the CTE.
+    const fallbackKey = "integration:forced-fallback";
+    const blockingClient = await pool.connect();
+    const enqueueClient = await pool.connect();
+    try {
+      const enqueuePid = (
+        await enqueueClient.query<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid"
+        )
+      ).rows[0]!.pid;
+      await blockingClient.query("BEGIN");
+      const blockingInsert = await blockingClient.query<{ id: string }>(
+        `
+          INSERT INTO "outbox_events" ("topic", "payload", "deduplication_key")
+          VALUES ($1, $2::jsonb, $3)
+          RETURNING "id"
+        `,
+        [
+          "integration.fallback",
+          JSON.stringify({ kind: "fallback" }),
+          fallbackKey,
+        ]
+      );
+      const enqueuePromise = enqueueOutboxEvent(enqueueClient, {
+        deduplicationKey: fallbackKey,
+        payload: { kind: "fallback" },
+        topic: "integration.fallback",
+      });
+      for (;;) {
+        const waiting = await pool.query(
+          `
+            SELECT 1
+            FROM "pg_stat_activity"
+            WHERE "pid" = $1 AND "wait_event_type" = 'Lock'
+          `,
+          [enqueuePid]
+        );
+        if (waiting.rowCount) {
+          break;
+        }
+        await delay(25);
+      }
+      await blockingClient.query("COMMIT");
+      const fallbackEvent = await enqueuePromise;
+      assert.equal(fallbackEvent.id, blockingInsert.rows[0]!.id);
+    } finally {
+      blockingClient.release();
+      enqueueClient.release();
+    }
+
     const [workerOne, workerTwo] = await Promise.all([
       outbox.claimBatch({
         batchSize: 100,
@@ -309,8 +362,8 @@ try {
     ]);
     const claimedIds = [...workerOne, ...workerTwo].map((event) => event.id);
 
-    assert.equal(claimedIds.length, 23);
-    assert.equal(new Set(claimedIds).size, 23);
+    assert.equal(claimedIds.length, 24);
+    assert.equal(new Set(claimedIds).size, 24);
 
     await Promise.all([
       ...workerOne.map((event) =>

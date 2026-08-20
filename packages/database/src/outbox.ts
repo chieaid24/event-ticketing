@@ -333,13 +333,15 @@ export async function enqueueOutboxEvent(
               AND "payload" = $2::jsonb
               AND "aggregate_type" IS NOT DISTINCT FROM $3
               AND "aggregate_id" IS NOT DISTINCT FROM $4::uuid
-              AND "max_attempts" = $7
+              AND "max_attempts" = $6
             ) AS "deduplicationMatches"
           FROM "outbox_events"
           WHERE "deduplication_key" = $5
           LIMIT 1
         `,
-        values
+        // available_at is excluded from dedup matching; postgres rejects a
+        // parameter list with an unreferenced $6, so renumber max_attempts.
+        [...values.slice(0, 5), values[6]]
       )
     ).rows[0];
 
