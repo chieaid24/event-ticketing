@@ -81,6 +81,8 @@ const apiConfigSchema = z
       .min(100)
       .max(10_000)
       .default(2_000),
+    // Absent locally: Front Door origin verification only runs when deployed.
+    frontDoorProfileId: z.string().min(1).max(200).optional(),
     host: z.string().min(1).default("127.0.0.1"),
     logLevel: logLevelSchema,
     paymentProvider: paymentProviderSchema,
@@ -316,6 +318,7 @@ export function loadApiConfig(
       cookieSecure: environment["API_COOKIE_SECURE"],
       databaseUrl: environment["DATABASE_URL"],
       dependencyTimeoutMs: environment["API_DEPENDENCY_TIMEOUT_MS"],
+      frontDoorProfileId: environment["API_FRONT_DOOR_PROFILE_ID"],
       host: environment["API_HOST"],
       logLevel: environment["LOG_LEVEL"],
       paymentProvider: environment["PAYMENT_PROVIDER"],
@@ -339,6 +342,7 @@ export function loadApiConfig(
       cookieSecure: "API_COOKIE_SECURE",
       databaseUrl: "DATABASE_URL",
       dependencyTimeoutMs: "API_DEPENDENCY_TIMEOUT_MS",
+      frontDoorProfileId: "API_FRONT_DOOR_PROFILE_ID",
       host: "API_HOST",
       logLevel: "LOG_LEVEL",
       paymentProvider: "PAYMENT_PROVIDER",

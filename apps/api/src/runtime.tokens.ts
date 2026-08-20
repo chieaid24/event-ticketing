@@ -5,6 +5,7 @@ export const AUTH_STORE = Symbol("AUTH_STORE");
 export const CHECKOUT_SERVICE = Symbol("CHECKOUT_SERVICE");
 export const CHECKOUT_STORE = Symbol("CHECKOUT_STORE");
 export const DATABASE_HEALTH = Symbol("DATABASE_HEALTH");
+export const FRONT_DOOR_PROFILE_ID = Symbol("FRONT_DOOR_PROFILE_ID");
 export const PAYMENT_GATEWAY = Symbol("PAYMENT_GATEWAY");
 export const PAYMENT_WEBHOOKS_SERVICE = Symbol("PAYMENT_WEBHOOKS_SERVICE");
 export const PAYMENTS_SIMULATION_SERVICE = Symbol(

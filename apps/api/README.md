@@ -280,6 +280,12 @@ Set `API_HOST` or `API_PORT` to change the listener. Set `DATABASE_URL`,
 `REDIS_URL`, `API_DEPENDENCY_TIMEOUT_MS`, or `LOG_LEVEL` to change runtime
 dependencies. The application validates all values before listening.
 
+Set `API_FRONT_DOOR_PROFILE_ID` in deployed environments to reject requests
+whose `X-Azure-FDID` header does not match the environment's Front Door profile;
+`/health/live`, `/health/ready`, and `/metrics` stay exempt because probes and
+the metrics scrape bypass Front Door. Leave it unset locally to disable
+verification.
+
 Every response includes `x-request-id`. The API accepts a bounded, printable
 request ID or creates a UUID, then logs the method, path, status, duration, and
 request ID as JSON. It does not log headers, query strings, or dependency

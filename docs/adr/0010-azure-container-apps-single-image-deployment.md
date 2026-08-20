@@ -63,10 +63,13 @@ Data services disable public network access; the database subnet is delegated,
 and private DNS zones resolve every private endpoint inside the virtual network.
 A network security group and per-app ingress restrictions admit only the
 `AzureFrontDoor.Backend` service tag; the tag admits any Front Door profile, so
-the API must verify `X-Azure-FDID` as a follow-up. GitHub receives temporary
-Azure credentials through federated identity credentials; the repository stores
-no client secrets or access keys. Key Vault uses RBAC, purge protection, and
-soft delete.
+the API verifies `X-Azure-FDID` against the environment's own profile ID from
+`API_FRONT_DOOR_PROFILE_ID` and rejects other profiles with `403` before any
+route handling. Health probes and the private-network metrics scrape stay exempt
+because they do not traverse Front Door. GitHub receives temporary Azure
+credentials through federated identity credentials; the repository stores no
+client secrets or access keys. Key Vault uses RBAC, purge protection, and soft
+delete.
 
 ## Operational impact
 

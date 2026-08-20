@@ -94,6 +94,20 @@ describe("application configuration", () => {
     );
   });
 
+  it("reads the Front Door profile ID and rejects a blank one", () => {
+    expect(loadApiConfig({}).frontDoorProfileId).toBeUndefined();
+    expect(
+      loadApiConfig({
+        API_FRONT_DOOR_PROFILE_ID: "11111111-2222-3333-4444-555555555555",
+      }).frontDoorProfileId
+    ).toBe("11111111-2222-3333-4444-555555555555");
+    expect(() => loadApiConfig({ API_FRONT_DOOR_PROFILE_ID: "" })).toThrow(
+      expect.objectContaining({
+        variables: ["API_FRONT_DOOR_PROFILE_ID"],
+      })
+    );
+  });
+
   it("names invalid outbox settings", () => {
     expect(() =>
       loadWorkerConfig({
