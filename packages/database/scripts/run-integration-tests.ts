@@ -296,9 +296,7 @@ try {
     );
     assert.equal(new Set(deduplicated.map(({ id }) => id)).size, 1);
 
-    // Force the dedup fallback: hold a conflicting insert uncommitted so the
-    // enqueue statement blocks, takes a snapshot that excludes the winner, and
-    // must re-read the committed row outside the CTE.
+    // force blocked insert down dedup fallback
     const fallbackKey = "integration:forced-fallback";
     const blockingClient = await pool.connect();
     const enqueueClient = await pool.connect();
@@ -948,7 +946,6 @@ try {
     const ticketTypes = await fetchTicketTypes(pool, draftEvent.id);
     assert.equal(ticketTypes.length, 2);
 
-    // A publication that fails midway must leave no snapshot and no state change.
     await assert.rejects(
       withDatabaseTransaction(pool, async (transaction) => {
         await claimEventVersion(transaction, {
@@ -978,7 +975,6 @@ try {
     );
     assert.deepEqual(afterRollback.rows, [{ seats: 0, status: "draft" }]);
 
-    // A committed publication snapshots assigned seats and records the effect.
     const assignedTicketType = ticketTypes.find(
       (ticketType) => ticketType.kind === "assigned"
     );
@@ -1061,8 +1057,7 @@ try {
       "A published event must not accept further draft writes."
     );
 
-    // Public discovery reads: published events only, advisory availability,
-    // and no blocked seats or internal fields in any response.
+    // public discovery hides internal state
     const seededGalaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
     const draftProbe = await insertEvent(pool, {
       organizationId: seededOrganizationId,
@@ -1240,8 +1235,7 @@ try {
       },
     ]);
 
-    // General-admission holds: locked ticket-type counters that never oversell,
-    // reserve once under contention, and move reserved to sold on finalization.
+    // ga hold concurrency
     const seededUserId = "11111111-1111-4111-8111-111111111111";
     const gaSectionName = gaSection.name;
 
@@ -1331,7 +1325,6 @@ try {
       "Counters stay nonnegative and within capacity."
     );
 
-    // A repeated idempotency key returns the same hold and reserves only once.
     const firstHold = await withDatabaseTransaction(pool, (transaction) =>
       createGeneralAdmissionHold(transaction, {
         actor: { userId: seededUserId },
@@ -1360,7 +1353,6 @@ try {
       { available: afterReplay.available, reserved: afterReplay.reserved },
       { available: 0, reserved: 5 }
     );
-    // Public discovery reflects the reserved counters immediately.
     const [oversellPublic] = await fetchGeneralAdmissionCapacity(
       pool,
       oversell.eventId
@@ -1374,7 +1366,6 @@ try {
       { capacity: 5, remaining: 0 }
     );
 
-    // A roomy ticket type for the lifecycle transitions below.
     const lifecycle = await createGaTicketType(100);
     const availabilityOf = async (): Promise<{
       reserved: number;
@@ -1388,7 +1379,6 @@ try {
       return { reserved: row.reserved, sold: row.sold };
     };
 
-    // Concurrent duplicate requests collapse to a single reservation.
     const concurrentActor = { guestSessionId: "concurrent-guest" };
     const concurrentHolds = await Promise.all(
       Array.from({ length: 5 }, () =>
@@ -1409,7 +1399,6 @@ try {
     );
     assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
 
-    // Expiration returns reserved quantity exactly once.
     const expiringHold = await withDatabaseTransaction(pool, (transaction) =>
       createGeneralAdmissionHold(transaction, {
         actor: { guestSessionId: "expiry-guest" },
@@ -1426,7 +1415,6 @@ try {
     );
     assert.equal(await expireDueHolds(pool, { limit: 100 }), 1);
     assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
-    // A second sweep and a direct re-expire are no-ops.
     assert.equal(await expireDueHolds(pool, { limit: 100 }), 0);
     const reExpire = await withDatabaseTransaction(pool, (transaction) =>
       expireHold(transaction, expiringHold.id)
@@ -1434,7 +1422,6 @@ try {
     assert.deepEqual(reExpire, { changed: false, status: "expired" });
     assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 0 });
 
-    // Finalization atomically moves reserved quantity to sold, idempotently.
     const purchase = await withDatabaseTransaction(pool, (transaction) =>
       createGeneralAdmissionHold(transaction, {
         actor: { guestSessionId: "buyer" },
@@ -1455,7 +1442,6 @@ try {
     assert.deepEqual(refinalized, { changed: false, status: "consumed" });
     assert.deepEqual(await availabilityOf(), { reserved: 3, sold: 2 });
 
-    // An expired hold cannot check out.
     const staleHold = await withDatabaseTransaction(pool, (transaction) =>
       createGeneralAdmissionHold(transaction, {
         actor: { guestSessionId: "stale-buyer" },
@@ -1477,7 +1463,6 @@ try {
         error instanceof Error && error.name === "HoldNotFinalizableError"
     );
 
-    // An actor cancels its own hold and returns the reservation; a stranger cannot.
     const cancelActor = { guestSessionId: "canceller" };
     const cancellable = await withDatabaseTransaction(pool, (transaction) =>
       createGeneralAdmissionHold(transaction, {
@@ -1493,13 +1478,11 @@ try {
     );
     assert.deepEqual(cancelled, { changed: true, status: "cancelled" });
     assert.equal((await availabilityOf()).reserved, beforeCancel.reserved - 2);
-    // The owner re-cancelling is an idempotent no-op that returns no quantity.
     const reCancelled = await withDatabaseTransaction(pool, (transaction) =>
       cancelHold(transaction, { actor: cancelActor, holdId: cancellable.id })
     );
     assert.deepEqual(reCancelled, { changed: false, status: "cancelled" });
     assert.equal((await availabilityOf()).reserved, beforeCancel.reserved - 2);
-    // A stranger cannot see or cancel another actor's hold.
     await assert.rejects(
       withDatabaseTransaction(pool, (transaction) =>
         cancelHold(transaction, {
@@ -1516,8 +1499,7 @@ try {
     await redis.set(`${redisPrefix}probe`, "isolated", "EX", 30);
     assert.equal(await redis.get(`${redisPrefix}probe`), "isolated");
 
-    // The Redis mirror advises a hold's expiry as a TTL key; Postgres stays
-    // authoritative, so the mirror only ever accelerates client countdowns.
+    // postgres owns expiry; redis only mirrors ttl
     const holdMirrorClient = {
       del: (key: string): Promise<number> => redis.del(key),
       get: (key: string): Promise<string | null> => redis.get(key),
@@ -1561,9 +1543,7 @@ try {
       null
     );
 
-    // Assigned-seat holds: per-seat row locks that elect exactly one winner,
-    // never return a partial multi-seat hold, keep PostgreSQL authoritative over
-    // Redis, honour database-time expiry, and replay idempotently.
+    // assigned-seat hold concurrency
     async function createAssignedSeats(seatCount: number): Promise<{
       eventId: string;
       seatIds: string[];
@@ -1607,7 +1587,6 @@ try {
       return { eventId, seatIds, ticketTypeId };
     }
 
-    // At least 100 concurrent attempts for one seat elect exactly one winner.
     const rushFixture = await createAssignedSeats(1);
     const rushSeatId = rushFixture.seatIds[0]!;
     const rushAttempts = await Promise.allSettled(
@@ -1652,8 +1631,6 @@ try {
     assert.equal(rushState.rows[0]?.status, "held");
     assert.equal(rushState.rows[0]?.hold_id, rushWinner.value.id);
 
-    // Overlapping multi-seat requests never leave a partial hold, and only the
-    // unavailable seat id is disclosed.
     const partialFixture = await createAssignedSeats(2);
     const [freeSeatId, takenSeatId] = partialFixture.seatIds as [
       string,
@@ -1699,8 +1676,6 @@ try {
       "A rejected multi-seat request reserves none of its seats."
     );
 
-    // Two concurrent full-set requests for the same seats resolve to one hold
-    // that owns every seat; there is never a split.
     const contendFixture = await createAssignedSeats(2);
     const contendAttempts = await Promise.allSettled([
       withDatabaseTransaction(pool, (transaction) =>
@@ -1738,8 +1713,7 @@ try {
       "Both seats belong to a single hold; a partial split never occurs."
     );
 
-    // Database time is authority: a held-but-expired seat is reclaimable before
-    // any sweep, and a late sweep never steals the seat from its new owner.
+    // db time decides seat reclamation
     const reclaimFixture = await createAssignedSeats(1);
     const reclaimSeatId = reclaimFixture.seatIds[0]!;
     const staleAssignedHold = await withDatabaseTransaction(
@@ -1774,7 +1748,6 @@ try {
     ]);
     assert.equal(reclaimedState.rows[0]?.status, "held");
     assert.equal(reclaimedState.rows[0]?.hold_id, reclaimingHold.id);
-    // Expiring the original hold now must not free the reclaimed seat.
     const lateExpire = await withDatabaseTransaction(pool, (transaction) =>
       expireHold(transaction, staleAssignedHold.id)
     );
@@ -1791,7 +1764,6 @@ try {
       "A late sweep of an expired hold never reclaims a seat held by another."
     );
 
-    // The reconciliation sweep frees an expired assigned seat.
     const sweepFixture = await createAssignedSeats(1);
     const sweepSeatId = sweepFixture.seatIds[0]!;
     const sweepHold = await withDatabaseTransaction(pool, (transaction) =>
@@ -1818,8 +1790,7 @@ try {
     assert.equal(sweptState.rows[0]?.status, "available");
     assert.equal(sweptState.rows[0]?.hold_id, null);
 
-    // Redis loss cannot make held or sold inventory available: PostgreSQL alone
-    // decides, so a total mirror flush changes nothing.
+    // postgres inventory survives redis loss
     const authorityFixture = await createAssignedSeats(2);
     const [authHeldSeatId, authSoldSeatId] = authorityFixture.seatIds as [
       string,
@@ -1855,8 +1826,6 @@ try {
       );
     }
 
-    // Retrying one logical request returns one hold; concurrent duplicates
-    // collapse to a single reservation.
     const idempotencyFixture = await createAssignedSeats(2);
     const [replaySeatId, duplicateSeatId] = idempotencyFixture.seatIds as [
       string,
@@ -1912,10 +1881,7 @@ try {
     );
     assert.equal(duplicateHeld.rows[0]?.count, 1);
 
-    // Checkout and payment finalization: one order per hold, provider intents
-    // attach idempotently, verified success secures inventory and issues one
-    // ticket set exactly once, a lost race compensates instead of substituting,
-    // and webhook receipts deduplicate under concurrency.
+    // checkout and payment concurrency
     async function createCheckoutOrder(input: {
       actorKey: string;
       seatCount: number;
@@ -1951,7 +1917,6 @@ try {
       };
     }
 
-    // Duplicate checkout, raced five ways, returns the one order for the hold.
     const raceFixture = await createAssignedSeats(1);
     const raceHold = await withDatabaseTransaction(pool, (transaction) =>
       createAssignedSeatHold(transaction, {
@@ -1990,7 +1955,6 @@ try {
     );
     assert.equal(racedHoldState.rows[0]?.status, "checkout_started");
 
-    // One logical intent: repeat attachment is a no-op, replacement rejected.
     await withDatabaseTransaction(pool, (transaction) =>
       attachPaymentIntent(transaction, {
         clientSecret: "pi_int_1_secret",
@@ -2017,7 +1981,6 @@ try {
       "An order never silently swaps to a different payment intent."
     );
 
-    // An expired hold cannot check out (invariant #3).
     const expiredCheckout = await createAssignedSeats(1);
     const expiredCheckoutHold = await withDatabaseTransaction(
       pool,
@@ -2047,8 +2010,6 @@ try {
       "An expired hold cannot start checkout."
     );
 
-    // Verified success finalizes exactly once: seats sell, the hold consumes,
-    // one ticket per unit appears, and a concurrent duplicate applies nothing.
     const paidFixture = await createCheckoutOrder({
       actorKey: "finalize-paid",
       seatCount: 2,
@@ -2120,9 +2081,7 @@ try {
       tickets: 2,
     });
 
-    // Refunds serialize on the order, price item quantities on the server,
-    // deduplicate requests and provider results, void tickets, and return
-    // inventory only before the configured cutoff.
+    // refund concurrency and inventory return
     const refundFixture = await createAssignedSeats(1);
     const refundHold = await withDatabaseTransaction(pool, (transaction) =>
       createAssignedSeatHold(transaction, {
@@ -2426,9 +2385,7 @@ try {
       ticketStatus: "refunded",
     });
 
-    // QR credentials: issuance mints one nonsecret public number per ticket plus
-    // an unmatchable placeholder hash (no raw bearer escapes issuance), and the
-    // owner materializes and rotates a usable bearer through actor-scoped reads.
+    // qr credential isolation and rotation
     const paidTickets = await withDatabaseTransaction(pool, (transaction) =>
       listTicketsForActor(transaction, {
         actor: { guestSessionId: "finalize-paid" },
@@ -2471,7 +2428,6 @@ try {
       "Every ticket public number is unique."
     );
 
-    // Actor scoping: another actor lists none of these tickets and cannot load one.
     const strangerTickets = await withDatabaseTransaction(pool, (transaction) =>
       listTicketsForActor(transaction, {
         actor: { guestSessionId: "ticket-stranger" },
@@ -2495,7 +2451,6 @@ try {
       "An actor never loads another actor's ticket."
     );
 
-    // Rotation mints a fresh bearer and invalidates the prior credential.
     const rotatingTicketId = paidTickets[0]!.id;
     const placeholderHash = (
       await pool.query<{ hash: string }>(
@@ -2548,7 +2503,6 @@ try {
       "A new bearer invalidates the prior bearer's stored hash."
     );
 
-    // A stranger cannot rotate; a voided ticket carries no live credential.
     await assert.rejects(
       withDatabaseTransaction(pool, (transaction) =>
         rotateTicketQrToken(transaction, {
@@ -2572,7 +2526,6 @@ try {
     );
     assert.deepEqual(voidRotation, { outcome: "not_active", status: "void" });
 
-    // General admission finalizes by moving reserved quantity to sold.
     const gaCheckoutEvent = randomUUID();
     const gaCheckoutType = randomUUID();
     await pool.query(
@@ -2631,8 +2584,7 @@ try {
     );
     assert.deepEqual(gaCounters.rows[0], { reserved: 0, sold: 3, tickets: 3 });
 
-    // Grace: a hold released after expiry still delivers when every unit is
-    // reattachable at finalization time.
+    // released inventory may reattach during payment grace
     const graceFixture = await createCheckoutOrder({
       actorKey: "grace-late",
       seatCount: 1,
@@ -2670,8 +2622,7 @@ try {
       "A late success re-secures released inventory when it is still free."
     );
 
-    // Conflict: inventory lost to a rival compensates with a full refund and
-    // never substitutes seats or touches the rival's hold.
+    // inventory conflict compensates without substitution
     const conflictFixture = await createCheckoutOrder({
       actorKey: "conflict-loser",
       seatCount: 1,
@@ -2760,8 +2711,6 @@ try {
       payment_status: "refunded",
     });
 
-    // A failed attempt records its code and leaves the order open; once the
-    // order is final the late failure changes nothing.
     const failureRecord = await withDatabaseTransaction(pool, (transaction) =>
       recordPaymentFailure(transaction, {
         failureCode: "card_declined",
@@ -2780,7 +2729,6 @@ try {
     );
     assert.equal(lateFailure.recorded, false);
 
-    // Concurrent duplicate webhook deliveries record one durable receipt.
     const webhookDeliveries = await Promise.all(
       Array.from({ length: 5 }, () =>
         withDatabaseTransaction(pool, (transaction) =>
@@ -2803,8 +2751,7 @@ try {
       1
     );
 
-    // The sweep leaves a checkout-started hold alone until the payment grace
-    // window passes, then frees its inventory.
+    // payment grace delays checkout hold expiry
     const graceSweep = await createCheckoutOrder({
       actorKey: "grace-sweep",
       seatCount: 1,
@@ -2847,9 +2794,7 @@ try {
       status: "expired",
     });
 
-    // Scanner check-in: an accepted admission is an atomic locked transition,
-    // every attempt appends to scan history, and reversal restores the ticket
-    // without rewriting that history.
+    // scanner transition concurrency and history
     const scanDevice = "itest-scan-device-0001";
     const scanFixture = await createCheckoutOrder({
       actorKey: "scan-buyer",
@@ -2900,7 +2845,6 @@ try {
       tokenHash: hashQrToken(scanBearer),
     };
 
-    // An unknown bearer is invalid and never references a ticket.
     const unknownScan = await scanAt(scanFixture.eventId, {
       kind: "qr",
       tokenHash: hashQrToken(`unknown-${randomUUID()}`),
@@ -2908,7 +2852,6 @@ try {
     assert.equal(unknownScan.result, "invalid");
     assert.equal(unknownScan.ticket, null);
 
-    // Concurrent scans of one ticket admit exactly once.
     const scanRace = await Promise.all([
       scanAt(scanFixture.eventId, qrCredential),
       scanAt(scanFixture.eventId, qrCredential),
@@ -2937,14 +2880,12 @@ try {
     assert.equal(checkedInState.rows[0]?.status, "checked_in");
     assert.notEqual(checkedInState.rows[0]?.checked_in_at, null);
 
-    // The manual public-number fallback resolves the same ticket.
     const manualDuplicate = await scanAt(scanFixture.eventId, {
       kind: "public_number",
       publicNumber: admissionTicket.publicNumber,
     });
     assert.equal(manualDuplicate.result, "duplicate");
 
-    // Reversal restores the ticket and appends to history without rewriting.
     const scansBeforeReversal = await pool.query<{ result: string }>(
       `SELECT "result"::text AS "result" FROM "scans" WHERE "ticket_id" = $1`,
       [admissionTicket.id]
@@ -2988,7 +2929,6 @@ try {
       status: "active",
     });
 
-    // Reversing a ticket that is not checked in reports the state.
     const reversalNoop = await withDatabaseTransaction(pool, (transaction) =>
       reverseCheckIn(transaction, {
         actorUserId: seededUserId,
@@ -3004,15 +2944,12 @@ try {
       status: "active",
     });
 
-    // A reversed ticket admits again.
     const readmission = await scanAt(scanFixture.eventId, {
       kind: "public_number",
       publicNumber: admissionTicket.publicNumber,
     });
     assert.equal(readmission.result, "accepted");
 
-    // A ticket for another event of the same organization fails explicitly
-    // and surfaces its own event title to staff.
     const otherEventFixture = await createCheckoutOrder({
       actorKey: "scan-other-event",
       seatCount: 1,
@@ -3024,7 +2961,6 @@ try {
     assert.equal(wrongEventScan.result, "wrong_event");
     assert.equal(wrongEventScan.ticket?.eventTitle, spareTicket.eventTitle);
 
-    // Void, refunded, and expired tickets never admit.
     await pool.query(`UPDATE "tickets" SET "status" = 'void' WHERE "id" = $1`, [
       spareTicket.id,
     ]);
@@ -3058,8 +2994,6 @@ try {
     });
     assert.equal(expiredScan.result, "expired");
 
-    // Another organization scanning the same bearer learns nothing: the scan
-    // is invalid and its history row references no ticket.
     const foreignOrgId = randomUUID();
     const foreignEventId = randomUUID();
     await pool.query(
@@ -3089,8 +3023,6 @@ try {
     );
     assert.deepEqual(crossTenantRow.rows, [{ ticket_id: null }]);
 
-    // Recent activity lists the event's attempts newest first with actor
-    // attribution, and the reversal keeps its reason.
     const recentActivity = await withDatabaseTransaction(pool, (transaction) =>
       listRecentScans(transaction, {
         eventId: scanFixture.eventId,
@@ -3110,8 +3042,7 @@ try {
       admissionTicket.publicNumber
     );
 
-    // Check-in and reversal audit in the same transaction, and no raw bearer
-    // reaches the scan history or the audit trail.
+    // scan audit excludes raw bearer
     const scanAudit = await pool.query<{ action: string; detail: string }>(
       `SELECT "action", "detail"::text AS "detail" FROM "audit_logs"
        WHERE "target_id" = $1 ORDER BY "created_at" ASC`,

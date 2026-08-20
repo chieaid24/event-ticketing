@@ -185,7 +185,7 @@ export class AuthService {
     const passwordHash = await hashPassword(request.newPassword);
     const sessionSecret = generateAuthSecret();
     const csrfSecret = generateAuthSecret();
-    // Every session is revoked and the caller gets a freshly rotated one.
+    // revoke all sessions, issue caller a fresh one
     await this.store.changePassword({
       passwordHash,
       session: {
@@ -254,7 +254,7 @@ export class AuthService {
     return authenticated;
   }
 
-  /** Session plus CSRF and origin checks, for state-changing routes. */
+  // session + csrf + origin checks for state-changing routes
   async requireMutationSession(
     context: RequestAuthContext
   ): Promise<AuthenticatedSession> {

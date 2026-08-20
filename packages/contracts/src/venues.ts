@@ -73,10 +73,7 @@ export type GeneralAdmissionSection = z.infer<
 export type LayoutSection = z.infer<typeof layoutSectionSchema>;
 export type VenueLayout = z.infer<typeof venueLayoutSchema>;
 
-/**
- * Cross-field rules the structural schema cannot express. Returns every
- * violation so organizers see one complete validation summary.
- */
+// cross-field rules the schema cant express; returns all violations
 export function validateVenueLayout(layout: VenueLayout): string[] {
   const issues: string[] = [];
   const sectionNames = new Set<string>();
@@ -150,7 +147,7 @@ export function validateVenueLayout(layout: VenueLayout): string[] {
   return issues;
 }
 
-/** A companion seat must sit directly beside an accessible seat in its row. */
+// companion must sit directly beside an accessible seat
 function hasAdjacentAccessibleSeat(row: LayoutRow, seat: LayoutSeat): boolean {
   return row.seats.some(
     (candidate) =>

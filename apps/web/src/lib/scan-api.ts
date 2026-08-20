@@ -11,11 +11,7 @@ import { AuthApiError, requestJson } from "./auth-api";
 
 const DEVICE_STORAGE_KEY = "et_scan_device";
 
-/**
- * A stable random identifier for this scanning device, minted once and kept in
- * local storage. It attributes scans and feeds per-device rate limits; it
- * grants nothing.
- */
+// stable local device id grants no authority
 export function readScanDeviceId(): string {
   try {
     const existing = window.localStorage.getItem(DEVICE_STORAGE_KEY);
@@ -26,15 +22,12 @@ export function readScanDeviceId(): string {
     window.localStorage.setItem(DEVICE_STORAGE_KEY, minted);
     return minted;
   } catch {
-    // Storage can be unavailable in private modes; a per-page id still works.
+    // use a page id when local storage fails
     return crypto.randomUUID();
   }
 }
 
-/**
- * Submits one credential for check-in. The raw QR value goes straight to the
- * API over HTTPS and is never kept, logged, or shown by the client.
- */
+// send raw qr once without retaining it
 export async function postCheckIn(
   apiBaseUrl: string,
   organizationId: string,

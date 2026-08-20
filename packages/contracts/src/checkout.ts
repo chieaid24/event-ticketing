@@ -80,7 +80,7 @@ export type CreateGeneralAdmissionHoldResponse = z.infer<
   typeof createGeneralAdmissionHoldResponseSchema
 >;
 
-/** Conflict body: only oversubscribed ticket type ids, never another hold. */
+// conflict body: only oversubscribed ticket type ids, never another hold
 export const capacityUnavailableResponseSchema = z
   .object({
     code: z.literal("capacity_unavailable"),
@@ -92,10 +92,7 @@ export type CapacityUnavailableResponse = z.infer<
   typeof capacityUnavailableResponseSchema
 >;
 
-/**
- * Checkout carries only the hold reference. Amounts, fees, currency, and every
- * other commercial value are recalculated server-side from the hold.
- */
+// checkout carries only hold ref; server recalculates all amounts
 export const createCheckoutRequestSchema = z
   .object({ holdId: z.uuid() })
   .strict();
@@ -119,12 +116,12 @@ export type OrderItem = z.infer<typeof orderItemSchema>;
 
 export const orderPaymentSchema = z
   .object({
-    /** Present only for the order's owner while payment can still proceed. */
+    // present only for order owner while payment can proceed
     clientSecret: z.string().nullable(),
     lastFailureAt: z.iso.datetime().nullable(),
     lastFailureCode: z.string().nullable(),
     provider: paymentProviderSchema,
-    /** Stripe publishable key; null for the fake provider. */
+    // stripe publishable key; null for fake provider
     publishableKey: z.string().nullable(),
     status: paymentStatusSchema,
   })
@@ -153,11 +150,7 @@ export const orderSummarySchema = z
   .strict();
 export type OrderSummary = z.infer<typeof orderSummarySchema>;
 
-/**
- * Development-only simulated payment outcome for the fake provider. The
- * simulated delivery still passes signature verification, webhook receipt, and
- * asynchronous finalization.
- */
+// local-only simulated payment for fake provider; still passes sig verify, webhook, finalize
 export const simulatePaymentRequestSchema = z
   .object({
     orderId: z.uuid(),

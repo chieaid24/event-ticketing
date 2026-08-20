@@ -43,12 +43,7 @@ export class TicketsService {
     }
   }
 
-  /**
-   * Mints a fresh QR bearer for an active ticket and returns it exactly once.
-   * Rotating replaces the stored hash, so any previously revealed bearer stops
-   * matching. The raw value lives only in this response - never persisted,
-   * never logged. Rotation is a state change, so it demands a mutation session.
-   */
+  // rotate once without persisting the raw bearer
   async revealQr(
     context: RequestAuthContext,
     ticketId: string

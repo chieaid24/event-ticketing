@@ -20,7 +20,7 @@ export type PublicEventDetailResult =
   | { kind: "not_found" }
   | { kind: "error" };
 
-/** Public reads carry no cookies; discovery never depends on a session. */
+// public reads, no cookies; discovery never uses session
 export async function fetchPublicEvents(
   apiBaseUrl: string,
   input: PublicEventListInput,

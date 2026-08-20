@@ -3,7 +3,7 @@ export type PaymentProviderKind = "stripe" | "fake";
 export interface CreatePaymentIntentInput {
   amountMinor: number;
   currency: string;
-  /** Stable per-order key; a retried call returns the same logical intent. */
+  // stable per-order key; retried call returns same intent
   idempotencyKey: string;
   metadata?: Record<string, string>;
 }
@@ -15,7 +15,7 @@ export interface PaymentIntentResult {
 
 export interface CreateRefundInput {
   amountMinor: number;
-  /** Stable per-refund key; a retried call returns the same logical refund. */
+  // stable per-refund key; retried call returns same refund
   idempotencyKey: string;
   metadata?: Record<string, string>;
   providerPaymentIntentId: string;
@@ -23,15 +23,11 @@ export interface CreateRefundInput {
 
 export interface RefundResult {
   providerRefundId: string;
-  /** True when the provider reports the refund as settled already. */
+  // true when provider reports refund already settled
   settled: boolean;
 }
 
-/**
- * The provider boundary for payment side effects. Implementations never run
- * inside a database transaction and never decide commercial state; verified
- * webhook processing does.
- */
+// provider side effects stay outside database transactions
 export interface PaymentGateway {
   readonly provider: PaymentProviderKind;
   createPaymentIntent(

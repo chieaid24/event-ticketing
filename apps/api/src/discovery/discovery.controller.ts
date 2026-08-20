@@ -30,7 +30,7 @@ const routeLimits = {
   list: { max: 120, windowMs: 60 * 1000 },
 } satisfies Record<string, RouteLimit>;
 
-/** Public, unauthenticated discovery reads. Never resolve a session here. */
+// public reads never resolve sessions
 @Controller("discovery")
 export class DiscoveryController {
   constructor(

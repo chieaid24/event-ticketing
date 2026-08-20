@@ -1,7 +1,6 @@
 locals {
   common_tags = merge(var.tags, { Component = "network" })
 
-  # Private DNS zones consumed by the data-tier private endpoints.
   private_link_zones = {
     blob  = "privatelink.blob.core.windows.net"
     redis = "privatelink.redisenterprise.cache.azure.net"
@@ -56,8 +55,7 @@ resource "azurerm_subnet" "private_endpoints" {
   address_prefixes     = [cidrsubnet(var.vnet_cidr, 8, 5)]
 }
 
-# Only Front Door reaches the container apps ingress; the NSG default rules
-# deny every other inbound source outside the virtual network.
+# only front door reaches ingress; nsg denies other inbound
 resource "azurerm_network_security_group" "container_apps" {
   name                = "${var.name}-container-apps"
   resource_group_name = var.resource_group_name

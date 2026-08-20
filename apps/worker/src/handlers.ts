@@ -13,8 +13,7 @@ export const organizationCreatedHandler: OutboxHandler = async (event) => {
   }
 };
 
-// Validation-only until publication side effects (search, notifications)
-// arrive; without a registered handler every published event dead-letters.
+// missing handlers dead-letter events
 export const eventPublishedHandler: OutboxHandler = async (event) => {
   if (
     typeof event.payload !== "object" ||

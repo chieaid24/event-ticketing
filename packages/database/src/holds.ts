@@ -10,11 +10,7 @@ export type HoldStatus =
 export const MAX_HOLD_ITEMS = 20;
 export const MAX_HOLD_ITEM_QUANTITY = 50;
 export const MAX_SEATS_PER_HOLD = 10;
-/**
- * How long a checkout-started hold outlives its expiry before the sweep frees
- * its inventory. Covers payment processing and webhook delivery time; a
- * payment that succeeds later still finalizes when every unit is reattachable.
- */
+// grace window past expiry so in-flight payment/webhook still finalizes
 export const CHECKOUT_GRACE_SECONDS = 900;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const MAX_GUEST_SESSION_LENGTH = 64;
@@ -62,7 +58,6 @@ export interface AssignedSeatHoldRecord {
   guestSessionId: string | null;
   id: string;
   idempotencyKey: string;
-  /** True when an existing hold was returned for a repeated idempotency key. */
   replayed: boolean;
   seats: AssignedSeatHoldItem[];
   status: HoldStatus;
@@ -86,7 +81,6 @@ export interface HoldRecord {
   id: string;
   idempotencyKey: string;
   items: HoldItemRecord[];
-  /** True when an existing hold was returned for a repeated idempotency key. */
   replayed: boolean;
   status: HoldStatus;
   userId: string | null;
@@ -247,8 +241,7 @@ function normalizeItems(items: HoldItemInput[]): HoldItemInput[] {
     }
   }
 
-  // Stable ticket-type lock order (sorted ids) prevents deadlocks between a
-  // create, an expiry, and a finalize that touch overlapping types.
+  // stable lock order prevents deadlocks
   return [...items].sort((left, right) =>
     left.ticketTypeId < right.ticketTypeId ? -1 : 1
   );
@@ -272,7 +265,7 @@ async function loadHoldItems(
   return result.rows;
 }
 
-/** Locks the hold's ticket types in a stable order before adjusting counters. */
+// stable lock order prevents deadlocks
 async function lockHoldTicketTypes(
   executor: DatabaseExecutor,
   holdId: string
@@ -288,7 +281,7 @@ async function lockHoldTicketTypes(
   );
 }
 
-/** Returns only general-admission reserved quantity; assigned lines hold no counter. */
+// only ga lines use reserved counters
 async function decrementGeneralAdmissionReserved(
   executor: DatabaseExecutor,
   holdId: string
@@ -304,12 +297,7 @@ async function decrementGeneralAdmissionReserved(
   );
 }
 
-/**
- * Frees every seat still held by this hold. Seats are locked in id order first
- * so this cannot deadlock with a concurrent create that locks its seats the same
- * way; a seat already reclaimed by a newer hold carries a different hold id and
- * is left untouched.
- */
+// id locks avoid deadlocks; newer holds stay untouched
 async function releaseHeldSeats(
   executor: DatabaseExecutor,
   holdId: string
@@ -329,12 +317,7 @@ async function releaseHeldSeats(
   );
 }
 
-/**
- * Reserves general-admission quantity under locked ticket-type counters.
- *
- * Must run inside a transaction. Idempotent on `(actor, idempotencyKey)`: a
- * repeated request returns the original hold without reserving twice.
- */
+// caller tx; unique actor key makes retries replay
 export async function createGeneralAdmissionHold(
   executor: DatabaseExecutor,
   input: CreateGeneralAdmissionHoldInput
@@ -358,8 +341,7 @@ export async function createGeneralAdmissionHold(
     throw new HoldEventNotFoundError();
   }
 
-  // Insert the hold first so the unique (actor, idempotency key) index arbitrates
-  // duplicate requests. A conflict means a hold already exists: replay it.
+  // unique insert elects one reservation
   const inserted = await executor.query<HoldRow>(
     `INSERT INTO "holds"
        ("event_id", "user_id", "guest_session_id", "actor_key",
@@ -485,12 +467,7 @@ export async function createGeneralAdmissionHold(
   };
 }
 
-/**
- * Expires one reserving hold and returns its inventory exactly once. A no-op
- * for a hold that is not active or checkout-started, so retries are safe. The
- * sweep decides when a checkout-started hold is due (expiry plus grace); this
- * function only applies the mechanics.
- */
+// status gate returns inventory once
 export async function expireHold(
   executor: DatabaseExecutor,
   holdId: string
@@ -521,10 +498,7 @@ export async function expireHold(
   return { changed: true, status: "expired" };
 }
 
-/**
- * Reconciliation sweep: expires holds past their database expiry, one hold per
- * transaction so contended rows are skipped rather than blocking the batch.
- */
+// one hold per tx lets contended rows skip
 export async function expireDueHolds(
   pool: Pool,
   input: { limit: number } = { limit: 100 }
@@ -535,8 +509,7 @@ export async function expireDueHolds(
     const didExpire = await withDatabaseTransaction(
       pool,
       async (transaction) => {
-        // A checkout-started hold keeps its inventory for a payment grace
-        // window past expiry; abandoning checkout still frees it eventually.
+        // checkout_started keeps inventory through payment grace
         const due = await transaction.query<{ id: string }>(
           `SELECT "id" FROM "holds"
          WHERE ("status" = 'active' AND "expires_at" <= CURRENT_TIMESTAMP)
@@ -567,10 +540,7 @@ export async function expireDueHolds(
   return expired;
 }
 
-/**
- * Finalizes a purchase by moving reserved quantity to sold and consuming the
- * hold. Idempotent for an already-consumed hold; rejects an expired one.
- */
+// status gate moves inventory once
 export async function finalizeGeneralAdmissionHold(
   executor: DatabaseExecutor,
   holdId: string
@@ -621,10 +591,7 @@ export async function finalizeGeneralAdmissionHold(
   return { changed: true, status: "consumed" };
 }
 
-/**
- * Cancels an actor's own active hold and returns its reserved quantity.
- * Idempotent for an already-cancelled hold.
- */
+// status gate returns inventory once
 export async function cancelHold(
   executor: DatabaseExecutor,
   input: { actor: HoldActor; holdId: string }
@@ -636,7 +603,7 @@ export async function cancelHold(
     [input.holdId]
   );
   const current = locked.rows[0];
-  // An actor may only see and cancel its own hold.
+  // actor may only cancel own hold
   if (!current || current.actorKey !== actorKey) {
     throw new HoldNotFoundError();
   }
@@ -698,8 +665,7 @@ function normalizeSeatIds(seatIds: string[]): string[] {
     seen.add(seatId);
   }
 
-  // Stable seat lock order (sorted ids) prevents deadlocks between a create, an
-  // expiry, and a cancel that touch overlapping seats.
+  // stable seat locks prevent deadlocks
   return [...seatIds].sort((left, right) => (left < right ? -1 : 1));
 }
 
@@ -739,13 +705,7 @@ function summarizeSeats(seats: AssignedSeatHoldItem[]): {
   return { feeMinor, subtotalMinor, totalMinor: subtotalMinor + feeMinor };
 }
 
-/**
- * Reserves specific assigned seats under per-seat row locks. Must run inside a
- * transaction. Idempotent on `(actor, idempotencyKey)`: a repeated request
- * returns the original hold without holding a seat twice. Server-priced from the
- * locked seat rows; the browser never supplies a price. Either all requested
- * seats are held or none are, and only unavailable seat ids are disclosed.
- */
+// caller tx; locked server pricing keeps reservation atomic
 export async function createAssignedSeatHold(
   executor: DatabaseExecutor,
   input: CreateAssignedSeatHoldInput
@@ -770,8 +730,7 @@ export async function createAssignedSeatHold(
     throw new HoldEventNotFoundError();
   }
 
-  // Insert the hold first so the unique (actor, idempotency key) index arbitrates
-  // duplicate requests. A conflict means a hold already exists: replay it.
+  // unique insert elects one reservation
   const inserted = await executor.query<HoldRow>(
     `INSERT INTO "holds"
        ("event_id", "user_id", "guest_session_id", "actor_key",
@@ -814,9 +773,7 @@ export async function createAssignedSeatHold(
     };
   }
 
-  // Lock the requested seats in id order. Expiry uses database time so a missed
-  // sweep never grants rights: a held-but-expired seat is reclaimable, a held
-  // seat whose hold has not expired belongs to a live reservation.
+  // ordered locks; database time decides reclaimability
   const locked = await executor.query<LockedSeatRow>(
     `SELECT
        s."id",
@@ -883,7 +840,7 @@ export async function createAssignedSeatHold(
      WHERE "id" = ANY($1::uuid[])`,
     [seatOrder, holdRow.id]
   );
-  // The seats were validated under lock, so every requested row must flip.
+  // locked validation requires every row to flip
   if ((updated.rowCount ?? 0) !== seatOrder.length) {
     throw new SeatsUnavailableError(seatIds);
   }
@@ -907,7 +864,6 @@ export async function createAssignedSeatHold(
   };
 }
 
-/** Remaining general-admission quantity per ticket type for an event. */
 export async function fetchGeneralAdmissionAvailability(
   executor: DatabaseExecutor,
   eventId: string

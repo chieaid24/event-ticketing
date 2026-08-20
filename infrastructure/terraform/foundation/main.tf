@@ -25,8 +25,7 @@ resource "azurerm_resource_group" "delivery" {
   tags     = local.tags
 }
 
-# ACR has no registry-wide tag immutability switch; promotion is immutable
-# because every environment pins image_uri to a sha256 digest.
+# digest pins replace missing tag immutability
 resource "azurerm_container_registry" "this" {
   name                = var.registry_name
   resource_group_name = azurerm_resource_group.delivery.name

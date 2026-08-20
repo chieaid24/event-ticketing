@@ -6,12 +6,7 @@ export interface QrFrame {
   width: number;
 }
 
-/**
- * Decodes one camera frame's pixel data to the QR payload, or null when the
- * frame holds no readable code. Pure so the decode path is testable without a
- * camera. The returned payload is a live admission bearer: pass it on and
- * drop it, never store or log it.
- */
+// decode without retaining the live bearer
 export function decodeQrFrame(frame: QrFrame): string | null {
   const result = jsQR(frame.data, frame.width, frame.height, {
     inversionAttempts: "dontInvert",

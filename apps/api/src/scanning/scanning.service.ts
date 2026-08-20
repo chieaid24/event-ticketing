@@ -23,14 +23,9 @@ import { hasPermission } from "../organizations/policy.js";
 import { apiError, parseRequest, uuidPattern } from "../request-validation.js";
 import type { ScanningStore } from "./scanning.store.js";
 
-/** How many recent scans one activity read returns. */
 const ACTIVITY_LIMIT = 20;
 
-/**
- * Scan-flow abuse limits. The per-device and per-actor windows bound a stolen
- * credential or misbehaving device without blocking a venue full of scanners
- * that share one network address.
- */
+// device and actor windows contain stolen credentials
 const DEVICE_SCAN_LIMIT = { max: 60, windowMs: 60 * 1000 };
 const ACTOR_SCAN_LIMIT = { max: 120, windowMs: 60 * 1000 };
 const ACTOR_REVERSAL_LIMIT = { max: 30, windowMs: 15 * 60 * 1000 };
@@ -47,11 +42,7 @@ export class ScanningService {
     private readonly rateLimiter: RateLimiter
   ) {}
 
-  /**
-   * Validates one presented credential and checks the ticket in when it is
-   * eligible. The raw QR bearer is hashed here, before any storage or store
-   * call, and never appears in logs, scan rows, or responses.
-   */
+  // hash raw qr here and never retain it
   async checkIn(
     context: RequestAuthContext,
     organizationId: string,
@@ -83,11 +74,7 @@ export class ScanningService {
     };
   }
 
-  /**
-   * Reverses an accidental check-in. Requires the supervisor-only
-   * scanner.reverse permission and a stated reason; the scan history keeps
-   * both the original acceptance and the reversal.
-   */
+  // reversals require permission and preserve history
   async reverse(
     context: RequestAuthContext,
     organizationId: string,
@@ -125,7 +112,6 @@ export class ScanningService {
     return { scanId: outcome.scanId, ticket: toTicketDetail(outcome.ticket) };
   }
 
-  /** Returns the event's recent scan attempts, newest first. */
   async activity(
     context: RequestAuthContext,
     organizationId: string,
@@ -166,7 +152,7 @@ export class ScanningService {
       return { kind: "qr", tokenHash: hashQrToken(request.qrToken) };
     }
     if (request.publicNumber !== undefined) {
-      // Staff may type the nonsecret TK- code in any case.
+      // staff may type nonsecret tk- code in any case
       return {
         kind: "public_number",
         publicNumber: request.publicNumber.toUpperCase(),
@@ -205,10 +191,7 @@ export class ScanningService {
     }
   }
 
-  /**
-   * Non-members get the same 404 as a missing organization so that probing
-   * cannot confirm an organization exists.
-   */
+  // hide org existence from non-members
   private async requireActiveMembership(
     organizationId: string,
     userId: string

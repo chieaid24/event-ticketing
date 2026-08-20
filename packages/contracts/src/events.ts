@@ -6,14 +6,13 @@ export const MAX_REFUND_POLICY = 2_000;
 export const MAX_MEDIA_URL = 2_048;
 export const MAX_TICKET_TYPES = 50;
 export const MAX_TICKET_TYPE_NAME = 80;
-/** One million major units in minor units; a generous per-ticket ceiling. */
+// one million major units in minor
 export const MAX_MONEY_MINOR = 100_000_000;
 export const MAX_GA_CAPACITY = 100_000;
 export const MIN_HOLD_SECONDS = 60;
 export const MAX_HOLD_SECONDS = 86_400;
 export const MAX_REFUND_CUTOFF_MINUTES = 525_600;
 
-/** Currencies the platform sells in. Multi-currency remains deferred scope. */
 export const supportedCurrencies = ["USD", "CAD", "EUR", "GBP", "AUD"] as const;
 
 export const eventStatusSchema = z.enum([
@@ -46,10 +45,7 @@ export const holdDurationSchema = z
   .min(MIN_HOLD_SECONDS)
   .max(MAX_HOLD_SECONDS);
 
-/**
- * An IANA time zone the host runtime recognizes. `Intl.DateTimeFormat` throws a
- * `RangeError` for unknown zones, which keeps this canonical-list agnostic.
- */
+// trust intl.datetimeformat instead of maintaining zones
 export function isValidTimeZone(value: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value });
@@ -262,11 +258,7 @@ export interface EventPublicationCheckInput {
   }[];
 }
 
-/**
- * Every rule the structural schema cannot enforce, evaluated server-side before
- * publication. Returns all violations so an organizer sees one complete review
- * summary rather than fixing errors one at a time.
- */
+// cross-field publish rules the schema cant enforce; returns all violations at once
 export function validateEventForPublication(
   input: EventPublicationCheckInput
 ): string[] {

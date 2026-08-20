@@ -21,8 +21,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {process.env.NODE_ENV !== "production" && (
-          // Dev-only: neutralize the Next.js 16 RSC perf-measure crash
-          // (negative timestamp). Upstream: vercel/next.js#86060
+          // dev-only next.js rsc timing crash workaround
           <Script id="dev-perf-measure-guard" strategy="beforeInteractive">
             {`(function(){try{if(!self.performance||!performance.measure)return;var m=performance.measure.bind(performance);performance.measure=function(){try{return m.apply(performance,arguments)}catch(e){if(e&&/negative time stamp/.test(String(e.message)))return;throw e}}}catch(e){}})();`}
           </Script>

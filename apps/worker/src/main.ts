@@ -114,7 +114,7 @@ async function startWorker(): Promise<void> {
 
   try {
     await database.query("SELECT 1");
-    // Recurring reconciliation sweep that reclaims expired holds.
+    // recurring sweep reclaims expired holds
     await repository.upsertSchedule({
       intervalSeconds: HOLD_EXPIRATION_SWEEP_INTERVAL_SECONDS,
       name: "hold-expiration-sweep",

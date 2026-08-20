@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-/**
- * The minimal, provider-shaped slice of a payment event that finalization
- * consumes. Extra fields pass through unvalidated; nothing commercial is
- * trusted from here without re-verification against the stored order.
- */
+// accept provider shape; stored order owns commercial data
 export const paymentProviderEventSchema = z
   .object({
     data: z.object({
@@ -65,7 +61,6 @@ export function parseRefundProviderEvent(
   return result.success ? result.data : null;
 }
 
-/** Event types the platform reacts to; anything else is recorded and skipped. */
 export const HANDLED_PAYMENT_EVENT_TYPES = [
   "payment_intent.succeeded",
   "payment_intent.payment_failed",

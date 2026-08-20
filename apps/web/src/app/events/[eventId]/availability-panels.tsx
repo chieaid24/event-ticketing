@@ -136,7 +136,7 @@ export function AvailabilityPanels({
     });
   }, []);
 
-  /** A failed refresh keeps the last good data but flags it stale. */
+  // failed refresh keeps last good data, flags it stale
   const markRefreshFailed = useCallback(() => {
     setState((previous) =>
       previous.kind === "ready"
@@ -209,8 +209,7 @@ export function AvailabilityPanels({
     setCheckoutBusy(true);
     setCheckoutError(null);
     try {
-      // The random key scopes retries of this click; the server dedupes per
-      // actor, so a double submit converges on one hold.
+      // random key scopes retries to this attempt
       const idempotencyKey = crypto.randomUUID();
       const hold =
         seatIds.length > 0

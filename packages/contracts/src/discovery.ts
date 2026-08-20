@@ -6,13 +6,10 @@ export const MAX_DISCOVERY_SEARCH = 100;
 export const DISCOVERY_DEFAULT_LIMIT = 20;
 export const DISCOVERY_MAX_LIMIT = 50;
 export const DISCOVERY_MAX_OFFSET = 10_000;
-/** Remaining share of capacity at or below which admission reads as limited. */
+// remaining capacity share at/below which admission reads limited
 export const GA_LIMITED_FRACTION = 0.1;
 
-/**
- * Advisory availability for one general-admission ticket type. Coarse levels
- * instead of exact counts so responses never disclose sales volume.
- */
+// coarse ga level hides sales volume
 export function generalAdmissionLevel(
   remaining: number,
   capacity: number
@@ -44,12 +41,7 @@ export type DiscoveryTimeframe = z.infer<
   typeof publicEventListQuerySchema
 >["timeframe"];
 
-/**
- * The discoverable slice of a published event. Purpose-built: never reuse the
- * organizer schemas, which carry internal fields such as version and hold
- * configuration. Publication validation guarantees the event and sales
- * timestamps, so they are non-null here.
- */
+// public slice hides organizer fields; timestamps required
 export const publicEventSummarySchema = z
   .object({
     currency: currencySchema,
@@ -106,7 +98,7 @@ export const publicEventDetailResponseSchema = z
   })
   .strict();
 
-/** Held and sold both read as unavailable; the difference is internal. */
+// held and sold both read unavailable; difference is internal
 export const publicSeatStatusSchema = z.enum(["available", "unavailable"]);
 
 export const publicSeatSchema = z

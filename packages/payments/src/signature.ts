@@ -1,11 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-/**
- * Stripe's webhook signature scheme: the header carries `t=<unix seconds>` and
- * one or more `v1=<hex hmac>` entries, where each HMAC-SHA256 is computed with
- * the endpoint secret over `<t>.<raw body>`. One shared implementation keeps
- * the fake provider's simulated deliveries on the identical verification path.
- */
+// shared stripe verification keeps fake delivery on the real path
 
 export const DEFAULT_SIGNATURE_TOLERANCE_SECONDS = 300;
 

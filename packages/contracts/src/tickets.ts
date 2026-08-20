@@ -11,11 +11,7 @@ export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 export const ticketKindSchema = z.enum(["assigned", "general_admission"]);
 export type TicketKind = z.infer<typeof ticketKindSchema>;
 
-/**
- * One admission credential as its owner sees it. Carries the nonsecret public
- * number, event and access details, and rotation state - never a QR hash and
- * never a raw bearer. The raw bearer only ever appears in a reveal response.
- */
+// owner-visible ticket; public number + details, never qr hash or raw bearer
 export const ticketSummarySchema = z
   .object({
     eventEndsAt: z.iso.datetime().nullable(),
@@ -47,11 +43,7 @@ export const ticketListResponseSchema = z
   .strict();
 export type TicketListResponse = z.infer<typeof ticketListResponseSchema>;
 
-/**
- * The one-time result of rotating a ticket's QR credential. The raw bearer is
- * returned exactly here and never persisted or logged; a later rotation
- * invalidates it. Clients render it as a QR and must not cache it.
- */
+// one-time qr rotation result; raw bearer only here, never persisted, dont cache
 export const qrRevealResponseSchema = z
   .object({
     publicNumber: z.string().min(1).max(20),

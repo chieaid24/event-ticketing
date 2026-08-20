@@ -11,13 +11,10 @@ export interface HoldExpiryMirror {
   set(holdId: string, expiresAt: Date): Promise<void>;
 }
 
-/** Namespace for hold-expiry keys; empty keeps the shared bare key form. */
+// empty prefix keeps shared bare key form
 const HOLD_EXPIRY_PREFIX = "";
 
-/**
- * Advisory Redis mirror of a hold's expiry. PostgreSQL stays authoritative for
- * inventory, so a mirror failure fails open and never blocks a committed hold.
- */
+// postgres owns expiry; mirror failures fail open
 export class RedisHoldExpiryMirror
   implements HoldExpiryMirror, OnApplicationShutdown
 {

@@ -1,7 +1,7 @@
 locals {
   common_tags = merge(var.tags, { Component = "data" })
 
-  # Storage account and vault names allow at most 24 characters.
+  # storage/vault names max 24 chars
   compact_name = substr(replace(var.name, "-", ""), 0, 18)
 }
 
@@ -102,7 +102,7 @@ resource "azurerm_postgresql_flexible_server" "this" {
   tags = local.common_tags
 }
 
-# Built-in PgBouncer keeps connection counts stable while container apps scale.
+# pgbouncer keeps connection counts stable as container apps scale
 resource "azurerm_postgresql_flexible_server_configuration" "pgbouncer" {
   name      = "pgbouncer.enabled"
   server_id = azurerm_postgresql_flexible_server.this.id

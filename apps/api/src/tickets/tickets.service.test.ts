@@ -118,7 +118,7 @@ describe("TicketsService.listTickets", () => {
     expect(ticket.eventTimezone).toBe("America/Toronto");
     expect(ticket.venueName).toBe("Grand Hall");
     expect(ticket.eventStartsAt).toBe("2026-09-01T19:00:00.000Z");
-    // A summary never carries a token or a hash.
+    // summary never carries a token or hash
     expect(Object.keys(ticket)).not.toContain("qrTokenHash");
     expect(Object.keys(ticket)).not.toContain("token");
   });
@@ -169,7 +169,7 @@ describe("TicketsService.revealQr", () => {
 
     expect(result.token.length).toBeGreaterThan(0);
     expect(result.publicNumber).toBe("TK-ABCDEF012345");
-    // The store only ever receives the hash of the raw bearer, never the bearer.
+    // store receives only the hash, never the raw bearer
     const passed = rotate.mock.calls[0]![0] as { tokenHash: string };
     expect(passed.tokenHash).toBe(hashQrToken(result.token));
     expect(passed.tokenHash).not.toBe(result.token);

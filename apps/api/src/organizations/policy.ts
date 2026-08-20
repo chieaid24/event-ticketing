@@ -3,9 +3,6 @@ import type {
   OrganizationPermission,
 } from "@event-ticketing/contracts";
 
-/**
- * Documented in docs/security/authorization.md. Change both together.
- */
 export const rolePermissions: Readonly<
   Record<MembershipRole, readonly OrganizationPermission[]>
 > = {
@@ -68,7 +65,7 @@ export function hasPermission(
   return rolePermissions[role].includes(permission);
 }
 
-/** Roles a member may grant when inviting or changing another member. */
+// roles a member may grant when inviting/changing a member
 export function assignableRoles(role: MembershipRole): MembershipRole[] {
   switch (role) {
     case "owner":
@@ -87,7 +84,7 @@ export function assignableRoles(role: MembershipRole): MembershipRole[] {
   }
 }
 
-/** Whether an actor role may change or remove a member holding a target role. */
+// whether actor role may change/remove a member with target role
 export function canManageRole(
   actorRole: MembershipRole,
   targetRole: MembershipRole

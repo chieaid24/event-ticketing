@@ -2,13 +2,7 @@ import { createHmac, randomBytes } from "node:crypto";
 
 import type { PaymentGateway } from "./gateway.js";
 
-/**
- * Deterministic in-process provider for development and CI, where no Stripe
- * credential exists. Identifiers derive from the idempotency key, so a
- * replayed call returns the same logical intent or refund exactly as the real
- * provider would. Payment outcomes arrive through simulated, signed webhook
- * deliveries on the production verification path.
- */
+// deterministic local provider; idempotency keys keep replays stable
 export function createFakePaymentGateway(
   input: { seed?: string } = {}
 ): PaymentGateway {
@@ -37,7 +31,6 @@ export function createFakePaymentGateway(
   };
 }
 
-/** Builds a provider-shaped payment event for simulated webhook deliveries. */
 export function buildFakePaymentEvent(input: {
   amountMinor: number;
   currency: string;

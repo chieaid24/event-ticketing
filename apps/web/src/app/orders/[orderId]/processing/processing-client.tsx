@@ -15,11 +15,7 @@ type ProcessingState =
   | { kind: "error"; message: string }
   | { kind: "timeout" };
 
-/**
- * Polls the authoritative order until verified backend processing settles it.
- * The redirect back from the payment provider proves nothing; only the order
- * status transition does.
- */
+// trust order state, not the provider redirect
 export function ProcessingClient({
   apiBaseUrl,
   orderId,
@@ -31,8 +27,7 @@ export function ProcessingClient({
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const startedAt = Date.now();
-    // Failures recorded before this page loaded belong to earlier attempts;
-    // only a failure newer than the first observation ends this wait.
+    // ignore failures from earlier attempts
     let baselineFailureAt: string | null | undefined;
 
     const poll = async (): Promise<void> => {
@@ -68,7 +63,7 @@ export function ProcessingClient({
           setState({ kind: "error", message: "The order does not exist." });
           return;
         }
-        // Transient errors keep polling until the deadline.
+        // transient errors keep polling til deadline
       }
       if (Date.now() - startedAt > GIVE_UP_AFTER_MS) {
         setState({ kind: "timeout" });

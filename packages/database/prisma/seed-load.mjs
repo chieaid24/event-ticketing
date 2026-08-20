@@ -1,6 +1,4 @@
-// Load-test dataset for the k6 purchase-flow scenarios in tests/load/.
-// Separate from the default seed so `pnpm db:seed` never resizes or resets
-// load-run inventory. Idempotent; safe to re-run between load runs.
+// isolated idempotent k6 dataset
 import pg from "pg";
 
 const localDatabaseUrl =
@@ -16,8 +14,7 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
 
 const client = new pg.Client({ connectionString: databaseUrl });
 
-// Argon2id hash of the synthetic development password "owner-password-dev",
-// shared with the default seed. Local-only; production never seeds users.
+// local synthetic buyer password hash
 const buyerPasswordHash =
   "$argon2id$v=19$m=19456,p=1,t=2$mKwK8cARnS8akUQlAFsR7g" +
   "$BCp9DbDRNw28oOP5Yf5HaXl/hY6RDnQIYhS8vIcwt3c";
@@ -26,8 +23,7 @@ const BUYER_COUNT = 250;
 const SEAT_ROWS = 10;
 const SEATS_PER_ROW = 10;
 const GA_CAPACITY = 60_000;
-// Short enough to observe expiry release after a run without waiting long,
-// generous enough that hold -> checkout never expires mid-purchase.
+// short expiry visible after load runs but safe mid-purchase
 const HOLD_DURATION_SECONDS = 180;
 
 const organizationId = "dddddddd-dddd-4ddd-8ddd-000000000001";
@@ -253,9 +249,7 @@ try {
       ]
     );
   }
-  // Contention pool: a 10x10 assigned block every scenario races over.
-  // Status is deliberately not updated on conflict so re-seeding never
-  // resurrects seats sold by an earlier run.
+  // shared pool; conflict keeps sold state
   let seatIndex = 0;
   for (let row = 0; row < SEAT_ROWS; row += 1) {
     const rowLabel = String.fromCharCode(65 + row);

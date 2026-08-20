@@ -5,11 +5,7 @@ import {
 
 import { requestJson } from "./auth-api";
 
-/**
- * Mints and returns a fresh QR bearer for a ticket. The prior bearer stops
- * working the moment this resolves. The raw token lives only in the caller's
- * memory - render it, never store or log it.
- */
+// rotate bearer without retaining the raw token
 export async function revealTicketQr(
   apiBaseUrl: string,
   ticketId: string

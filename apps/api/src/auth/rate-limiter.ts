@@ -6,8 +6,7 @@ export interface RateLimiter {
   consume(key: string, max: number, windowMs: number): Promise<boolean>;
 }
 
-// Local load-testing bypass; config refuses API_RATE_LIMITS_DISABLED in
-// production.
+// local load-test bypass; production rejects the flag
 export class DisabledRateLimiter implements RateLimiter {
   consume(): Promise<boolean> {
     return Promise.resolve(true);
@@ -46,7 +45,7 @@ export class RedisRateLimiter implements RateLimiter, OnApplicationShutdown {
       }
       return count <= max;
     } catch {
-      // Fail open: an unavailable limiter must not lock every user out.
+      // fail open: unavailable limiter must not lock everyone out
       this.logger.warn({ event: "auth.rate_limit.unavailable" });
       return true;
     }

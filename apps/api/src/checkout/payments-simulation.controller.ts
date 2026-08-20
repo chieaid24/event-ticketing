@@ -19,7 +19,7 @@ import {
 } from "../runtime.tokens.js";
 import type { PaymentsSimulationService } from "./payments-simulation.service.js";
 
-/** Registered only when the fake payment provider is configured. */
+// registered only when fake payment provider configured
 @Controller("payments")
 export class PaymentsSimulationController {
   constructor(

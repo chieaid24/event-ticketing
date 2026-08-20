@@ -68,7 +68,7 @@ export const inviteMemberRequestSchema = z
 
 export const changeMemberRoleRequestSchema = z
   .object({
-    // The role the caller last saw; the change is rejected when it is stale.
+    // role caller last saw; stale change rejected
     expectedRole: membershipRoleSchema,
     role: membershipRoleSchema,
   })

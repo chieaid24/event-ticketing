@@ -27,7 +27,7 @@ function ConfirmForm({
       confirmParams: { return_url: returnUrl },
       elements,
     });
-    // On success the browser redirects; reaching here means it did not.
+    // success redirects; reaching here means it didnt
     setSubmitting(false);
     setMessage(result.error.message ?? "The payment could not be confirmed.");
   };

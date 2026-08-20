@@ -36,7 +36,7 @@ export function buildSessionCookies(
       name: SESSION_COOKIE_NAME,
       value: secrets.sessionSecret,
     }),
-    // Readable by the frontend so it can echo the double-submit CSRF header.
+    // readable by frontend to echo double-submit csrf header
     stringifySetCookie({
       ...shared,
       httpOnly: false,

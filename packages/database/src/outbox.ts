@@ -339,8 +339,7 @@ export async function enqueueOutboxEvent(
           WHERE "deduplication_key" = $5
           LIMIT 1
         `,
-        // available_at is excluded from dedup matching; postgres rejects a
-        // parameter list with an unreferenced $6, so renumber max_attempts.
+        // pg rejects unused slots; available_at stays outside dedup
         [...values.slice(0, 5), values[6]]
       )
     ).rows[0];

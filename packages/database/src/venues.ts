@@ -123,7 +123,7 @@ export async function listVenuesForOrganization(
   return result.rows;
 }
 
-/** Compare-and-swap on version; a null result means a stale update. */
+// cas miss returns null
 export async function updateVenueDetails(
   executor: DatabaseExecutor,
   input: {
@@ -151,7 +151,7 @@ export async function updateVenueDetails(
   return result.rows[0] ?? null;
 }
 
-/** Locks the venue row and bumps its version; null means a stale replace. */
+// version bump also locks; stale replace returns null
 export async function claimVenueVersion(
   executor: DatabaseExecutor,
   input: { expectedVersion: number; organizationId: string; venueId: string }
@@ -177,11 +177,7 @@ export async function deleteVenueById(
   return (result.rowCount ?? 0) > 0;
 }
 
-/**
- * Replaces the whole layout inside the caller's transaction. Sections, rows,
- * and seats are template data; events snapshot seats, so replacement never
- * rewrites sold inventory.
- */
+// caller tx replaces templates without touching event snapshots
 export async function replaceVenueLayout(
   executor: DatabaseExecutor,
   input: { sections: VenueLayoutSectionData[]; venueId: string }

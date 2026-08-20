@@ -10,7 +10,7 @@ export class DiscoveryApiError extends Error {
   }
 }
 
-/** Client-side advisory availability read. Public, cookie-free, cache-free. */
+// public availability reads stay uncached
 export async function fetchEventAvailability(
   apiBaseUrl: string,
   eventId: string,

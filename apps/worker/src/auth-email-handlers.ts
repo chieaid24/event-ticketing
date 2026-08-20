@@ -37,8 +37,7 @@ function requireUserId(event: OutboxEvent): string {
   return event.payload.userId;
 }
 
-// The worker mints tokens so the plaintext secret never sits in the outbox
-// payload or any log; only its hash reaches the database.
+// keep plaintext tokens out of durable storage
 async function issueToken(
   dependencies: AuthEmailHandlerDependencies,
   input: { purpose: AuthTokenPurpose; ttlSeconds: number; userId: string }
