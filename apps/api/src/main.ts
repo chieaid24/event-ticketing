@@ -6,6 +6,7 @@ import pino from "pino";
 import { loadApiConfig } from "@event-ticketing/config";
 
 import { AppModule } from "./app.module.js";
+import { UnhandledExceptionFilter } from "./unhandled-exception.filter.js";
 
 async function bootstrap(): Promise<void> {
   const config = loadApiConfig();
@@ -37,6 +38,7 @@ async function bootstrap(): Promise<void> {
     methods: ["GET", "PATCH", "POST", "PUT", "DELETE"],
     origin: [...config.trustedOrigins],
   });
+  app.useGlobalFilters(new UnhandledExceptionFilter(logger));
   app.enableShutdownHooks();
   await app.listen(config.port, config.host);
   logger.info({
