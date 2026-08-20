@@ -29,7 +29,9 @@ locals {
 
   runtime_environment = {
     api = {
-      API_COOKIE_SECURE                  = "true"
+      API_COOKIE_SECURE = "true"
+      # X-Azure-FDID carries the profile GUID, not the ARM resource ID.
+      API_FRONT_DOOR_PROFILE_ID          = azurerm_cdn_frontdoor_profile.this.resource_guid
       API_HOST                           = "0.0.0.0"
       API_PORT                           = "4000"
       API_TRUSTED_ORIGINS                = var.public_origin
@@ -162,8 +164,8 @@ resource "azurerm_container_app" "this" {
       }
 
       # Only Front Door may reach the ingress; the subnet NSG enforces the
-      # same service tag. The tag admits any Front Door profile, so the app
-      # must verify X-Azure-FDID against this profile as a follow-up.
+      # same service tag. The tag admits any Front Door profile, so the API
+      # also verifies X-Azure-FDID against this environment's profile GUID.
       ip_security_restriction {
         name             = "front-door"
         action           = "Allow"
