@@ -68,6 +68,10 @@ standard output. Mailpit listens at `http://127.0.0.1:8025`, and the MinIO
 console listens at `http://127.0.0.1:9001`. Press `Ctrl+C` to stop the
 applications, then run `pnpm services:down` to stop local dependencies.
 
+Compose also runs a Turborepo remote cache at `http://127.0.0.1:9080` that
+stores build artifacts in MinIO. Source `.env` before `pnpm build` and turbo
+restores cached task outputs in any checkout or worktree of this repository.
+
 Node.js 24, pnpm 11.17.0, Docker, and Docker Compose are required. The tracked
 defaults use local-only synthetic configuration and require no external
 credentials. Copy `.env.example` only when you need to override a default.

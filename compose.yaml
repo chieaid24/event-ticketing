@@ -74,6 +74,49 @@ services:
     volumes:
       - minio-data:/data
 
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 event-ticketing
+        example-local-only-password && mc mb --ignore-existing local/turbo-cache
+    restart: "no"
+
+  turbo-remote-cache:
+    image: ducktors/turborepo-remote-cache:2.12.0@sha256:d5cd81fc2f289b6c37ad8f3361a9abab5c359577d7809981ece045cefc21756f
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      S3_ACCESS_KEY: event-ticketing
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_SECRET_KEY: example-local-only-password
+      STORAGE_PATH: turbo-cache
+      STORAGE_PROVIDER: s3
+      TURBO_TOKEN: example-local-only-turbo-token
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--output-document=/dev/null",
+          "http://127.0.0.1:3000/v8/artifacts/status",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    ports:
+      - "127.0.0.1:9080:3000"
+
 volumes:
   mailpit-data:
   minio-data:
