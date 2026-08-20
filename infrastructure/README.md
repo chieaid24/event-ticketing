@@ -16,18 +16,25 @@ removes the local database, Redis data, captured email, and MinIO objects.
 
 ## Endpoints
 
-| Service    | Host endpoint           | Purpose                        |
-| ---------- | ----------------------- | ------------------------------ |
-| PostgreSQL | `127.0.0.1:5432`        | authoritative application data |
-| Redis      | `127.0.0.1:6379`        | local coordination and queues  |
-| Mailpit    | `http://127.0.0.1:8025` | captured development email     |
-| MinIO      | `http://127.0.0.1:9000` | S3-compatible object API       |
-| MinIO      | `http://127.0.0.1:9001` | local object console           |
+| Service                | Host endpoint           | Purpose                        |
+| ---------------------- | ----------------------- | ------------------------------ |
+| PostgreSQL             | `127.0.0.1:5432`        | authoritative application data |
+| Redis                  | `127.0.0.1:6379`        | local coordination and queues  |
+| Mailpit                | `http://127.0.0.1:8025` | captured development email     |
+| MinIO                  | `http://127.0.0.1:9000` | S3-compatible object API       |
+| MinIO                  | `http://127.0.0.1:9001` | local object console           |
+| Turborepo remote cache | `http://127.0.0.1:9080` | shared build artifact cache    |
 
 Compose binds every port to loopback, pins every multi-architecture image by
 release tag and digest, and waits for service health checks. The tracked
 passwords are local-only placeholders. Do not reuse them in a shared or deployed
 environment.
+
+The one-shot `minio-init` container creates the `turbo-cache` bucket, and the
+`turbo-remote-cache` service stores Turborepo build artifacts in it through the
+MinIO S3 API. Source the `TURBO_*` values from `.env.example` and `pnpm build`
+reads and writes the shared cache; without them turbo builds with its local
+cache only, which is how CI builds.
 
 The [observability assets](observability/) provide Prometheus alert rules and a
 Grafana dashboard for API traffic, failures, latency, dead letters, and outbox
