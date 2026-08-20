@@ -72,6 +72,11 @@ Compose also runs a Turborepo remote cache at `http://127.0.0.1:9080` that
 stores build artifacts in MinIO. Source `.env` before `pnpm build` and turbo
 restores cached task outputs in any checkout or worktree of this repository.
 
+Prometheus at `http://127.0.0.1:9090` scrapes the running API and evaluates the
+checked-in alert rules, and Grafana at `http://127.0.0.1:3001` serves the
+provisioned dashboard. See
+[docs/operations/observability.md](docs/operations/observability.md).
+
 Node.js 24, pnpm 11.17.0, Docker, and Docker Compose are required. The tracked
 defaults use local-only synthetic configuration and require no external
 credentials. Copy `.env.example` only when you need to override a default.

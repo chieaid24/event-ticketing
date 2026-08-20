@@ -122,6 +122,8 @@ test("local service images and health checks are pinned", async () => {
     "minio",
     "minio-init",
     "turbo-remote-cache",
+    "prometheus",
+    "grafana",
   ];
   // One-shot bootstrap containers exit instead of reporting health.
   const oneShotServices = ["minio-init"];
