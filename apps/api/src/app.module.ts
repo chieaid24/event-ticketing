@@ -30,6 +30,7 @@ import { PgDiscoveryStore } from "./discovery/discovery.store.js";
 import { EventsController } from "./events/events.controller.js";
 import { EventsService } from "./events/events.service.js";
 import { PgEventsStore } from "./events/events.store.js";
+import { FrontDoorVerificationMiddleware } from "./front-door-verification.middleware.js";
 import { RedisHoldExpiryMirror } from "./holds/hold-expiry-mirror.js";
 import { HoldsController } from "./holds/holds.controller.js";
 import { HoldsService } from "./holds/holds.service.js";
@@ -62,6 +63,7 @@ import {
   CHECKOUT_SERVICE,
   CHECKOUT_STORE,
   DATABASE_HEALTH,
+  FRONT_DOOR_PROFILE_ID,
   PAYMENT_GATEWAY,
   PAYMENT_WEBHOOKS_SERVICE,
   PAYMENTS_SIMULATION_SERVICE,
@@ -379,11 +381,19 @@ export class AppModule implements NestModule {
           ) => new HealthService(database, redis, config.dependencyTimeoutMs),
         },
         RequestLoggingMiddleware,
+        {
+          provide: FRONT_DOOR_PROFILE_ID,
+          useValue: config.frontDoorProfileId ?? null,
+        },
+        FrontDoorVerificationMiddleware,
       ],
     };
   }
 
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestLoggingMiddleware).forRoutes("*");
+    // Logging runs first so rejected origins still get request IDs and logs.
+    consumer
+      .apply(RequestLoggingMiddleware, FrontDoorVerificationMiddleware)
+      .forRoutes("*");
   }
 }
