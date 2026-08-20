@@ -35,7 +35,7 @@ private incident details, or production configuration. Read
   </tr>
   <tr>
     <td><strong>Observability</strong></td>
-    <td><img alt="Pino" src="https://img.shields.io/badge/Pino-%23687634?style=for-the-badge&logo=pino&logoColor=%23FFFFFF"> <img alt="Azure Monitor" src="https://img.shields.io/badge/Azure%20Monitor-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="Log Analytics" src="https://img.shields.io/badge/Log%20Analytics-%230062AD?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"></td>
+    <td><img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-%23E6522C?style=for-the-badge&logo=prometheus&logoColor=%23FFFFFF"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-%23F46800?style=for-the-badge&logo=grafana&logoColor=%23FFFFFF"> <img alt="Azure Monitor" src="https://img.shields.io/badge/Azure%20Monitor-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
     <td><strong>Infrastructure</strong></td>
