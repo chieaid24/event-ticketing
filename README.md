@@ -30,16 +30,12 @@ private incident details, or production configuration. Read
     <td><img alt="Stripe" src="https://img.shields.io/badge/Stripe-%23635BFF?style=for-the-badge&logo=stripe&logoColor=%23FFFFFF"> <img alt="Mailpit" src="https://img.shields.io/badge/Mailpit-%232E7D9A?style=for-the-badge&logo=maildotru&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
-    <td><strong>Testing</strong></td>
-    <td><img alt="Vitest" src="https://img.shields.io/badge/Vitest-%236E9F18?style=for-the-badge&logo=vitest&logoColor=%23FFFFFF"> <img alt="Playwright" src="https://img.shields.io/badge/Playwright-%232EAD33?style=for-the-badge&logo=playwright&logoColor=%23FFFFFF"></td>
-  </tr>
-  <tr>
     <td><strong>Observability</strong></td>
     <td><img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-%23E6522C?style=for-the-badge&logo=prometheus&logoColor=%23FFFFFF"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-%23F46800?style=for-the-badge&logo=grafana&logoColor=%23FFFFFF"> <img alt="Azure Monitor" src="https://img.shields.io/badge/Azure%20Monitor-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
     <td><strong>Infrastructure</strong></td>
-    <td><img alt="Docker" src="https://img.shields.io/badge/Docker-%232496ED?style=for-the-badge&logo=docker&logoColor=%23FFFFFF"> <img alt="Terraform" src="https://img.shields.io/badge/Terraform-%23844FBA?style=for-the-badge&logo=terraform&logoColor=%23FFFFFF"> <img alt="Azure Container Apps" src="https://img.shields.io/badge/Azure%20Container%20Apps-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-%232088FF?style=for-the-badge&logo=githubactions&logoColor=%23FFFFFF"> <img alt="Turborepo" src="https://img.shields.io/badge/Turborepo-%23EF4444?style=for-the-badge&logo=turborepo&logoColor=%23FFFFFF"> <img alt="pnpm" src="https://img.shields.io/badge/pnpm-%23F69220?style=for-the-badge&logo=pnpm&logoColor=%23FFFFFF"></td>
+    <td><img alt="Docker" src="https://img.shields.io/badge/Docker-%232496ED?style=for-the-badge&logo=docker&logoColor=%23FFFFFF"> <img alt="Terraform" src="https://img.shields.io/badge/Terraform-%23844FBA?style=for-the-badge&logo=terraform&logoColor=%23FFFFFF"> <img alt="Azure Container Apps" src="https://img.shields.io/badge/Azure%20Container%20Apps-%230078D4?style=for-the-badge&logo=microsoftazure&logoColor=%23FFFFFF"> <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-%232088FF?style=for-the-badge&logo=githubactions&logoColor=%23FFFFFF">
   </tr>
 </table>
 
