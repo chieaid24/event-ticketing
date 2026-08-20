@@ -14,40 +14,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  lint:
-    name: lint deploy script
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: shellcheck scripts/deploy-container-apps.sh
-
-  validate:
-    name: validate ${{ matrix.environment }} deployment
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: [staging, production]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: 1.13.3
-      - run:
-          terraform fmt -check -recursive
-          infrastructure/terraform/environments/${{ matrix.environment }}
-      - run:
-          terraform -chdir=infrastructure/terraform/environments/${{
-          matrix.environment }} init -backend=false
-      - run:
-          terraform -chdir=infrastructure/terraform/environments/${{
-          matrix.environment }} validate
-
-  # The jobs below authenticate to Azure and promote an immutable image. They
-  # stay skipped (not failed) until the AZURE_* repository variables exist, so
-  # every push still lints and validates the deployment without contacting Azure.
+  # These jobs authenticate to Azure and promote an immutable image. They stay
+  # skipped (not failed) until the AZURE_* repository variables exist, so a push
+  # to main is a no-op here until deployment is configured. The shellcheck and
+  # terraform fmt/init/validate checks this workflow used to run now live in CI
+  # (ci.yml), which already validates foundation, staging, and production.
   build:
     name: build immutable image
-    needs: [lint, validate]
     if: ${{ vars.AZURE_CLIENT_ID_BUILD != '' }}
     runs-on: ubuntu-latest
     outputs:
