@@ -85,9 +85,11 @@ verifies migration history, transaction rollback, and a temporary
 and live HTTP security probes.
 
 Run the public-read k6 scenario from the pinned container command in the
-[release load report](../load-tests/2026-07-31-release-verification.md). Keep
-authenticated mutation and provider-webhook load in a private environment that
-can supply per-user sessions and provider secrets.
+[release load report](../load-tests/2026-07-31-release-verification.md). Run the
+authenticated purchase-flow scenario locally against the fake payment provider
+per the [purchase-flow load report](../load-tests/2026-08-20-purchase-flow.md);
+real provider-webhook load still belongs in a private environment that can
+supply provider secrets.
 
 The [release verification report](2026-07-31-release-verification.md) records
 the measured browser, security, concurrency, migration, rollback, and

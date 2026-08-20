@@ -19,6 +19,7 @@ describe("application configuration", () => {
       paymentProvider: "fake",
       paymentWebhookSecret: "whsec_local_development_only",
       port: 4000,
+      rateLimitsDisabled: false,
       redisUrl: "redis://127.0.0.1:6379",
       sessionAbsoluteTtlSeconds: 2_592_000,
       sessionIdleTtlSeconds: 86_400,
@@ -147,7 +148,11 @@ describe("production secret requirements", () => {
   it("rejects missing api secrets in production", () => {
     expect(() => loadApiConfig({ NODE_ENV: "production" })).toThrow(
       expect.objectContaining({
-        variables: ["PAYMENT_WEBHOOK_SECRET", "WAITING_ROOM_TOKEN_SECRET"],
+        variables: [
+          "PAYMENT_PROVIDER",
+          "PAYMENT_WEBHOOK_SECRET",
+          "WAITING_ROOM_TOKEN_SECRET",
+        ],
       })
     );
   });
@@ -156,6 +161,7 @@ describe("production secret requirements", () => {
     expect(() =>
       loadApiConfig({
         NODE_ENV: "production",
+        PAYMENT_PROVIDER: "stripe",
         PAYMENT_WEBHOOK_SECRET: "whsec_local_development_only",
         WAITING_ROOM_TOKEN_SECRET: "local-waiting-room-secret-only-32-bytes",
       })
@@ -166,10 +172,13 @@ describe("production secret requirements", () => {
     );
   });
 
-  it("accepts production once both secrets are explicit", () => {
+  it("accepts production once secrets and the provider are explicit", () => {
     const config = loadApiConfig({
       NODE_ENV: "production",
+      PAYMENT_PROVIDER: "stripe",
       PAYMENT_WEBHOOK_SECRET: "whsec_example_value",
+      STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+      STRIPE_SECRET_KEY: "sk_test_example",
       WAITING_ROOM_TOKEN_SECRET: "an-explicit-secret-of-32-characters!",
     });
     expect(config.paymentWebhookSecret).toBe("whsec_example_value");
@@ -181,6 +190,76 @@ describe("production secret requirements", () => {
   it("keeps development defaults outside production", () => {
     expect(loadApiConfig({ NODE_ENV: "test" }).paymentWebhookSecret).toBe(
       "whsec_local_development_only"
+    );
+  });
+});
+
+describe("production refuses local-only surfaces", () => {
+  const productionStripeEnvironment = {
+    NODE_ENV: "production",
+    PAYMENT_PROVIDER: "stripe",
+    PAYMENT_WEBHOOK_SECRET: "whsec_example_value",
+    STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    STRIPE_SECRET_KEY: "sk_test_example",
+    WAITING_ROOM_TOKEN_SECRET: "an-explicit-secret-of-32-characters!",
+  };
+
+  it("rejects the fake payment provider in production", () => {
+    expect(() =>
+      loadApiConfig({
+        ...productionStripeEnvironment,
+        PAYMENT_PROVIDER: "fake",
+      })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["PAYMENT_PROVIDER"],
+      })
+    );
+    expect(() =>
+      loadWorkerConfig({ NODE_ENV: "production", PAYMENT_PROVIDER: "fake" })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["PAYMENT_PROVIDER"],
+      })
+    );
+    expect(() => loadWorkerConfig({ NODE_ENV: "production" })).toThrow(
+      expect.objectContaining({
+        variables: ["PAYMENT_PROVIDER"],
+      })
+    );
+  });
+
+  it("accepts stripe worker configuration in production", () => {
+    const config = loadWorkerConfig({
+      NODE_ENV: "production",
+      PAYMENT_PROVIDER: "stripe",
+      STRIPE_SECRET_KEY: "sk_test_example",
+    });
+    expect(config.paymentProvider).toBe("stripe");
+  });
+
+  it("rejects the rate-limit bypass in production", () => {
+    expect(() =>
+      loadApiConfig({
+        ...productionStripeEnvironment,
+        API_RATE_LIMITS_DISABLED: "true",
+      })
+    ).toThrow(
+      expect.objectContaining({
+        variables: ["API_RATE_LIMITS_DISABLED"],
+      })
+    );
+  });
+
+  it("accepts the rate-limit bypass outside production", () => {
+    expect(loadApiConfig({}).rateLimitsDisabled).toBe(false);
+    expect(
+      loadApiConfig({ API_RATE_LIMITS_DISABLED: "true" }).rateLimitsDisabled
+    ).toBe(true);
+    expect(() => loadApiConfig({ API_RATE_LIMITS_DISABLED: "yes" })).toThrow(
+      expect.objectContaining({
+        variables: ["API_RATE_LIMITS_DISABLED"],
+      })
     );
   });
 });

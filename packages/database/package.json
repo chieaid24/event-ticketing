@@ -14,6 +14,7 @@
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate deploy --config prisma.config.ts",
     "db:seed": "prisma db seed --config prisma.config.ts",
+    "db:seed:load": "node prisma/seed-load.mjs",
     "lint": "eslint src",
     "test": "vitest run src",
     "test:integration": "tsx scripts/run-integration-tests.ts",

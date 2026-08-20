@@ -88,6 +88,9 @@ const apiConfigSchema = z
     paymentProvider: paymentProviderSchema,
     paymentWebhookSecret: paymentWebhookSecretSchema,
     port: z.coerce.number().int().min(1).max(65_535).default(4000),
+    // Load-testing bypass for per-IP limits; production refuses it (see
+    // assertProductionApiConfiguration).
+    rateLimitsDisabled: booleanFlagSchema.default(false),
     redisUrl: redisUrlSchema.default("redis://127.0.0.1:6379"),
     sessionAbsoluteTtlSeconds: z.coerce
       .number()
@@ -289,7 +292,17 @@ const productionRequiredApiSecrets: Readonly<Record<string, string>> = {
   WAITING_ROOM_TOKEN_SECRET: developmentWaitingRoomTokenSecret,
 };
 
-function assertProductionApiSecrets(environment: NodeJS.ProcessEnv): void {
+// Production must select Stripe explicitly: the schema default is "fake",
+// which mounts the simulated payment surface (/payments/simulate).
+function requiresExplicitStripeProvider(
+  environment: NodeJS.ProcessEnv
+): boolean {
+  return environment["PAYMENT_PROVIDER"] !== "stripe";
+}
+
+function assertProductionApiConfiguration(
+  environment: NodeJS.ProcessEnv
+): void {
   if (environment["NODE_ENV"] !== "production") {
     return;
   }
@@ -299,18 +312,38 @@ function assertProductionApiSecrets(environment: NodeJS.ProcessEnv): void {
       const value = environment[name];
       return !value || value === developmentDefault;
     })
-    .map(([name]) => name)
-    .sort();
+    .map(([name]) => name);
+
+  if (requiresExplicitStripeProvider(environment)) {
+    variables.push("PAYMENT_PROVIDER");
+  }
+
+  // The rate-limit bypass exists for local load testing only.
+  if (environment["API_RATE_LIMITS_DISABLED"] === "true") {
+    variables.push("API_RATE_LIMITS_DISABLED");
+  }
 
   if (variables.length > 0) {
-    throw new ConfigurationError("api", variables);
+    throw new ConfigurationError("api", variables.sort());
+  }
+}
+
+function assertProductionWorkerConfiguration(
+  environment: NodeJS.ProcessEnv
+): void {
+  if (environment["NODE_ENV"] !== "production") {
+    return;
+  }
+
+  if (requiresExplicitStripeProvider(environment)) {
+    throw new ConfigurationError("worker", ["PAYMENT_PROVIDER"]);
   }
 }
 
 export function loadApiConfig(
   environment: NodeJS.ProcessEnv = process.env
 ): ApiConfig {
-  assertProductionApiSecrets(environment);
+  assertProductionApiConfiguration(environment);
   return parseConfig(
     "api",
     apiConfigSchema,
@@ -324,6 +357,7 @@ export function loadApiConfig(
       paymentProvider: environment["PAYMENT_PROVIDER"],
       paymentWebhookSecret: environment["PAYMENT_WEBHOOK_SECRET"],
       port: environment["API_PORT"],
+      rateLimitsDisabled: environment["API_RATE_LIMITS_DISABLED"],
       redisUrl: environment["REDIS_URL"],
       sessionAbsoluteTtlSeconds: environment["SESSION_ABSOLUTE_TTL_SECONDS"],
       sessionIdleTtlSeconds: environment["SESSION_IDLE_TTL_SECONDS"],
@@ -348,6 +382,7 @@ export function loadApiConfig(
       paymentProvider: "PAYMENT_PROVIDER",
       paymentWebhookSecret: "PAYMENT_WEBHOOK_SECRET",
       port: "API_PORT",
+      rateLimitsDisabled: "API_RATE_LIMITS_DISABLED",
       redisUrl: "REDIS_URL",
       sessionAbsoluteTtlSeconds: "SESSION_ABSOLUTE_TTL_SECONDS",
       sessionIdleTtlSeconds: "SESSION_IDLE_TTL_SECONDS",
@@ -381,6 +416,7 @@ export function loadWebConfig(
 export function loadWorkerConfig(
   environment: NodeJS.ProcessEnv = process.env
 ): WorkerConfig {
+  assertProductionWorkerConfiguration(environment);
   return parseConfig(
     "worker",
     workerConfigSchema,
