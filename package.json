@@ -11,6 +11,7 @@
     "db:generate": "pnpm --filter @event-ticketing/database db:generate",
     "db:migrate": "pnpm --filter @event-ticketing/database db:migrate",
     "db:seed": "pnpm --filter @event-ticketing/database db:seed",
+    "db:seed:load": "pnpm --filter @event-ticketing/database db:seed:load",
     "dev": "turbo run dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
