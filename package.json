@@ -24,7 +24,7 @@
     "test:integration": "pnpm --filter @event-ticketing/database test:integration",
     "test:races": "node scripts/repeat-integration.mjs",
     "test:recovery": "node scripts/verify-local-recovery.mjs",
-    "typecheck": "pnpm db:generate && turbo run typecheck",
+    "typecheck": "turbo run typecheck",
     "prepare": "husky"
   },
   "devDependencies": {
