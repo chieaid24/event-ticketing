@@ -108,6 +108,14 @@ terraform -chdir="$TF_ROOT" plan \
 terraform -chdir="$TF_ROOT" apply "$TF_PLAN"
 ```
 
+The platform module wires the environment's Front Door profile GUID into the API
+container app as `API_FRONT_DOOR_PROFILE_ID`. With that variable set, the API
+rejects requests whose `X-Azure-FDID` header does not match, so traffic from any
+other Front Door profile stops at the API even though the
+`AzureFrontDoor.Backend` service tag admits it. Health probes and the metrics
+scrape bypass Front Door and stay exempt; local development leaves the variable
+unset, which disables verification.
+
 Re-apply the foundation with `deployment_scopes` pointing at the environment
 resource group so the matching deploy identity can manage it.
 
