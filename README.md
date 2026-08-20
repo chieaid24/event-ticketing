@@ -18,12 +18,8 @@ private incident details, or production configuration. Read
 
 <table>
   <tr>
-    <td><strong>Backend</strong></td>
-    <td><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%233178C6?style=for-the-badge&logo=typescript&logoColor=%23FFFFFF"> <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%235FA04E?style=for-the-badge&logo=nodedotjs&logoColor=%23FFFFFF"> <img alt="NestJS" src="https://img.shields.io/badge/NestJS-%23E0234E?style=for-the-badge&logo=nestjs&logoColor=%23FFFFFF"> <img alt="Zod" src="https://img.shields.io/badge/Zod-%233E67B1?style=for-the-badge&logo=zod&logoColor=%23FFFFFF"></td>
-  </tr>
-  <tr>
-    <td><strong>Frontend</strong></td>
-    <td><img alt="Next.js" src="https://img.shields.io/badge/Next.js-black?style=for-the-badge&logo=nextdotjs&logoColor=%23FFFFFF"> <img alt="React" src="https://img.shields.io/badge/React-%2361DAFB?style=for-the-badge&logo=react&logoColor=%23000000"> <img alt="CSS" src="https://img.shields.io/badge/CSS-%23663399?style=for-the-badge&logo=css&logoColor=%23FFFFFF"></td>
+    <td><strong>Application</strong></td>
+    <td><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%233178C6?style=for-the-badge&logo=typescript&logoColor=%23FFFFFF"> <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%235FA04E?style=for-the-badge&logo=nodedotjs&logoColor=%23FFFFFF"> <img alt="NestJS" src="https://img.shields.io/badge/NestJS-%23E0234E?style=for-the-badge&logo=nestjs&logoColor=%23FFFFFF"> <img alt="Next.js" src="https://img.shields.io/badge/Next.js-black?style=for-the-badge&logo=nextdotjs&logoColor=%23FFFFFF"></td>
   </tr>
   <tr>
     <td><strong>Data / Messaging</strong></td>
