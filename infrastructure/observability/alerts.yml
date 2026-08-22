@@ -43,7 +43,7 @@ groups:
           severity: critical
         annotations:
           summary: Event Ticketing background job reached its attempt limit
-          runbook: docs/runbooks/dead-letter-jobs.md
+          runbook: docs/operations/observability.md
       - alert: EventTicketingOutboxBacklog
         expr: event_ticketing_outbox_oldest_ready_age_seconds > 300
         for: 10m
@@ -51,4 +51,4 @@ groups:
           severity: warning
         annotations:
           summary: Event Ticketing ready job has waited more than five minutes
-          runbook: docs/runbooks/dead-letter-jobs.md
+          runbook: docs/operations/observability.md
