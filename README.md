@@ -1,15 +1,41 @@
-# Event Ticketing Platform
+<h1 align="left"> Event Ticketing Platform </h1>
 
-Event Ticketing Platform is a production-style event ticketing and venue
-management platform. Organizers publish events, customers reserve and buy
-inventory, and venue staff validate QR tickets without trusting client-side
-state.
+Sells reserved seats and general-admission tickets for live events.
 
-The repository contains a runnable TypeScript monorepo with a Next.js web
-application, a NestJS API, a worker process, and shared packages.
+Holds, checkout, payments, refunds, and QR check-in, with PostgreSQL as the only
+authority on inventory.
 
-This is a public repository. Never commit secrets, credentials, personal data,
-private incident details, or production configuration.
+Built for real production workloads with Azure Container Apps, a transactional
+outbox, and end-to-end observability.
+
+[![CI](https://img.shields.io/github/actions/workflow/status/chieaid24/event-ticketing/ci.yml?branch=main&label=CI)](https://github.com/chieaid24/event-ticketing/actions/workflows/ci.yml)
+
+## Technical Highlights
+
+**Infrastructure**
+
+- Azure architecture is **100% Infrastructure as Code** with Terraform, promoted
+  through GitHub Actions.
+- **Cloud-native Container Apps** with KEDA autoscaling, zone redundancy, and
+  digest-pinned rolling deployments.
+
+**CI/CD**
+
+- Automated **GitHub Actions** pipeline that validates every workspace -> runs
+  the race, recovery, and E2E suites -> builds one immutable image -> promotes
+  staging, then production.
+- **GitHub OIDC** federated identity on every Azure call, so no stored cloud
+  credentials.
+
+**Observability**
+
+- Full **Prometheus + Grafana stack** with a provisioned dashboard, five
+  checked-in alert rules, and trace-correlated JSON logs.
+
+**Data Layer**
+
+- **PostgreSQL is authoritative** for inventory, orders, and background jobs;
+  **Redis** carries rate limits and the waiting room, and fails open.
 
 ## Tools Used
 
@@ -33,82 +59,347 @@ private incident details, or production configuration.
   </tr>
 </table>
 
-## Run locally
+## Functional Overview
+
+**Ticketing Pipeline**
+
+- Reserves **assigned seats and general admission** under concurrency: race
+  tests prove 100 rival requests for one seat produce exactly one winner.
+- Expires holds inside PostgreSQL after 10 minutes, with a 15-minute grace
+  window so in-flight payments still finalize.
+- Shields on-sale spikes with an optional **Redis waiting room** that issues
+  HMAC-signed admission tokens.
+
+**Payments**
+
+- Charges through **Stripe or a built-in fake provider**; both deliver webhooks
+  over the same HMAC-SHA256 verification path with replay dedup.
+- Finalizes orders through the **transactional outbox**: webhook receipt and job
+  enqueue commit in one transaction, and the worker retries with exponential
+  backoff into a dead-letter queue.
+- Handles **customer and organizer refunds** with idempotency keys and per-event
+  cutoff windows.
+
+**Ticket Validation**
+
+- Issues **rotating QR bearer tokens** - only the SHA-256 hash is stored, and
+  every reveal rotates the token.
+- Scans with a **camera scanner** (jsQR) or manual code entry: duplicate,
+  wrong-event, refunded, and void verdicts, reversals, and an append-only scan
+  log.
+
+**Web and Auth**
+
+- **Next.js storefront and back office** - discovery, checkout, organizer
+  console, operations analytics, and the door scanner.
+- Handles auth with **opaque cookie sessions** - argon2id passwords,
+  double-submit CSRF, and six per-organization roles from owner to scanner.
+
+## Azure-Specific Architecture
+
+Application runs on Azure Container Apps behind Front Door Premium, with managed
+PostgreSQL Flexible Server and Managed Redis.
+
+- Web and API autoscale on HTTP concurrency; the worker scales on a KEDA
+  PostgreSQL query over the outbox backlog.
+- Every data service disables public network access and is reachable only over
+  VNet private endpoints; the API rejects any request that did not come through
+  Front Door.
+- Infrastructure defined in Terraform (foundation + staging + production), and
+  both environments run the same sha256-digest image.
+
+```
+              Azure Front Door Premium + WAF (Prevention)
+                     |                       |
+               web endpoint             api endpoint
+                     |                       |
+         Container Apps environment (VNet, zone redundant)
+                     |                       |
+        +------------+-----------+-----------+-----------+
+        |            |           |                       |
+   web (Next.js)  api (NestJS)  worker (outbox)     migrate job
+        |            |           |                       |
+        +------ user-assigned managed identity ----------+
+                  |               |                |
+                  v               v                v
+           PostgreSQL 17     Managed Redis    Key Vault + Blob
+        (zone-redundant HA,  (private          (private
+         pgbouncer)           endpoint)         endpoints)
+
+        GitHub Actions --OIDC--> ACR (Premium, digest-pinned pulls)
+```
+
+## Feature Details
+
+<details>
+<summary><strong>Services</strong></summary>
+
+<br>
+
+| Service | Port | Persistence       | What it does                                                                                                                                                       |
+| ------- | ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| web     | 3000 | -                 | Server-rendered Next.js storefront, organizer console, and scanner. Talks to the API over HTTP only; ingress restricted to Front Door.                             |
+| api     | 4000 | PostgreSQL, Redis | NestJS HTTP boundary for discovery, auth, holds, waiting room, checkout, payment webhooks, refunds, tickets, scanning, and operations. Raw SQL over a pg pool.     |
+| worker  | -    | PostgreSQL        | Drains the transactional outbox with 12 handlers: payment finalization, refunds, auth email, notifications, and a 60 s hold-expiry sweep. Scales on backlog depth. |
+
+</details>
+
+<details>
+<summary><strong>Frontend</strong></summary>
+
+<br>
+
+Next.js 16 App Router (TypeScript) served by the web container app; pages hold
+no database access and go through the API for everything.
+
+### Auth
+
+- **Opaque cookie sessions** - argon2id password hashes, httpOnly session
+  cookie, double-submit CSRF token, and an Origin allowlist on every mutation.
+- **Route protection** - signed-out visitors redirect to `/login`; ticket and
+  scanner pages are noindexed and served no-store.
+
+### Pages
+
+| Route                                        | Description                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| `/events`                                    | Public discovery with search and timeframe filters                 |
+| `/events/[eventId]`                          | Event detail with live seat and general-admission availability     |
+| `/checkout/[holdId]`                         | Stripe payment element, or simulation buttons on the fake provider |
+| `/orders/[orderId]`                          | Order status with a payment-processing poll                        |
+| `/account/tickets`                           | Ticket list with one-time QR reveal                                |
+| `/organizations/[organizationId]`            | Members, roles, settings, and audit log                            |
+| `/organizations/[organizationId]/operations` | Analytics plus an outbox job console with dead-letter retry        |
+| `/scan/[organizationId]/[eventId]`           | Camera QR scanner with manual entry and check-in reversal          |
+
+</details>
+
+<details>
+<summary><strong>Observability</strong></summary>
+
+<br>
+
+All services emit structured JSON logs; the API also serves Prometheus metrics.
+
+```
+api
+  |-- GET /metrics (Prometheus text) ------> Prometheus ------> Grafana
+  |-- pino JSON (request_id, trace_id) ----> stdout ----------> Log Analytics
+worker
+  |-- JSON cycle events -------------------> stdout ----------> Log Analytics
+```
+
+- **Metrics** - Prometheus scrapes `/metrics` every 15 s: HTTP request counters
+  and latency histograms plus live outbox gauges, with dynamic path segments
+  normalized to bound cardinality.
+- **Logs** - one JSON line per request carrying `duration_ms`, `status_code`,
+  `request_id`, and a W3C `traceparent`-compatible `trace_id`, both echoed on
+  the response.
+- **Alerts** - five checked-in rules: API down, 5xx ratio above 2%, p95 above 1
+  s, any dead-letter job, and a ready job older than 5 minutes.
+
+### Provisioned Dashboard
+
+| Panel                    | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| Request rate             | HTTP request throughput                              |
+| Server error rate        | Share of 5xx responses                               |
+| Request latency          | p95 from the duration histogram                      |
+| Background jobs by state | Outbox gauges: ready, delayed, retrying, dead-letter |
+| Oldest ready job         | Backlog age that also drives the worker scale rule   |
+
+Operating notes live in
+[docs/operations/observability.md](docs/operations/observability.md).
+
+</details>
+
+<details>
+<summary><strong>CI/CD Pipeline</strong></summary>
+
+<br>
+
+### Overview
+
+```
+pull request / push to main
+    |
+    v
+ci.yml
+    |-- format -> lint -> typecheck -> build -> unit tests   (cheapest first)
+    |-- shellcheck + terraform fmt/validate (foundation, staging, production)
+    |-- docker compose up -> migrate -> seed -> races x3 -> recovery -> e2e
+    |-- image build -> API smoke test -> gitleaks secret scan
+    v
+deploy.yml (push to main, or manual)
+    |-- build       OIDC login -> ACR; skipped when the commit digest exists
+    |-- staging     migration job -> web/api/worker on the digest -> smoke
+    |-- production  same script, same digest, only after staging succeeds
+```
+
+- **Immutable digests** - the deploy script rejects any image reference without
+  a sha256 digest, and a failed migration leaves the old revisions serving.
+- **Concurrency guard** - one deploy run at a time, never cancelled
+  mid-promotion.
+- **Secret scanning** - gitleaks runs on every CI build.
+
+All workflows use **GitHub OIDC** federated identity, so no stored Azure
+credentials.
+
+</details>
+
+<details>
+<summary><strong>Production Hardening</strong></summary>
+
+<br>
+
+| Feature                | Configuration                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Autoscaling**        | web/api scale at 50 concurrent requests up to 4x baseline; worker scales on a KEDA outbox-backlog query    |
+| **WAF**                | Front Door Premium in Prevention mode: Microsoft default + bot rule sets, 2000 req / 5 min per-IP limit    |
+| **Private networking** | PostgreSQL, Redis, Key Vault, and Blob disable public access; private endpoints and delegated subnets only |
+| **Origin lock**        | API returns 403 without the Front Door profile header; NSG admits only Front Door on 443                   |
+| **Zone redundancy**    | Container Apps environment, ACR, and PostgreSQL ZoneRedundant HA with a standby zone                       |
+| **Secrets**            | Key Vault references resolved by a user-assigned managed identity; no literals in Terraform or app config  |
+| **Config guards**      | Production boot refuses dev secrets, disabled rate limits, and any payment provider except Stripe          |
+| **Data protection**    | 35-day PostgreSQL backups, blob versioning, CanNotDelete locks on the database and artifact store          |
+| **Rate limiting**      | Per-route Redis budgets on every endpoint, from login at 10/min to scanner devices at 60/min               |
+
+</details>
+
+<details>
+<summary><strong>Deployments (Azure / Local)</strong></summary>
+
+<br>
+
+Production runs on Azure Container Apps; a Docker Compose stack covers local
+development. Both run the same image, whose entrypoint selects `web`, `api`,
+`worker`, or `migrate`.
+
+### Azure Resources (Terraform)
+
+| Resource                   | Details                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| VNet                       | Delegated subnets for Container Apps and PostgreSQL, private-endpoint subnet, NAT egress   |
+| Container Apps             | Zone-redundant environment: web, api, worker, and a manual migration job                   |
+| PostgreSQL Flexible Server | v17, D2ds_v5 (staging) / D4ds_v5 (production), ZoneRedundant HA, pgbouncer, 35-day backups |
+| Managed Redis              | Balanced B1 (staging) / B10 (production), high availability, TLS-only, private endpoint    |
+| Blob Storage               | ZRS, versioned, 30-day delete retention, shared keys disabled                              |
+| Key Vault                  | RBAC-only, purge protection, private endpoint                                              |
+| ACR                        | Premium, zone redundant, anonymous pull disabled                                           |
+| Front Door Premium         | WAF in Prevention mode, health-probed origin groups, HTTPS-only routes                     |
+| Communication Services     | Azure-managed email domain for verification and notification mail                          |
+| Log Analytics              | 30-day retention, PostgreSQL and Front Door diagnostics, Front Door 5xx metric alert       |
+| Federated identities       | Build and per-environment deploy identities for GitHub OIDC                                |
+
+### Deploy from Scratch
 
 ```bash
-corepack enable
-pnpm install
-pnpm services:up
-pnpm db:migrate
-pnpm db:seed
+# 1. shared delivery resources (ACR, GitHub OIDC identities)
+cd infrastructure/terraform/foundation
+terraform init && terraform apply
+
+# 2. environment stack (repeat under environments/production)
+cd ../environments/staging
+terraform init && terraform apply
+
+# 3. set the repository's Azure variables, then push to main;
+#    deploy.yml builds the image and promotes staging -> production
+```
+
+### Teardown
+
+```bash
+# CanNotDelete locks guard the database and artifact store:
+# apply with deletion_protection = false first, then destroy
+terraform destroy
+```
+
+### Run Locally
+
+```bash
+corepack enable && pnpm install
+pnpm services:up    # postgres, redis, mailpit, minio, turbo cache, prometheus, grafana
+pnpm db:migrate && pnpm db:seed
 pnpm dev
 ```
 
-Open `http://127.0.0.1:3000` for the web status page. The API listens at
-`http://127.0.0.1:4000`, and the worker writes structured lifecycle events to
-standard output. Mailpit listens at `http://127.0.0.1:8025`, and the MinIO
-console listens at `http://127.0.0.1:9001`. Press `Ctrl+C` to stop the
-applications, then run `pnpm services:down` to stop local dependencies.
+Web at `http://127.0.0.1:3000`, API at `:4000`, Mailpit at `:8025`, MinIO
+console at `:9001`, Prometheus at `:9090`, Grafana at `:3001`, and the Turborepo
+remote cache at `:9080`. Tracked defaults are local-only synthetic
+configuration; copy `.env.example` only to override one. `pnpm services:down`
+stops everything.
 
-Compose also runs a Turborepo remote cache at `http://127.0.0.1:9080` that
-stores build artifacts in MinIO. Source `.env` before `pnpm build` and turbo
-restores cached task outputs in any checkout or worktree of this repository.
-
-Prometheus at `http://127.0.0.1:9090` scrapes the running API and evaluates the
-checked-in alert rules, and Grafana at `http://127.0.0.1:3001` serves the
-provisioned dashboard. See
-[docs/operations/observability.md](docs/operations/observability.md).
-
-Node.js 24, pnpm 11.17.0, Docker, and Docker Compose are required. The tracked
-defaults use local-only synthetic configuration and require no external
-credentials. Copy `.env.example` only when you need to override a default.
-
-## Validate the repository
+### Validate
 
 ```bash
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm test:integration    # isolated PostgreSQL schema + Redis key prefix
+pnpm test:races && pnpm test:recovery
+pnpm exec playwright install chromium && pnpm test:e2e
 ```
 
-These commands format-check every file, lint and type-check each workspace,
-execute repository and unit tests, and build all applications and packages. Run
-`pnpm test:integration` while PostgreSQL and Redis are running to apply the
-migration and seed in an isolated PostgreSQL schema and Redis key prefix.
+</details>
 
-Run the release verification suites while the local services are running:
+<details>
+<summary><strong>Correctness and Recovery</strong></summary>
 
-```bash
-pnpm test:races
-pnpm test:recovery
-pnpm exec playwright install chromium
-pnpm test:e2e
+<br>
+
+- **Race suite** (`pnpm test:races`) repeats the isolated integration suite
+  three times: 100 concurrent claims on one seat yield exactly one winner,
+  general-admission counters never oversell, idempotency-key replays collapse to
+  one hold, and two workers never double-claim an outbox job.
+- **Recovery drill** (`pnpm test:recovery`) proves transaction rollback, dumps
+  the live database with `pg_dump`, restores into a throwaway database, and
+  compares row counts before dropping it.
+- **Schema isolation** - every integration run creates its own PostgreSQL schema
+  and Redis key prefix, then drops both on exit.
+- **Invariant checker** - 8 SQL checks (oversold counters, double-booked seats,
+  orphan tickets, dead holds still reserving) run against load-test output: 0
+  violations across 9,300 paid orders and 13,864 tickets.
+
+</details>
+
+## Load Testing
+
+I load-tested the purchase flow with k6 against the built API and worker: 50
+virtual users completed 1,117 purchases at 10.2/s with zero failed checks, and
+the invariant checker found nothing oversold across 9,300 cumulative paid
+orders. The bottleneck worth reading about: a synchronous analytics trigger
+serialized every purchase on one hot row until a deferred-trigger migration cut
+hold p95 from 19 s to 108 ms. Reports live in `docs/load-tests/`, starting with
+[the purchase-flow run](docs/load-tests/2026-08-20-purchase-flow.md).
+
+## Project Layout
+
 ```
-
-The race runner repeats the isolated integration suite three times by default.
-Set `RACE_RUNS` from 1 through 20 to change the repetition count. The recovery
-runner creates and removes a temporary PostgreSQL database after comparing a
-restored backup with the source. Playwright starts the web, API, and worker
-processes and exercises the complete fake-provider release journey.
-
-## Codebase
-
-```text
 apps/
-  web/       Next.js customer, organizer, scanner, and admin UI
-  api/       NestJS REST API and domain services
-  worker/    PostgreSQL outbox processors and schedules
+  web/          # Next.js 16 storefront, organizer console, scanner (App Router)
+  api/          # NestJS REST API: auth, holds, checkout, webhooks, tickets, scanning
+  worker/       # outbox poll loop: payments, refunds, emails, hold-expiry sweep
 packages/
-  contracts/ Shared Zod request and response contracts
-  database/  Prisma schema, migrations, seeds, and inventory repositories
-  config/    Validated environment configuration
-  ui/        Shared accessible UI components
+  contracts/    # shared Zod request and response contracts
+  database/     # Prisma schema, migrations, seeds, raw-SQL stores, outbox
+  payments/     # Stripe and fake gateways, shared webhook signature verification
+  config/       # validated environment configuration with production guards
+  ui/           # shared accessible UI components
   test-utils/
 infrastructure/
-  container/ Dockerfile for the shared runtime image
-  observability/ Prometheus, Grafana, and alert configuration
-  terraform/ Azure delivery, staging, and production infrastructure
-docs/        Load-test reports and observability operations
+  container/        # digest-pinned Dockerfile; one image runs web, api, worker, migrate
+  observability/    # prometheus.yml, alerts.yml, provisioned Grafana dashboard
+  terraform/
+    foundation/     # shared delivery: ACR + GitHub OIDC identities
+    environments/   # staging and production stacks over the shared modules
+    modules/        # network, data, platform
+scripts/
+  deploy-container-apps.sh    # digest-only promotion: migrate job -> apps -> smoke
+  repeat-integration.mjs      # race suite behind pnpm test:races
+  verify-local-recovery.mjs   # backup and restore drill behind pnpm test:recovery
+docs/
+  load-tests/     # k6 purchase-flow, public-read, and waiting-room reports
+  operations/     # observability runbook
+.github/workflows/
+  ci.yml          # format -> lint -> types -> build -> tests -> compose E2E -> gitleaks
+  deploy.yml      # OIDC build to ACR, digest promotion: staging -> production
+compose.yaml      # postgres, redis, mailpit, minio, turbo cache, prometheus, grafana
 ```
