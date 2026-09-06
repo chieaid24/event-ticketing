@@ -110,29 +110,29 @@ PostgreSQL Flexible Server and Managed Redis.
 
 ```
               Azure Front Door Premium + WAF (Prevention)
-                     |                       |
+                     │                       │
                web endpoint             api endpoint
-                     |                       |
+                     │                       │
          Container Apps environment (VNet, zone redundant)
-                     |                       |
-        +------------+-----------+-----------+-----------+
-        |            |           |                       |
+                     │                       │
+        ┌────────────┼───────────┬───────────┴───────────┐
+        │            │           │                       │
    web (Next.js)  api (NestJS)  worker (outbox)     migrate job
-        |            |           |                       |
-        +------ user-assigned managed identity ----------+
-                  |               |                |
-                  v               v                v
+        │            │           │                       │
+        └────── user-assigned managed identity ──────────┘
+                  │               │                │
+                  ▼               ▼                ▼
            PostgreSQL 17     Managed Redis    Key Vault + Blob
         (zone-redundant HA,  (private          (private
          pgbouncer)           endpoint)         endpoints)
 
-        GitHub Actions --OIDC--> ACR (Premium, digest-pinned pulls)
+        GitHub Actions ──OIDC──► ACR (Premium, digest-pinned pulls)
 ```
 
 ## Feature Details
 
 <details>
-<summary><strong>Services</strong></summary>
+<summary><strong>⚙️ Services</strong></summary>
 
 <br>
 
@@ -145,7 +145,7 @@ PostgreSQL Flexible Server and Managed Redis.
 </details>
 
 <details>
-<summary><strong>Frontend</strong></summary>
+<summary><strong>🎨 Frontend</strong></summary>
 
 <br>
 
@@ -175,7 +175,7 @@ no database access and go through the API for everything.
 </details>
 
 <details>
-<summary><strong>Observability</strong></summary>
+<summary><strong>🔍 Observability</strong></summary>
 
 <br>
 
@@ -183,10 +183,10 @@ All services emit structured JSON logs; the API also serves Prometheus metrics.
 
 ```
 api
-  |-- GET /metrics (Prometheus text) ------> Prometheus ------> Grafana
-  |-- pino JSON (request_id, trace_id) ----> stdout ----------> Log Analytics
+  ├── GET /metrics (Prometheus text) ──────► Prometheus ──────► Grafana
+  └── pino JSON (request_id, trace_id) ────► stdout ──────────► Log Analytics
 worker
-  |-- JSON cycle events -------------------> stdout ----------> Log Analytics
+  └── JSON cycle events ───────────────────► stdout ──────────► Log Analytics
 ```
 
 - **Metrics** - Prometheus scrapes `/metrics` every 15 s: HTTP request counters
@@ -214,7 +214,7 @@ Operating notes live in
 </details>
 
 <details>
-<summary><strong>CI/CD Pipeline</strong></summary>
+<summary><strong>🚀 CI/CD Pipeline</strong></summary>
 
 <br>
 
@@ -222,18 +222,18 @@ Operating notes live in
 
 ```
 pull request / push to main
-    |
-    v
+    │
+    ▼
 ci.yml
-    |-- format -> lint -> typecheck -> build -> unit tests   (cheapest first)
-    |-- shellcheck + terraform fmt/validate (foundation, staging, production)
-    |-- docker compose up -> migrate -> seed -> races x3 -> recovery -> e2e
-    |-- image build -> API smoke test -> gitleaks secret scan
-    v
+    ├── format ► lint ► typecheck ► build ► unit tests   (cheapest first)
+    ├── shellcheck + terraform fmt/validate (foundation, staging, production)
+    ├── docker compose up ► migrate ► seed ► races x3 ► recovery ► e2e
+    ├── image build ► API smoke test ► gitleaks secret scan
+    ▼
 deploy.yml (push to main, or manual)
-    |-- build       OIDC login -> ACR; skipped when the commit digest exists
-    |-- staging     migration job -> web/api/worker on the digest -> smoke
-    |-- production  same script, same digest, only after staging succeeds
+    ├── build       OIDC login ► ACR; skipped when the commit digest exists
+    ├── staging     migration job ► web/api/worker on the digest ► smoke
+    └── production  same script, same digest, only after staging succeeds
 ```
 
 - **Immutable digests** - the deploy script rejects any image reference without
@@ -248,7 +248,7 @@ credentials.
 </details>
 
 <details>
-<summary><strong>Production Hardening</strong></summary>
+<summary><strong>🛡️ Production Hardening</strong></summary>
 
 <br>
 
@@ -267,7 +267,7 @@ credentials.
 </details>
 
 <details>
-<summary><strong>Deployments (Azure / Local)</strong></summary>
+<summary><strong>📦 Deployments (Azure / Local)</strong></summary>
 
 <br>
 
@@ -341,7 +341,7 @@ pnpm exec playwright install chromium && pnpm test:e2e
 </details>
 
 <details>
-<summary><strong>Correctness and Recovery</strong></summary>
+<summary><strong>✅ Correctness and Recovery</strong></summary>
 
 <br>
 
@@ -374,32 +374,32 @@ hold p95 from 19 s to 108 ms. Reports live in `docs/load-tests/`, starting with
 
 ```
 apps/
-  web/          # Next.js 16 storefront, organizer console, scanner (App Router)
-  api/          # NestJS REST API: auth, holds, checkout, webhooks, tickets, scanning
-  worker/       # outbox poll loop: payments, refunds, emails, hold-expiry sweep
+├── web/          # Next.js 16 storefront, organizer console, scanner (App Router)
+├── api/          # NestJS REST API: auth, holds, checkout, webhooks, tickets, scanning
+└── worker/       # outbox poll loop: payments, refunds, emails, hold-expiry sweep
 packages/
-  contracts/    # shared Zod request and response contracts
-  database/     # Prisma schema, migrations, seeds, raw-SQL stores, outbox
-  payments/     # Stripe and fake gateways, shared webhook signature verification
-  config/       # validated environment configuration with production guards
-  ui/           # shared accessible UI components
-  test-utils/
+├── contracts/    # shared Zod request and response contracts
+├── database/     # Prisma schema, migrations, seeds, raw-SQL stores, outbox
+├── payments/     # Stripe and fake gateways, shared webhook signature verification
+├── config/       # validated environment configuration with production guards
+├── ui/           # shared accessible UI components
+└── test-utils/
 infrastructure/
-  container/        # digest-pinned Dockerfile; one image runs web, api, worker, migrate
-  observability/    # prometheus.yml, alerts.yml, provisioned Grafana dashboard
-  terraform/
-    foundation/     # shared delivery: ACR + GitHub OIDC identities
-    environments/   # staging and production stacks over the shared modules
-    modules/        # network, data, platform
+├── container/        # digest-pinned Dockerfile; one image runs web, api, worker, migrate
+├── observability/    # prometheus.yml, alerts.yml, provisioned Grafana dashboard
+└── terraform/
+    ├── foundation/     # shared delivery: ACR + GitHub OIDC identities
+    ├── environments/   # staging and production stacks over the shared modules
+    └── modules/        # network, data, platform
 scripts/
-  deploy-container-apps.sh    # digest-only promotion: migrate job -> apps -> smoke
-  repeat-integration.mjs      # race suite behind pnpm test:races
-  verify-local-recovery.mjs   # backup and restore drill behind pnpm test:recovery
+├── deploy-container-apps.sh    # digest-only promotion: migrate job ► apps ► smoke
+├── repeat-integration.mjs      # race suite behind pnpm test:races
+└── verify-local-recovery.mjs   # backup and restore drill behind pnpm test:recovery
 docs/
-  load-tests/     # k6 purchase-flow, public-read, and waiting-room reports
-  operations/     # observability runbook
+├── load-tests/     # k6 purchase-flow, public-read, and waiting-room reports
+└── operations/     # observability runbook
 .github/workflows/
-  ci.yml          # format -> lint -> types -> build -> tests -> compose E2E -> gitleaks
-  deploy.yml      # OIDC build to ACR, digest promotion: staging -> production
+├── ci.yml          # format ► lint ► types ► build ► tests ► compose E2E ► gitleaks
+└── deploy.yml      # OIDC build to ACR, digest promotion: staging ► production
 compose.yaml      # postgres, redis, mailpit, minio, turbo cache, prometheus, grafana
 ```

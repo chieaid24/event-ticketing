@@ -174,8 +174,14 @@ test("project documents do not use discarded names", async () => {
 test("project documents use printable ASCII", async () => {
   const files = await markdownFiles(root);
   const nonAscii = /[^\x09\x0a\x0d\x20-\x7e]/;
+  // readme mirrors canopy styling: emoji and box-drawing glyphs allowed
+  const exempt = new Set([join(root, "README.md")]);
 
   for (const file of files) {
+    if (exempt.has(file)) {
+      continue;
+    }
+
     const content = await readFile(file, "utf8");
     assert.doesNotMatch(content, nonAscii, relative(root, file));
   }
