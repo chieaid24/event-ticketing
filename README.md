@@ -188,9 +188,13 @@ terraform init && terraform apply
 ```bash
 corepack enable && pnpm install
 pnpm services:up    # postgres, redis, mailpit, turbo cache, prometheus, grafana
-pnpm db:migrate && pnpm db:seed
+pnpm db:migrate && pnpm db:seed:demo    # realistic dataset; pnpm db:seed is the minimal e2e fixture
 pnpm dev
 ```
+
+Every demo account signs in with `demo-password-2026`. Use
+`maya.chen@harbourlight.test` for the organizer console and
+`jordan.rivera@example.test` for a customer with tickets in every state.
 
 ## Project Layout
 
