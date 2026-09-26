@@ -8,8 +8,6 @@ authority on inventory.
 Built for real production workloads with Azure Container Apps, a transactional
 outbox, and end-to-end observability.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/chieaid24/event-ticketing/ci.yml?branch=main&label=CI)](https://github.com/chieaid24/event-ticketing/actions/workflows/ci.yml)
-
 ## Technical Highlights
 
 **Infrastructure**
@@ -129,167 +127,6 @@ PostgreSQL Flexible Server and Managed Redis.
         GitHub Actions ──OIDC──► ACR (Premium, digest-pinned pulls)
 ```
 
-## Feature Details
-
-<details>
-<summary><strong>⚙️ Services</strong></summary>
-
-<br>
-
-| Service | Port | Persistence       | What it does                                                                                                                                                       |
-| ------- | ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| web     | 3000 | -                 | Server-rendered Next.js storefront, organizer console, and scanner. Talks to the API over HTTP only; ingress restricted to Front Door.                             |
-| api     | 4000 | PostgreSQL, Redis | NestJS HTTP boundary for discovery, auth, holds, waiting room, checkout, payment webhooks, refunds, tickets, scanning, and operations. Raw SQL over a pg pool.     |
-| worker  | -    | PostgreSQL        | Drains the transactional outbox with 12 handlers: payment finalization, refunds, auth email, notifications, and a 60 s hold-expiry sweep. Scales on backlog depth. |
-
-</details>
-
-<details>
-<summary><strong>🎨 Frontend</strong></summary>
-
-<br>
-
-Next.js 16 App Router (TypeScript) served by the web container app; pages hold
-no database access and go through the API for everything.
-
-### Auth
-
-- **Opaque cookie sessions** - argon2id password hashes, httpOnly session
-  cookie, double-submit CSRF token, and an Origin allowlist on every mutation.
-- **Route protection** - signed-out visitors redirect to `/login`; ticket and
-  scanner pages are noindexed and served no-store.
-
-### Pages
-
-| Route                                        | Description                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| `/events`                                    | Public discovery with search and timeframe filters                 |
-| `/events/[eventId]`                          | Event detail with live seat and general-admission availability     |
-| `/checkout/[holdId]`                         | Stripe payment element, or simulation buttons on the fake provider |
-| `/orders/[orderId]`                          | Order status with a payment-processing poll                        |
-| `/account/tickets`                           | Ticket list with one-time QR reveal                                |
-| `/organizations/[organizationId]`            | Members, roles, settings, and audit log                            |
-| `/organizations/[organizationId]/operations` | Analytics plus an outbox job console with dead-letter retry        |
-| `/scan/[organizationId]/[eventId]`           | Camera QR scanner with manual entry and check-in reversal          |
-
-</details>
-
-<details>
-<summary><strong>🔍 Observability</strong></summary>
-
-<br>
-
-All services emit structured JSON logs; the API also serves Prometheus metrics.
-
-```
-api
-  ├── GET /metrics (Prometheus text) ──────► Prometheus ──────► Grafana
-  └── pino JSON (request_id, trace_id) ────► stdout ──────────► Log Analytics
-worker
-  └── JSON cycle events ───────────────────► stdout ──────────► Log Analytics
-```
-
-- **Metrics** - Prometheus scrapes `/metrics` every 15 s: HTTP request counters
-  and latency histograms plus live outbox gauges, with dynamic path segments
-  normalized to bound cardinality.
-- **Logs** - one JSON line per request carrying `duration_ms`, `status_code`,
-  `request_id`, and a W3C `traceparent`-compatible `trace_id`, both echoed on
-  the response.
-- **Alerts** - five checked-in rules: API down, 5xx ratio above 2%, p95 above 1
-  s, any dead-letter job, and a ready job older than 5 minutes.
-
-### Provisioned Dashboard
-
-| Panel                    | Description                                          |
-| ------------------------ | ---------------------------------------------------- |
-| Request rate             | HTTP request throughput                              |
-| Server error rate        | Share of 5xx responses                               |
-| Request latency          | p95 from the duration histogram                      |
-| Background jobs by state | Outbox gauges: ready, delayed, retrying, dead-letter |
-| Oldest ready job         | Backlog age that also drives the worker scale rule   |
-
-Operating notes live in
-[docs/operations/observability.md](docs/operations/observability.md).
-
-</details>
-
-<details>
-<summary><strong>🚀 CI/CD Pipeline</strong></summary>
-
-<br>
-
-### Overview
-
-```
-pull request / push to main
-    │
-    ▼
-ci.yml
-    ├── format ► lint ► typecheck ► build ► unit tests   (cheapest first)
-    ├── shellcheck + terraform fmt/validate (foundation, staging, production)
-    ├── docker compose up ► migrate ► seed ► races x3 ► recovery ► e2e
-    ├── image build ► API smoke test ► gitleaks secret scan
-    ▼
-deploy.yml (push to main, or manual)
-    ├── build       OIDC login ► ACR; skipped when the commit digest exists
-    ├── staging     migration job ► web/api/worker on the digest ► smoke
-    └── production  same script, same digest, only after staging succeeds
-```
-
-- **Immutable digests** - the deploy script rejects any image reference without
-  a sha256 digest, and a failed migration leaves the old revisions serving.
-- **Concurrency guard** - one deploy run at a time, never cancelled
-  mid-promotion.
-- **Secret scanning** - gitleaks runs on every CI build.
-
-All workflows use **GitHub OIDC** federated identity, so no stored Azure
-credentials.
-
-</details>
-
-<details>
-<summary><strong>🛡️ Production Hardening</strong></summary>
-
-<br>
-
-| Feature                | Configuration                                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Autoscaling**        | web/api scale at 50 concurrent requests up to 4x baseline; worker scales on a KEDA outbox-backlog query    |
-| **WAF**                | Front Door Premium in Prevention mode: Microsoft default + bot rule sets, 2000 req / 5 min per-IP limit    |
-| **Private networking** | PostgreSQL, Redis, Key Vault, and Blob disable public access; private endpoints and delegated subnets only |
-| **Origin lock**        | API returns 403 without the Front Door profile header; NSG admits only Front Door on 443                   |
-| **Zone redundancy**    | Container Apps environment, ACR, and PostgreSQL ZoneRedundant HA with a standby zone                       |
-| **Secrets**            | Key Vault references resolved by a user-assigned managed identity; no literals in Terraform or app config  |
-| **Config guards**      | Production boot refuses dev secrets, disabled rate limits, and any payment provider except Stripe          |
-| **Data protection**    | 35-day PostgreSQL backups, blob versioning, CanNotDelete locks on the database and artifact store          |
-| **Rate limiting**      | Per-route Redis budgets on every endpoint, from login at 10/min to scanner devices at 60/min               |
-
-</details>
-
-<details>
-<summary><strong>📦 Deployments (Azure / Local)</strong></summary>
-
-<br>
-
-Production runs on Azure Container Apps; a Docker Compose stack covers local
-development. Both run the same image, whose entrypoint selects `web`, `api`,
-`worker`, or `migrate`.
-
-### Azure Resources (Terraform)
-
-| Resource                   | Details                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------------------ |
-| VNet                       | Delegated subnets for Container Apps and PostgreSQL, private-endpoint subnet, NAT egress   |
-| Container Apps             | Zone-redundant environment: web, api, worker, and a manual migration job                   |
-| PostgreSQL Flexible Server | v17, D2ds_v5 (staging) / D4ds_v5 (production), ZoneRedundant HA, pgbouncer, 35-day backups |
-| Managed Redis              | Balanced B1 (staging) / B10 (production), high availability, TLS-only, private endpoint    |
-| Blob Storage               | ZRS, versioned, 30-day delete retention, shared keys disabled                              |
-| Key Vault                  | RBAC-only, purge protection, private endpoint                                              |
-| ACR                        | Premium, zone redundant, anonymous pull disabled                                           |
-| Front Door Premium         | WAF in Prevention mode, health-probed origin groups, HTTPS-only routes                     |
-| Communication Services     | Azure-managed email domain for verification and notification mail                          |
-| Log Analytics              | 30-day retention, PostgreSQL and Front Door diagnostics, Front Door 5xx metric alert       |
-| Federated identities       | Build and per-environment deploy identities for GitHub OIDC                                |
 
 ### Deploy from Scratch
 
@@ -306,13 +143,6 @@ terraform init && terraform apply
 #    deploy.yml builds the image and promotes staging -> production
 ```
 
-### Teardown
-
-```bash
-# CanNotDelete locks guard the database and artifact store:
-# apply with deletion_protection = false first, then destroy
-terraform destroy
-```
 
 ### Run Locally
 
@@ -322,53 +152,6 @@ pnpm services:up    # postgres, redis, mailpit, minio, turbo cache, prometheus, 
 pnpm db:migrate && pnpm db:seed
 pnpm dev
 ```
-
-Web at `http://127.0.0.1:3000`, API at `:4000`, Mailpit at `:8025`, MinIO
-console at `:9001`, Prometheus at `:9090`, Grafana at `:3001`, and the Turborepo
-remote cache at `:9080`. Tracked defaults are local-only synthetic
-configuration; copy `.env.example` only to override one. `pnpm services:down`
-stops everything.
-
-### Validate
-
-```bash
-pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
-pnpm test:integration    # isolated PostgreSQL schema + Redis key prefix
-pnpm test:races && pnpm test:recovery
-pnpm exec playwright install chromium && pnpm test:e2e
-```
-
-</details>
-
-<details>
-<summary><strong>✅ Correctness and Recovery</strong></summary>
-
-<br>
-
-- **Race suite** (`pnpm test:races`) repeats the isolated integration suite
-  three times: 100 concurrent claims on one seat yield exactly one winner,
-  general-admission counters never oversell, idempotency-key replays collapse to
-  one hold, and two workers never double-claim an outbox job.
-- **Recovery drill** (`pnpm test:recovery`) proves transaction rollback, dumps
-  the live database with `pg_dump`, restores into a throwaway database, and
-  compares row counts before dropping it.
-- **Schema isolation** - every integration run creates its own PostgreSQL schema
-  and Redis key prefix, then drops both on exit.
-- **Invariant checker** - 8 SQL checks (oversold counters, double-booked seats,
-  orphan tickets, dead holds still reserving) run against load-test output: 0
-  violations across 9,300 paid orders and 13,864 tickets.
-
-</details>
-
-## Load Testing
-
-I load-tested the purchase flow with k6 against the built API and worker: 50
-virtual users completed 1,117 purchases at 10.2/s with zero failed checks, and
-the invariant checker found nothing oversold across 9,300 cumulative paid
-orders. The bottleneck worth reading about: a synchronous analytics trigger
-serialized every purchase on one hot row until a deferred-trigger migration cut
-hold p95 from 19 s to 108 ms. Reports live in `docs/load-tests/`, starting with
-[the purchase-flow run](docs/load-tests/2026-08-20-purchase-flow.md).
 
 ## Project Layout
 
