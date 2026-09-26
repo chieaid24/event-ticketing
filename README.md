@@ -33,7 +33,7 @@ outbox, and end-to-end observability.
 **Data Layer**
 
 - **PostgreSQL is authoritative** for inventory, orders, and background jobs;
-  **Redis** carries rate limits and the waiting room, and fails open.
+  **Redis** carries rate limits and the waiting room; rate limiting fails open.
 
 ## Tools Used
 
@@ -59,39 +59,80 @@ outbox, and end-to-end observability.
 
 ## Functional Overview
 
-**Ticketing Pipeline**
+Every flow runs through the same three tiers: a **Next.js** storefront and back
+office, a **NestJS** API that enforces every rule, and **PostgreSQL** as the
+only source of truth. A separate **worker** drains a transactional outbox for
+the steps that happen after the HTTP response.
 
-- Reserves **assigned seats and general admission** under concurrency: race
-  tests prove 100 rival requests for one seat produce exactly one winner.
-- Expires holds inside PostgreSQL after 10 minutes, with a 15-minute grace
-  window so in-flight payments still finalize.
-- Shields on-sale spikes with an optional **Redis waiting room** that issues
-  HMAC-signed admission tokens.
+**Discovery and Holds**
 
-**Payments**
+- Lists published events with live seat and general-admission availability, read
+  straight from PostgreSQL.
+- Reserves **assigned seats and general admission** under row-level locks: race
+  tests prove 100 rival requests for one seat produce exactly one winner, and
+  idempotency keys collapse retries into one hold.
+- Expires holds on a per-event timer (10 minutes by default); once checkout
+  starts, a 15-minute grace window lets in-flight payments finish. A worker
+  sweep returns released inventory every 60 seconds.
+- Meters on-sale spikes with an optional **Redis waiting room** at the API: a
+  FIFO queue that admits shoppers with single-use, HMAC-signed tokens.
 
-- Charges through **Stripe or a built-in fake provider**; both deliver webhooks
-  over the same HMAC-SHA256 verification path with replay dedup.
-- Finalizes orders through the **transactional outbox**: webhook receipt and job
-  enqueue commit in one transaction, and the worker retries with exponential
-  backoff into a dead-letter queue.
-- Handles **customer and organizer refunds** with idempotency keys and per-event
-  cutoff windows.
+**Checkout and Payments**
 
-**Ticket Validation**
+- Turns a hold into an order server-side: prices come from the hold snapshot,
+  never the client, and a unique constraint allows one order per hold.
+- Charges through **Stripe** (Payment Element) or a built-in fake provider for
+  local runs; both deliver webhooks through one **HMAC-SHA256** verification
+  path with replay dedup.
+- Finalizes through the **transactional outbox**: the webhook and its job commit
+  in one transaction, then the worker marks seats sold, issues tickets, and
+  queues the confirmation email. If inventory was lost in the meantime, it
+  refunds the charge automatically.
+- Retries failed jobs with exponential backoff (8 attempts) into a dead-letter
+  queue.
 
-- Issues **rotating QR bearer tokens** - only the SHA-256 hash is stored, and
-  every reveal rotates the token.
-- Scans with a **camera scanner** (jsQR) or manual code entry: duplicate,
-  wrong-event, refunded, and void verdicts, reversals, and an append-only scan
-  log.
+**Tickets and Check-in**
 
-**Web and Auth**
+- Reveals a **rotating QR bearer token** on demand: 256 random bits, only the
+  SHA-256 hash stored, and each reveal invalidates the last.
+- Scans at the door with a **camera scanner (jsQR)** or manual code entry; a row
+  lock elects one admission and returns accepted, duplicate, wrong-event,
+  refunded, or expired.
+- Records every scan and reversal in an append-only log, rate-limited per device
+  and per scanner.
 
-- **Next.js storefront and back office** - discovery, checkout, organizer
-  console, operations analytics, and the door scanner.
-- Handles auth with **opaque cookie sessions** - argon2id passwords,
-  double-submit CSRF, and six per-organization roles from owner to scanner.
+**Refunds**
+
+- Accepts customer refunds inside a per-event cutoff window and organizer
+  refunds at any time, each keyed for idempotency so retries never
+  double-refund.
+- Executes through the worker against **Stripe**; the refund webhook then marks
+  tickets refunded and returns seats or capacity to sale while the event's
+  inventory window is open.
+- Closes the order on a full refund and cancels the queued 24-hour reminder
+  email.
+
+**Organizer Console and Operations**
+
+- Builds venues as seat maps (rows and seats, or general-admission capacity),
+  then events with ticket types, pricing, on-sale windows, hold timers, and
+  refund policy.
+- Rolls holds, orders, refunds, and scans into daily financial and activity
+  tables with database triggers, deferred to commit time so they never block a
+  purchase.
+- Lists outbox jobs per organization and retries dead-lettered ones from a job
+  console, with every action written to the audit log.
+
+**Auth and Accounts**
+
+- Handles auth with **opaque cookie sessions**: argon2id password hashes,
+  httpOnly cookie, double-submit CSRF token, Origin allowlist, 24-hour idle and
+  30-day absolute expiry, plus a device list with remote revoke.
+- Sends email verification and password reset through the worker over **SMTP**
+  (nodemailer; Mailpit locally), storing only token hashes.
+- Checks six per-organization roles (owner, admin, event manager, finance,
+  scanner, viewer) in the API on every request, and applies per-route **Redis**
+  rate limits from login at 10 per minute to scanner devices at 60 per minute.
 
 ## Azure-Specific Architecture
 
@@ -127,7 +168,6 @@ PostgreSQL Flexible Server and Managed Redis.
         GitHub Actions ──OIDC──► ACR (Premium, digest-pinned pulls)
 ```
 
-
 ### Deploy from Scratch
 
 ```bash
@@ -142,7 +182,6 @@ terraform init && terraform apply
 # 3. set the repository's Azure variables, then push to main;
 #    deploy.yml builds the image and promotes staging -> production
 ```
-
 
 ### Run Locally
 
