@@ -187,7 +187,7 @@ terraform init && terraform apply
 
 ```bash
 corepack enable && pnpm install
-pnpm services:up    # postgres, redis, mailpit, minio, turbo cache, prometheus, grafana
+pnpm services:up    # postgres, redis, mailpit, turbo cache, prometheus, grafana
 pnpm db:migrate && pnpm db:seed
 pnpm dev
 ```
@@ -223,5 +223,5 @@ docs/
 .github/workflows/
 ├── ci.yml          # format ► lint ► types ► build ► tests ► compose E2E ► gitleaks
 └── deploy.yml      # OIDC build to ACR, digest promotion: staging ► production
-compose.yaml      # postgres, redis, mailpit, minio, turbo cache, prometheus, grafana
+compose.yaml      # postgres, redis, mailpit, turbo cache, prometheus, grafana
 ```

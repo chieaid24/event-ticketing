@@ -88,14 +88,10 @@ test("local service images and health checks are pinned", async () => {
     "postgres",
     "redis",
     "mailpit",
-    "minio",
-    "minio-init",
     "turbo-remote-cache",
     "prometheus",
     "grafana",
   ];
-  // one-shot bootstrap containers exit, no healthcheck
-  const oneShotServices = ["minio-init"];
   const pinnedImage = /^\s+image: \S+:[^@\s]+@sha256:[0-9a-f]{64}\s*$/gm;
 
   assert.equal([...compose.matchAll(pinnedImage)].length, services.length);
@@ -106,7 +102,7 @@ test("local service images and health checks are pinned", async () => {
 
   assert.equal(
     compose.match(/^\s+healthcheck:\s*$/gm)?.length,
-    services.length - oneShotServices.length
+    services.length
   );
 });
 
