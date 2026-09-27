@@ -53,11 +53,11 @@ outbox, and end-to-end observability.
 
 ### Core Features
 
-- Event catalog with live seat and general-admission availability
-- Seat and general-admission holds with expiry timers
+- Event catalog with live seating and admission availability
+- Holds with expiry timers
 - Waiting room for on-sale spikes
 - Checkout and Stripe payment processing
-- Order management and confirmation email
+- Order management and confirmation emails
 - Rotating QR tickets and door check-in
 - Customer and organizer refunds
 - Organizer console for venues, events, and pricing
@@ -65,8 +65,7 @@ outbox, and end-to-end observability.
 
 ### Technical Features
 
-- Three-tier architecture (Next.js, NestJS, PostgreSQL) with a background worker
-- Transactional outbox with retries and a dead-letter queue
+- Three-tier architecture (Next.js, NestJS, PostgreSQL)
 - Row-level locking for inventory correctness
 - Redis rate limiting and queueing
 - Azure Container Apps deployment
@@ -132,10 +131,6 @@ pnpm db:migrate && pnpm db:seed:demo    # realistic dataset; pnpm db:seed is the
 pnpm dev
 ```
 
-Every demo account signs in with `demo-password-2026`. Use
-`maya.chen@harbourlight.test` for the organizer console and
-`jordan.rivera@example.test` for a customer with tickets in every state.
-
 ## Project Layout
 
 ```
@@ -158,14 +153,14 @@ infrastructure/
     ├── environments/   # staging and production stacks over the shared modules
     └── modules/        # network, data, platform
 scripts/
-├── deploy-container-apps.sh    # digest-only promotion: migrate job ► apps ► smoke
+├── deploy-container-apps.sh    # digest-only promotion: migrate job -> apps -> smoke
 ├── repeat-integration.mjs      # race suite behind pnpm test:races
 └── verify-local-recovery.mjs   # backup and restore drill behind pnpm test:recovery
 docs/
 ├── load-tests/     # k6 purchase-flow, public-read, and waiting-room reports
 └── operations/     # observability runbook
 .github/workflows/
-├── ci.yml          # format ► lint ► types ► build ► tests ► compose E2E ► gitleaks
-└── deploy.yml      # OIDC build to ACR, digest promotion: staging ► production
+├── ci.yml          # format -> lint -> types -> build -> tests -> compose E2E -> gitleaks
+└── deploy.yml      # OIDC build to ACR, digest promotion: staging -> production
 compose.yaml      # postgres, redis, mailpit, turbo cache, prometheus, grafana
 ```
