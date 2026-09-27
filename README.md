@@ -17,14 +17,6 @@ outbox, and end-to-end observability.
 - **Cloud-native Container Apps** with KEDA autoscaling, zone redundancy, and
   digest-pinned rolling deployments.
 
-**CI/CD**
-
-- Automated **GitHub Actions** pipeline that validates every workspace -> runs
-  the race, recovery, and E2E suites -> builds one immutable image -> promotes
-  staging, then production.
-- **GitHub OIDC** federated identity on every Azure call, so no stored cloud
-  credentials.
-
 **Observability**
 
 - Full **Prometheus + Grafana stack** with a provisioned dashboard, five
@@ -32,8 +24,8 @@ outbox, and end-to-end observability.
 
 **Data Layer**
 
-- **PostgreSQL is authoritative** for inventory, orders, and background jobs;
-  **Redis** carries rate limits and the waiting room; rate limiting fails open.
+- **PostgreSQL** for inventory, orders, and background jobs
+- **Redis** for rate limiting and the waiting room
 
 ## Tools Used
 
@@ -59,10 +51,8 @@ outbox, and end-to-end observability.
 
 ## Functional Overview
 
-Every flow runs through the same three tiers: a **Next.js** storefront and back
-office, a **NestJS** API that enforces every rule, and **PostgreSQL** as the
-only source of truth. A separate **worker** drains a transactional outbox for
-the steps that happen after the HTTP response.
+This project has a three-layer architecture: a **Next.js** storefront and back
+office, a **NestJS** API, and **PostgreSQL** as the persistence and source of truth. 
 
 **Discovery and Holds**
 
